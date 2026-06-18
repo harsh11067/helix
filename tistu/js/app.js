@@ -200,7 +200,9 @@ function hexToBytes(h) { h = h.replace(/^0x/, ''); if (h.length % 2) h = '0' + h
 /* ============================================================ compile (real, no fallback) */
 async function compileConviction(conv) {
   const body = { ...conv, currentEpoch: 0 };
-  const c = new AbortController(); const t = setTimeout(() => c.abort(), 6000);
+  // 55s tolerates a free-tier Render cold start (~50s) on the first compile after
+  // idle; warm compiles return in well under a second.
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), 55000);
   let res;
   try {
     res = await fetch(`${CFG.COMPILER_URL}/compile`, {
