@@ -117,6 +117,23 @@ module helix::strategy_tests {
         sc.end();
     }
 
+    // Walrus loop — owner attaches a backtest equity-curve blob id; the pointer
+    // is validated through walrus_adapter and stored on-chain.
+    #[test]
+    fun set_performance_blob_stores_pointer() {
+        let mut sc = ts::begin(OWNER);
+        {
+            let ctx = ts::ctx(&mut sc);
+            let (mut s, cap) = strategy::new_strategy(dna::mock(), 30, b"attest", 0, vector[], OWNER, ctx);
+            assert!(strategy::performance_blob(&s).is_empty(), 0);
+            strategy::set_performance_blob(&mut s, b"walrus-blob-id-QE8n", &cap);
+            assert!(strategy::performance_blob(&s) == b"walrus-blob-id-QE8n", 1);
+            strategy::destroy_for_testing(s);
+            strategy::destroy_owner_cap_for_testing(cap);
+        };
+        sc.end();
+    }
+
     // create with empty attestation is rejected
     #[test, expected_failure]
     fun empty_attestation_rejected() {

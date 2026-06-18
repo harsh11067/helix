@@ -354,7 +354,7 @@ function viewCanvas() {
         <div class="legend"><span><i style="border-color:var(--accent-bright)"></i>payoff at resolution</span><span><i style="border-color:var(--ink-3)"></i>spot</span></div>
       </div>
       <div class="panel reveal d1">
-        <div class="row spread"><div class="section-title" style="margin:0">compiled structure</div><span class="badge tee" id="tee-badge">TEE · …</span></div>
+        <div class="row spread"><div class="section-title" style="margin:0">compiled structure</div><span class="badge" id="tee-badge">compiler · …</span></div>
         <div id="compiled"><div class="muted" style="padding:24px 0">Move a slider to compile your conviction.</div></div>
       </div>
     </div>`;
@@ -417,7 +417,7 @@ function compileError(e) {
   return `<div class="empty" style="padding:36px 16px">
     <svg class="em-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01" stroke-linecap="round"/></svg>
     <h3 style="font-size:1.4rem">Compiler unreachable</h3>
-    <p>The TEE Compiler didn't answer (<span class="mono">${(e.message || 'error')}</span>). HELIX never shows fabricated structures — start the Compiler service and retry.</p>
+    <p>The Compiler service didn't answer (<span class="mono">${(e.message || 'error')}</span>). HELIX never shows fabricated structures — start the Compiler service and retry.</p>
     <button class="btn-soft" id="retry" data-cursor>Retry compile</button></div>`;
 }
 function renderCompiled(el, r, conv) {
@@ -441,7 +441,7 @@ function renderCompiled(el, r, conv) {
     <div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">
       <span class="badge">spot ${fmt(r.spot)}</span><span class="badge">ATM IV ${(r.ivAtm * 100).toFixed(0)}%</span>
       <span class="badge">PLP ${(r.plpUtilizationBps / 100).toFixed(0)}% used</span>
-      <span class="badge ${r.attestation.mock ? '' : 'tee'}">${r.attestation.mock ? 'TEE · mock attest' : 'TEE · attested'}</span>
+      <span class="badge" title="Compiler output is signed for integrity; hardware enclave attestation is the documented next step (see SUBMISSION.md).">${r.attestation.mock ? 'compiler-signed · attestation: dev' : 'enclave-attested'}</span>
     </div>
 
     <div class="section-title" style="margin:22px 0 10px">portfolio risk compass</div>
@@ -499,9 +499,9 @@ async function pingTEE(el) {
     const c = new AbortController(); setTimeout(() => c.abort(), 1500);
     const res = await fetch(`${CFG.COMPILER_URL}/health`, { signal: c.signal });
     const b = $('#tee-badge', el);
-    if (res.ok) { const j = await res.json(); if (b) b.textContent = j.mockTee ? 'TEE · mock' : 'TEE · live'; }
-    else if (b) b.textContent = 'TEE · down';
-  } catch (e) { const b = $('#tee-badge', el); if (b) { b.textContent = 'TEE · offline'; } }
+    if (res.ok) { const j = await res.json(); if (b) b.textContent = j.mockTee ? 'compiler · ready (dev-signed)' : 'compiler · enclave'; }
+    else if (b) b.textContent = 'compiler · down';
+  } catch (e) { const b = $('#tee-badge', el); if (b) { b.textContent = 'compiler · offline'; } }
 }
 
 /* ============================================================ STEP 4 — supporting pages (real on-chain reads)

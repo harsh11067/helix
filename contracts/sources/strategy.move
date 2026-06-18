@@ -6,6 +6,7 @@ module helix::strategy {
     use helix::signed::{Self, I64};
     use helix::events;
     use helix::access_control::{Self, StrategyOwnerCap};
+    use helix::walrus_adapter;
 
     // ---- lifecycle status ----
     const STATUS_PENDING: u8 = 0;
@@ -171,6 +172,18 @@ module helix::strategy {
         s.is_copyable = v; s.copy_fee_bps = fee_bps;
     }
 
+    /// Attach a Walrus blob id (e.g. the backtest equity-curve archive uploaded
+    /// off-chain by the TEE) to this strategy's on-chain performance pointer.
+    /// Owner-gated via `StrategyOwnerCap`; the id is validated (non-empty) by
+    /// routing it through `walrus_adapter::new_blob_ref` (kind 1 = equity-curve).
+    /// Closes the Walrus loop on-chain (SUBMISSION.md §7).
+    public fun set_performance_blob(s: &mut StrategyObject, blob_id: vector<u8>, cap: &StrategyOwnerCap) {
+        access_control::assert_owns(cap, object::id(s));
+        let size = blob_id.length();
+        let r = walrus_adapter::new_blob_ref(blob_id, 1, size);
+        s.performance_history_blob = walrus_adapter::blob_id(&r);
+    }
+
     // ---- read accessors ----
 
     public fun owner(s: &StrategyObject): address { s.owner }
@@ -190,6 +203,7 @@ module helix::strategy {
     public fun copies_count(s: &StrategyObject): u64 { s.copies_count }
     public fun id(s: &StrategyObject): ID { object::id(s) }
     public fun num_legs(s: &StrategyObject): u64 { s.legs.length() }
+    public fun performance_blob(s: &StrategyObject): vector<u8> { s.performance_history_blob }
 
     // status code accessors
     public fun status_pending(): u8 { STATUS_PENDING }
