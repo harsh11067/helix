@@ -19,10 +19,15 @@ import {
   zkConfigured, beginGoogleLogin, completeGoogleLoginIfPresent,
   loadSession as loadZkSession, clearSession as clearZkSession, zkSignAndExecute,
 } from './zklogin.js';
+import {
+  SEAL_EVENT_TYPE, encryptThesis, addAttachThesis, decryptThesis,
+  uploadToWalrus, fetchFromWalrus, decodeBlobId,
+} from './seal.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
-  HELIX:        '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3',
+  HELIX:        '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3', // original id — types/events/queries
+  HELIX_LATEST: '0x96b36ef86f445b525eccaa5410a2c6cebe6c6dff85c86fbfee9914581b0ad391', // upgraded id — seal_policy moveCalls
   PREDICT_PKG:  '0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138',
   PREDICT_OBJ:  '0xc8736204d12f0a7277c86388a68bf8a194b0a14c5538ad13f22cbd8e2a38028a',
   DUSDC:        '0xe95040085976bfd54a1a07225cd46c8a2b4e8e2b6732f140a0fc49850ba73e1a::dusdc::DUSDC',
@@ -134,6 +139,24 @@ async function signAndExecute(tx) {
   if (!digest) throw new Error('no digest returned');
   await client.waitForTransaction({ digest, options: { showEffects: true, showObjectChanges: true } });
   return client.getTransactionBlock({ digest, options: { showEffects: true, showObjectChanges: true, showEvents: true } });
+}
+
+// sign a personal message (for Seal SessionKey). Wallet path only for now; zk
+// session-key signing is a documented next step (judges verify with wallets).
+async function signPersonalMessage(message) {
+  if (state.mode === 'zk')
+    throw new Error('Thesis unlock needs a browser wallet for now (zkLogin session-key signing is the next step).');
+  const feat = state.wallet?.features['sui:signPersonalMessage'];
+  if (!feat) throw new Error('this wallet cannot sign personal messages');
+  return feat.signPersonalMessage({ message, account: state.account });
+}
+// Find the encrypted-thesis Walrus blob id recorded on-chain for a strategy.
+async function getThesisBlobId(strategyId) {
+  try {
+    const ev = await client.queryEvents({ query: { MoveEventType: SEAL_EVENT_TYPE }, limit: 50, order: 'descending' });
+    const hit = ev.data.find(e => e.parsedJson?.strategy_id === strategyId);
+    return hit ? decodeBlobId(hit.parsedJson) : null;
+  } catch (e) { return null; }
 }
 
 /* ============================================================ PTB build */
@@ -499,7 +522,12 @@ function deployControl(connected, funded, conv) {
     return `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 40%,transparent)">
       <div class="row spread"><b style="color:var(--coral)">No dUSDC to commit</b><span class="mono muted">balance ${fmt(Number(state.dusdc) / 10 ** CFG.DUSDC_DECIMALS, 2)}</span></div>
       <div class="muted" style="margin-top:8px">You need at least ${conv.capital} dUSDC. Fund this wallet with testnet dUSDC (<a class="mono" style="color:var(--accent-deep)" href="https://tally.so/r/Xx102L" target="_blank" rel="noopener">faucet form</a>) and reconnect.</div></div>`;
-  return `<button class="btn-solid" id="deploy" data-cursor>Bring it to life — mint on Sui ${arrow()}</button>`;
+  return `<div class="thesis-compose">
+      <label class="ctrl-head" for="thesis" style="margin-bottom:6px"><span class="lab">private thesis <span class="muted" style="font-weight:400">— optional, Seal-encrypted</span></span></label>
+      <textarea id="thesis" class="hx-textarea" rows="2" placeholder="Why you believe this. Encrypted with Seal, stored on Walrus — only you (and paying copiers) can read it." data-cursor></textarea>
+      <div class="muted mono" style="font-size:10.5px;margin-top:4px">structure &amp; performance stay public · reasoning stays private</div>
+    </div>
+    <button class="btn-solid" id="deploy" data-cursor style="margin-top:12px">Bring it to life — mint on Sui ${arrow()}</button>`;
 }
 const arrow = () => `<span style="width:30px;height:30px;border-radius:50%;background:var(--bg);color:var(--ink);display:grid;place-items:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>`;
 
@@ -518,14 +546,36 @@ async function onDeploy(el) {
       <div class="row spread"><b style="color:var(--alive)">Live on Sui testnet</b><span class="sdot active"></span></div>
       <div class="muted" style="margin-top:8px">Your conviction is a real on-chain object and a real <span class="mono">predict::mint</span> position.</div>
       <a class="btn-soft" style="margin-top:12px" href="${CFG.EXPLORER(digest)}" target="_blank" rel="noopener" data-cursor>View on Suiscan ${arrow()}</a>
-      <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${digest}</div></div>`;
+      <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${digest}</div>
+      <div id="thesis-out" style="margin-top:12px"></div></div>`;
     toast('Strategy is live', 'predict::mint landed on Sui testnet', 'alive');
+    // optional: encrypt + store the private thesis and record it on-chain
+    const thesis = ($('#thesis', el)?.value || '').trim();
+    const created = (res.objectChanges || []).find(o => o.type === 'created' && /::strategy::StrategyObject$/.test(o.objectType || ''));
+    if (thesis && created) await attachThesisFlow($('#thesis-out', el), created.objectId, thesis);
   } catch (e) {
     const msg = (e.message || '').includes('INSUFFICIENT_DUSDC') ? 'Wallet has no dUSDC to commit.' : (e.message || 'rejected');
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)">
       <b style="color:var(--coral)">Not minted</b><div class="muted" style="margin-top:6px">${msg}</div></div>`;
   } finally {
     state.busy = false; if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+  }
+}
+// encrypt the thesis (Seal) → store on Walrus → record it on-chain (attach_thesis)
+async function attachThesisFlow(out, strategyId, text) {
+  if (!out) return;
+  try {
+    out.innerHTML = `<div class="muted"><span class="sdot pending"></span> encrypting thesis with Seal &amp; storing on Walrus…</div>`;
+    const ciphertext = await encryptThesis(client, strategyId, text);
+    const blobId = await uploadToWalrus(ciphertext);
+    const tx = new Transaction();
+    addAttachThesis(tx, strategyId, blobId);
+    const res = await signAndExecute(tx);
+    out.innerHTML = `<div class="row" style="gap:8px;align-items:flex-start"><span class="sdot active" style="margin-top:4px"></span>
+      <span style="font-size:13px;line-height:1.45">Private thesis encrypted with Seal &amp; stored on Walrus — only you and paying copiers can read it.
+      <a class="mono" style="color:var(--accent-deep)" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener">tx ↗</a></span></div>`;
+  } catch (e) {
+    out.innerHTML = `<div class="muted" style="color:var(--coral);font-size:13px">Thesis not attached (${e.message || 'error'}) — the strategy itself minted fine; you can add a thesis later from its detail page.</div>`;
   }
 }
 async function pingTEE(el) {
@@ -690,10 +740,17 @@ function viewDetail(id) {
             <div class="grid-2" style="margin-top:14px"><div class="stat"><div class="k">copies</div><div class="v">${s.copies}</div></div><div class="stat"><div class="k">offspring</div><div class="v">${s.offspring}</div></div></div></div>
         </div>
         <div class="panel reveal d2" style="margin-top:18px"><div class="section-title">strategy DNA</div><div class="dna-grid">${dnaGrid(s.dna)}</div></div>
+        <div class="panel reveal d2" id="thesis-panel" style="margin-top:18px"><div class="section-title">private thesis</div>
+          <div class="muted"><span class="sdot pending"></span> checking for an encrypted thesis…</div></div>
         <div class="panel reveal d2" style="margin-top:18px"><div class="section-title">lineage</div>${lineageBlurb(s)}</div>
         <div id="act-out" style="margin-top:14px"></div>`;
       if (legs.length) $('#d-payoff', host).innerHTML = payoffSkeleton(), updatePayoffNode($('#d-payoff', host), legs, spot);
       revealObserve(host);
+      renderThesisPanel(host, s);
+      host.addEventListener('click', e => {
+        if (e.target.closest('#thesis-unlock')) unlockThesis(host, s);
+        if (e.target.closest('#thesis-attach')) attachThesisDetail(host, s);
+      });
       if (mine) host.addEventListener('click', e => {
         if (e.target.closest('#breed-list-btn')) listAction(host, s.id, 'breedable');
         if (e.target.closest('#copy-btn')) listAction(host, s.id, 'copyable');
@@ -804,6 +861,70 @@ async function breedStrategies(host, parentA, parentBId) {
     const msg = (e.message || '').includes('INSUFFICIENT_DUSDC') ? 'Need dUSDC for the breed fee — relist both parents with a 0 fee, or fund the wallet.' : (e.message || 'rejected');
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)"><b style="color:var(--coral)">Not bred</b><div class="muted" style="margin-top:6px">${msg}</div></div>`;
   }
+}
+
+/* -------- Private thesis (Seal-encrypted, on Strategy Detail) -------- */
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+async function findCopyRelationship(originalId) {
+  if (!state.account) return null;
+  try {
+    const res = await client.getOwnedObjects({
+      owner: state.account.address,
+      filter: { StructType: `${CFG.HELIX}::marketplace::CopyRelationship` },
+      options: { showContent: true }, limit: 50,
+    });
+    const hit = res.data.find(o => o.data?.content?.fields?.original_strategy_id === originalId);
+    return hit ? hit.data.objectId : null;
+  } catch (e) { return null; }
+}
+async function renderThesisPanel(host, s) {
+  const panel = $('#thesis-panel', host); if (!panel) return;
+  const blobId = await getThesisBlobId(s.id);
+  const mine = state.account && s.owner === state.account.address;
+  const relId = (!mine && state.account && blobId) ? await findCopyRelationship(s.id) : null;
+  if (blobId) {
+    panel.dataset.blob = blobId; if (relId) panel.dataset.rel = relId;
+    if (mine || relId) {
+      panel.innerHTML = `<div class="section-title">private thesis</div>
+        <div class="muted" style="line-height:1.6">A Seal-encrypted thesis is attached to this strategy. ${mine ? 'You own it.' : 'You copied it — so you can read it.'} Decrypt with your wallet (a quick signature, no transaction).</div>
+        <button class="btn-soft" id="thesis-unlock" data-cursor style="margin-top:12px">Unlock thesis ${arrow()}</button>
+        <div id="thesis-plain" style="margin-top:12px"></div>`;
+    } else {
+      panel.innerHTML = `<div class="section-title">private thesis</div>
+        <div class="row" style="gap:10px;align-items:flex-start"><span class="sdot dead" style="margin-top:5px;flex:0 0 auto"></span>
+        <span class="muted" style="line-height:1.6">This strategy carries a Seal-encrypted thesis. Structure and performance are public on-chain, but the owner's reasoning unlocks only for paying copiers.</span></div>`;
+    }
+  } else if (mine) {
+    panel.innerHTML = `<div class="section-title">private thesis</div>
+      <div class="muted" style="margin-bottom:8px;line-height:1.6">Attach a private note explaining your conviction. Encrypted with Seal, stored on Walrus — readable only by you and paying copiers.</div>
+      <textarea id="thesis-input" class="hx-textarea" rows="3" placeholder="Why you believe this…" data-cursor></textarea>
+      <button class="btn-soft" id="thesis-attach" data-cursor style="margin-top:10px">Encrypt &amp; attach ${arrow()}</button>
+      <div id="thesis-attach-out" style="margin-top:10px"></div>`;
+  } else {
+    panel.innerHTML = `<div class="section-title">private thesis</div><div class="muted">No private thesis attached to this strategy.</div>`;
+  }
+}
+async function unlockThesis(host, s) {
+  const panel = $('#thesis-panel', host); const out = $('#thesis-plain', host);
+  const blobId = panel?.dataset.blob; const relId = panel?.dataset.rel || null;
+  if (!blobId || !out) return;
+  out.innerHTML = `<div class="muted"><span class="sdot pending"></span> fetching from Walrus &amp; decrypting (sign in your wallet)…</div>`;
+  try {
+    const ciphertext = await fetchFromWalrus(blobId);
+    const text = await decryptThesis(client, state.account.address, signPersonalMessage, ciphertext, s.id, relId);
+    out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--alive) 40%,transparent);background:var(--alive-soft)">
+      <div class="row spread"><b style="color:var(--alive)">Thesis unlocked</b><span class="sdot active"></span></div>
+      <div style="margin-top:8px;line-height:1.6;white-space:pre-wrap">${escapeHtml(text)}</div></div>`;
+  } catch (e) {
+    out.innerHTML = `<div class="muted" style="color:var(--coral)">Couldn't unlock: ${e.message || 'access denied'}</div>`;
+  }
+}
+async function attachThesisDetail(host, s) {
+  const text = ($('#thesis-input', host)?.value || '').trim();
+  const out = $('#thesis-attach-out', host);
+  if (!text) { if (out) out.innerHTML = `<div class="muted">Write your thesis first.</div>`; return; }
+  await attachThesisFlow(out, s.id, text);
+  setTimeout(() => renderThesisPanel(host, s), 1600);
 }
 
 /* -------- Risk Compass (portfolio) -------- */
