@@ -31,9 +31,9 @@
   <div class="boot-meta"><span class="live"></span><span class="lbl">waking the ecosystem</span></div>
 </div>
 
-<!-- Prod compiler wiring: once the Render TEE service is live, uncomment and set the URL.
-     Leave commented for local dev (app.js falls back to http://localhost:8081). -->
-<!-- <script>window.HELIX_COMPILER_URL = 'https://helix-compiler.onrender.com';</script> -->
+<!-- Prod compiler wiring: live Render TEE service. For local dev, comment this out
+     (app.js then falls back to http://localhost:8081). -->
+<script>window.HELIX_COMPILER_URL = 'https://helix-compiler.onrender.com';</script>
 
 <!-- app shell is built by app.js (ES module: Sui SDK + Wallet Standard from CDN) -->
 <script type="module" src="js/app.js"></script>
