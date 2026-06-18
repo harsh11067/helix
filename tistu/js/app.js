@@ -638,9 +638,10 @@ function viewDetail(id) {
           <div class="row" style="gap:14px"><span class="sdot ${s.status}" style="width:12px;height:12px"></span>
             <div><div style="font-family:var(--serif);font-size:2rem;letter-spacing:-.02em">${structFromDna(s.dna)}</div>
             <div class="muted">generation ${s.generation} · <a class="mono" style="color:var(--accent-deep)" href="${CFG.EXPLORER_OBJ(s.id)}" target="_blank" rel="noopener">${short(s.id)} ↗</a></div></div></div>
-          ${mine ? `<div class="row" style="gap:10px">
+          ${mine ? `<div class="row" style="gap:10px;flex-wrap:wrap">
             <button class="btn-soft" id="copy-btn" data-cursor>${s.isCopyable ? 'Copyable ✓' : 'List as copyable'}</button>
-            <button class="btn-solid" id="breed-btn" data-cursor>${s.isBreedable ? 'Breedable ✓' : 'List as breedable'}</button></div>` : `<span class="badge">owner ${short(s.owner)}</span>`}
+            <button class="btn-soft" id="breed-list-btn" data-cursor>${s.isBreedable ? 'Breedable ✓' : 'List as breedable'}</button>
+            <button class="btn-solid" id="breed-btn" data-cursor>Breed with… ${arrow()}</button></div>` : `<span class="badge">owner ${short(s.owner)}</span>`}
         </div>
         <div class="grid-4 reveal d1" style="margin-bottom:18px">
           <div class="stat"><div class="k">capital</div><div class="v">${fmt(s.capital)} <span style="font-size:.7rem" class="muted">dUSDC</span></div></div>
@@ -660,8 +661,11 @@ function viewDetail(id) {
       if (legs.length) $('#d-payoff', host).innerHTML = payoffSkeleton(), updatePayoffNode($('#d-payoff', host), legs, spot);
       revealObserve(host);
       if (mine) host.addEventListener('click', e => {
-        if (e.target.closest('#breed-btn')) listAction(host, s.id, 'breedable');
+        if (e.target.closest('#breed-list-btn')) listAction(host, s.id, 'breedable');
         if (e.target.closest('#copy-btn')) listAction(host, s.id, 'copyable');
+        if (e.target.closest('#breed-btn')) openBreedPicker(host, s);
+        const pick = e.target.closest('[data-breed-with]');
+        if (pick) breedStrategies(host, s, pick.dataset.breedWith);
       });
     } catch (e) { host.innerHTML = `<div class="empty"><h3>Couldn't load strategy</h3><p class="mono">${e.message}</p></div>`; }
   })();
@@ -689,13 +693,83 @@ async function listAction(host, id, kind) {
   const out = $('#act-out', host); out.innerHTML = `<div class="muted"><span class="sdot pending"></span> awaiting signature…</div>`;
   try {
     const tx = new Transaction();
-    if (kind === 'breedable') tx.moveCall({ target: `${CFG.HELIX}::marketplace::list_as_breedable`, arguments: [tx.object(id), tx.pure.u64(2)] });
+    if (kind === 'breedable') tx.moveCall({ target: `${CFG.HELIX}::marketplace::list_as_breedable`, arguments: [tx.object(id), tx.pure.u64(0)] });
     else tx.moveCall({ target: `${CFG.HELIX}::marketplace::list_as_copyable`, arguments: [tx.object(id), tx.pure.u16(150)] });
     const res = await signAndExecute(tx);
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--alive) 45%,transparent)"><b style="color:var(--alive)">Listed as ${kind}</b>
       <a class="btn-soft" style="margin-top:10px" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener">View tx ↗</a></div>`;
     toast('Listed on the marketplace', `now ${kind}`, 'alive'); setTimeout(() => render(), 1200);
   } catch (e) { out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)"><b style="color:var(--coral)">Not listed</b><div class="muted">${e.message || 'rejected'}</div></div>`; }
+}
+
+/* -------- Breeding: pick a second owned, breedable strategy → mint a crossed child.
+   Lives here on Strategy Detail (an action on something you own), not the Canvas
+   (which is for fresh convictions). The child carries both parents on-chain, so it
+   renders in the Lineage tree with edges to each. */
+async function openBreedPicker(host, s) {
+  const out = $('#act-out', host);
+  if (!s.isBreedable) {
+    out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 40%,transparent)">
+      <b style="color:var(--coral)">List this strategy as breedable first</b>
+      <div class="muted" style="margin-top:6px">Both parents must be breedable. Click “List as breedable”, then breed.</div></div>`;
+    return;
+  }
+  out.innerHTML = `<div class="muted"><span class="sdot pending"></span> finding breedable partners…</div>`;
+  try {
+    const others = (await getMyStrategies()).filter(o => o.id !== s.id);
+    const breedable = others.filter(o => o.isBreedable);
+    if (!breedable.length) {
+      out.innerHTML = `<div class="panel"><b>No breedable partner yet</b>
+        <div class="muted" style="margin-top:6px">You need a second strategy you own, listed as breedable. ${others.length ? 'Open another of your strategies and list it breedable, then come back.' : 'Mint another conviction on the Canvas first.'}</div></div>`;
+      return;
+    }
+    out.innerHTML = `<div class="panel reveal"><div class="section-title">breed “${structFromDna(s.dna)}” with…</div>
+      <div class="grid-3" style="margin-top:8px">${breedable.map(o => `<button class="scard" data-breed-with="${o.id}" data-cursor style="text-align:left;width:100%">
+        <div class="row spread"><span class="sdot ${o.status}"></span><span class="muted mono" style="font-size:11px">gen ${o.generation}</span></div>
+        <h4 style="margin:10px 0 2px">${structFromDna(o.dna)}</h4>
+        <div class="muted mono" style="font-size:11px">${short(o.id)}</div>
+        <div class="dna-mini">${dnaChips(o.dna)}</div></button>`).join('')}</div>
+      <div class="muted mono" style="font-size:11px;margin-top:10px">child DNA = deterministic 50/50 splice of both parents' genes + a small mutation (on-chain crossover)</div></div>`;
+    revealObserve(out);
+  } catch (e) { out.innerHTML = `<div class="panel"><b style="color:var(--coral)">Couldn't list partners</b><div class="muted">${e.message}</div></div>`; }
+}
+async function breedStrategies(host, parentA, parentBId) {
+  const out = $('#act-out', host);
+  out.innerHTML = `<div class="muted"><span class="sdot pending"></span> crossing genes — awaiting wallet signature…</div>`;
+  try {
+    const b = await getStrategy(parentBId);
+    if (!parentA.isBreedable || !b || !b.isBreedable) throw new Error('both parents must be listed breedable');
+    const required = (parentA.breedFee || 0) + (b.breedFee || 0);
+    const childCapital = Math.max(1, Math.round(((parentA.capital || 0) + (b.capital || 0)) / 2));
+    const seed = BigInt(Date.now()) ^ (BigInt('0x' + parentBId.slice(2, 10)) << 8n);
+
+    const tx = new Transaction();
+    let fee;
+    if (required > 0) {
+      const dusdcCoin = await pickDusdcCoin(BigInt(required));
+      [fee] = tx.splitCoins(tx.object(dusdcCoin), [tx.pure.u64(BigInt(required))]);
+    } else {
+      fee = tx.moveCall({ target: '0x2::coin::zero', typeArguments: [CFG.DUSDC], arguments: [] });
+    }
+    const [child, cap] = tx.moveCall({
+      target: `${CFG.HELIX}::breeding::breed`, typeArguments: [CFG.DUSDC],
+      arguments: [tx.object(parentA.id), tx.object(parentBId), fee, tx.pure.u64(BigInt(childCapital)), tx.pure.u64(seed), tx.pure.vector('u8', [1])],
+    });
+    tx.transferObjects([child, cap], tx.pure.address(state.account.address));
+    const res = await signAndExecute(tx);
+    const made = (res.objectChanges || []).find(o => o.type === 'created' && /::strategy::StrategyObject$/.test(o.objectType || ''));
+    out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--alive) 45%,transparent);background:var(--alive-soft)">
+      <div class="row spread"><b style="color:var(--alive)">Child strategy bred</b><span class="sdot active"></span></div>
+      <div class="muted" style="margin-top:8px">A new generation object whose DNA crosses both parents — both creators are registered for royalties on-chain.</div>
+      <div class="row" style="gap:10px;margin-top:12px;flex-wrap:wrap">
+        ${made ? `<a class="btn-soft" href="#/strategy/${made.objectId}" data-cursor>Open the child →</a>` : ''}
+        <a class="btn-soft" href="#/lineage" data-cursor>See it in the lineage tree →</a>
+        <a class="btn-soft" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener" data-cursor>View tx ↗</a></div></div>`;
+    toast('Bred a child strategy', 'crossover minted on Sui testnet', 'alive');
+  } catch (e) {
+    const msg = (e.message || '').includes('INSUFFICIENT_DUSDC') ? 'Need dUSDC for the breed fee — relist both parents with a 0 fee, or fund the wallet.' : (e.message || 'rejected');
+    out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)"><b style="color:var(--coral)">Not bred</b><div class="muted" style="margin-top:6px">${msg}</div></div>`;
+  }
 }
 
 /* -------- Risk Compass (portfolio) -------- */
