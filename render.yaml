@@ -1,0 +1,21 @@
+# Render blueprint — HELIX TEE Compiler service.
+# The frontend (Vercel) POSTs /compile and /preview here; CORS is already open (*).
+# Node strips TS types at runtime, so there is no build step beyond a no-op install.
+services:
+  - type: web
+    name: helix-compiler
+    runtime: node
+    plan: free
+    rootDir: tee
+    region: oregon
+    buildCommand: "npm install || true"
+    startCommand: "node src/compiler/server.ts"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24.4.1"
+      - key: OFFLINE
+        value: "0"
+      - key: PREDICT_SERVER
+        value: https://predict-server.testnet.mystenlabs.com

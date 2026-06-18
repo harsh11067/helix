@@ -38,6 +38,7 @@ export function makeServer() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const port = Number(process.env.COMPILER_PORT ?? 8081);
-  makeServer().listen(port, () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE})`));
+  // Render (and most PaaS) inject PORT; prefer it, then COMPILER_PORT, then local default.
+  const port = Number(process.env.PORT ?? process.env.COMPILER_PORT ?? 8081);
+  makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE})`));
 }

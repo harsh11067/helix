@@ -5,7 +5,7 @@
   "type": "module",
   "description": "HELIX Nautilus TEE workloads: Compiler, Hedger, Regime Classifier, Backtest. Runs on Node native TypeScript type-stripping (Node >= 23.6).",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.ts\"",
     "compiler": "node src/compiler/server.ts",
     "backtest": "node src/backtest/server.ts",
     "start": "node src/index.ts"

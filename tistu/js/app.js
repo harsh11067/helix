@@ -25,8 +25,12 @@ const CFG = {
   CLOCK:        '0x6',
   RPC:          'https://fullnode.testnet.sui.io:443',
   PREDICT_SERVER: 'https://predict-server.testnet.mystenlabs.com',
-  COMPILER_URL: (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? 'http://localhost:8081' : '/compiler',
+  // Prod wiring: set `window.HELIX_COMPILER_URL = 'https://<service>.onrender.com'`
+  // in app.html once the Render service is live. Falls back to local dev, then a
+  // same-origin /compiler reverse-proxy.
+  COMPILER_URL: (typeof window !== 'undefined' && window.HELIX_COMPILER_URL)
+    || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? 'http://localhost:8081' : '/compiler'),
   EXPLORER: (d) => `https://suiscan.xyz/testnet/tx/${d}`,
   EXPLORER_OBJ: (o) => `https://suiscan.xyz/testnet/object/${o}`,
   DUSDC_DECIMALS: 6,

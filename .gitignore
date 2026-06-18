@@ -15,3 +15,6 @@ contracts/build/
 # local agent / tool state
 .agents/
 .claude/
+
+# regenerable Move test replay traces
+contracts/traces/
