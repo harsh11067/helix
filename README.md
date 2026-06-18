@@ -7,7 +7,7 @@
 [![Sui Overflow 2026](https://img.shields.io/badge/Sui%20Overflow-2026-blueviolet?style=for-the-badge&logo=sui)](https://overflow.sui.io)
 [![Track](https://img.shields.io/badge/Track-Agentic%20Web%20%2F%20Intent%20Engine-brightgreen?style=for-the-badge)](https://overflow.sui.io)
 [![Sui Stack](https://img.shields.io/badge/Sui%20Stack-DeepBook%20%7C%20Walrus%20%7C%20Nautilus%20TEE-aqua?style=for-the-badge)](https://sui.io)
-[![Status](https://img.shields.io/badge/Status-Design%20%26%20Planning-amber?style=for-the-badge)](./plan.md)
+[![Status](https://img.shields.io/badge/Status-Production%20%26%20Deployed-brightgreen?style=for-the-badge)](./docs/SUBMISSION.md)
 
 > [!IMPORTANT]
 > **Don't build strategies. Express convictions. Watch them live, evolve, and compose.**
@@ -15,21 +15,39 @@
 
 ---
 
+### 🚀 Live URLs
+
+```text
+┌────────────────┬─────────────────────────────────────┬──────────────────────────────────────────────────────────┐
+│                │                 URL                 │                          Status                          │
+├────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+│ App (frontend) │ https://helix-app-fovn.onrender.com │ HTTP 200 — landing + /app.html                           │
+├────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+│ Compiler (TEE) │ https://helix-compiler.onrender.com │ /health ok, warm /compile 1.15s against real testnet SVI │
+└────────────────┴─────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+```
+
+* **On-Chain Package (Sui Testnet):** `0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3`
+* **Real Walrus Testnet Blob:** `QE8njhhplCR8s6UHqjS8SBsQ6SO7AxyNZqI6CoBvmX4`
+
+---
+
 ## 📑 The Document Set
 
-The design of the HELIX platform is systematically documented across seven core files. To understand the system, please read them in the following order:
+The design and planning of the HELIX platform are systematically organized under the [docs/](file:///home/hash/helix/docs/) folder. Read them in the following order:
 
 | Document | Focus | Purpose |
 | :--- | :--- | :--- |
-| 💡 **[idea.md](./idea.md)** | Concept & Vision | High-level overview, user stories, and conceptual diagrams. |
-| 🏗️ **[architecture.md](./architecture.md)** | System Architecture | Six-layer design, Move contracts object model, and TEE data flows. |
-| ⚖️ **[decisions.md](./decisions.md)** | Tradeoffs & ADRs | Architectural Decision Records explaining the *why* behind design choices. |
-| 📅 **[plan.md](./plan.md)** | 8-Week Build Plan | Phase-by-phase backend-first build schedule. |
-| 🧪 **[test.md](./test.md)** | Binary Checkpoints | 278 verifiable test checkpoints for incremental progress tracking. |
-| 🎨 **[frontend.md](./frontend.md)** | UX & Visual Design | High-fidelity UI layouts, bioluminescent theme, and motion specs. |
+| 📋 **[SUBMISSION.md](file:///home/hash/helix/docs/SUBMISSION.md)** | **Honest Submission Proof** | Verdict, locked demo script, Q&A, and live deployment details. |
+| 💡 **[idea.md](file:///home/hash/helix/docs/idea.md)** | Concept & Vision | High-level overview, user stories, and conceptual diagrams. |
+| 🏗️ **[architecture.md](file:///home/hash/helix/docs/architecture.md)** | System Architecture | Six-layer design, Move contracts object model, and TEE data flows. |
+| ⚖️ **[decisions.md](file:///home/hash/helix/docs/decisions.md)** | Tradeoffs & ADRs | Architectural Decision Records explaining the *why* behind design choices. |
+| 📅 **[plan.md](file:///home/hash/helix/docs/plan.md)** | 8-Week Build Plan | Phase-by-phase backend-first build schedule. |
+| 🧪 **[test.md](file:///home/hash/helix/docs/test.md)** | Binary Checkpoints | 278 verifiable test checkpoints for incremental progress tracking. |
+| 🎨 **[DESIGN.md](file:///home/hash/helix/tistu/DESIGN.md)** | UI & Visual Design | High-fidelity UI layouts, bioluminescent theme, and motion specs. |
 
 > [!NOTE]
-> Each document is fully cross-referenced. A decision in [decisions.md](./decisions.md) maps to a system component in [architecture.md](./architecture.md), a build phase in [plan.md](./plan.md), and a verification checkpoint in [test.md](./test.md).
+> Each document is fully cross-referenced. A decision in [decisions.md](file:///home/hash/helix/docs/decisions.md) maps to a system component in [architecture.md](file:///home/hash/helix/docs/architecture.md), a build phase in [plan.md](file:///home/hash/helix/docs/plan.md), and a verification checkpoint in [test.md](file:///home/hash/helix/docs/test.md).
 
 ---
 
@@ -57,15 +75,15 @@ Three major walls separate retail traders from sophisticated finance:
   "Bullish BTC,             Reads SVI surface,           │ A Sui object with
    choppy, ~1 hour"         picks optimal structure,     │ DNA, a heartbeat,
                             builds the PTB               │ and a lifecycle.
-                                                         ▼
-                                       ┌─────────────────┴─────────────────┐
-                                       │  WHAT IT CAN DO ONCE DEPLOYED:    │
-                                       ├───────────────────────────────────┤
-                                       │ 🔗 CHAINED to other convictions    │
-                                       │ 🧬 BRED with winning DNA          │
-                                       │ 👥 COPIED by followers for fees   │
-                                       │ 📈 NETTED into one portfolio view │
-                                       └───────────────────────────────────┘
+                                                          ▼
+                                        ┌─────────────────┴─────────────────┐
+                                        │  WHAT IT CAN DO ONCE DEPLOYED:    │
+                                        ├───────────────────────────────────┤
+                                        │ 🔗 CHAINED to other convictions    │
+                                        │ 🧬 BRED with winning DNA          │
+                                        │ 👥 COPIED by followers for fees   │
+                                        │ 📈 NETTED into one portfolio view │
+                                        └───────────────────────────────────┘
 ```
 
 Five layers, each solving a problem no existing platform solves:
@@ -99,11 +117,11 @@ The HELIX protocol relies on academic rigor rather than marketing claims. Three 
 
 HELIX is built natively for the Sui blockchain, leveraging its unique features to enable experiences impossible on legacy chains:
 
-* **Move Object Model**: Strategies live as first-class, owned objects on-chain. This enables parallelized transactions and native lineage tracking ([decisions.md](./decisions.md) ADR-001).
+* **Move Object Model**: Strategies live as first-class, owned objects on-chain. This enables parallelized transactions and native lineage tracking ([decisions.md](file:///home/hash/helix/docs/decisions.md) ADR-001).
 * **DeepBook Predict & Margin**: Composes with `predict::mint` for position minting, `predict::supply` for PLP liquidity provision, and `predict::redeem_permissionless` via a dedicated user `PredictManager`.
 * **Block Scholes / OracleSVI**: Integrates with Sui's native volatility surface feed to price and hedge positions.
 * **dUSDC**: Utilized as the default quote asset on Predict's testnet.
-* **Nautilus TEEs**: Verifiable compute environments for the AI compiler, risk hedger, regime classifier, and backtester ([architecture.md](./architecture.md) §4).
+* **Nautilus TEEs**: Verifiable compute environments for the AI compiler, risk hedger, regime classifier, and backtester ([architecture.md](file:///home/hash/helix/docs/architecture.md) §4).
 * **Walrus**: Low-cost decentralized storage for strategy lineage logs, historical backtests, and TEE attestation verifications.
 * **Seal**: Used to encrypt private strategy DNA configurations and govern access control for premium copy-trading.
 * **Pyth Network**: Oracle price feeds for secondary spot pricing verification.
@@ -141,10 +159,10 @@ Applies portfolio Greeks netting, intent-compiled structured positions, and asse
 
 To satisfy the strict 2026 Overflow judging criteria (*demo-first verification, genuine stack usage, verifiable activity, and no hollow UIs*), HELIX is built to the following standards:
 
-* **Demo-First Progression**: Our [plan.md](./plan.md) is structured backend-first. By Phase 5, we have a fully testable CLI and end-to-end integration ([test.md](./test.md) checkpoint 5.28) before the UI is completed.
+* **Demo-First Progression**: Our [plan.md](file:///home/hash/helix/docs/plan.md) is structured backend-first. By Phase 5, we have a fully testable CLI and end-to-end integration ([test.md](file:///home/hash/helix/docs/test.md) checkpoint 5.28) before the UI is completed.
 * **No Hollow Code**: Every Sui primitive listed in our stack usage has a critical, functional role in the protocol's execution path.
 * **On-Chain Footprint**: Deployed strategies are actual objects that execute verifiable orders on DeepBook Predict.
-* **Production-Grade Frontends**: Our [frontend.md](./frontend.md) dictates a beautiful design, but all components are backed by real APIs and indexers — not client-side mocks.
+* **Production-Grade Frontends**: Our design dictates a beautiful interface, and all components are backed by real APIs and indexers — not client-side mocks.
 
 ---
 
@@ -154,12 +172,8 @@ To satisfy the strict 2026 Overflow judging criteria (*demo-first verification, 
 helix/
 ├── README.md                  ← You are here
 ├── .gitignore                 ← Git exclusion rules
-├── architecture.md            ← Technical architecture specs
-├── decisions.md               ← Architectural Decision Records (ADRs)
-├── frontend.md                ← UI, design tokens, and motion guidelines
-├── idea.md                    ← High-level conceptual overview
-├── plan.md                    ← 8-week build schedule
-├── test.md                    ← 278 binary verification checkpoints
+├── vercel.json                ← Vercel deployment spec
+├── render.yaml                ← Render blueprint spec
 ├── contracts/                 ← Sui Move Smart Contracts
 │   ├── sources/
 │   │   ├── strategy.move
@@ -167,30 +181,40 @@ helix/
 │   │   ├── breeding.move
 │   │   └── ...
 │   └── tests/
-├── TEE/                       ← Nautilus TEE Agent Services
-│   ├── compiler/              ← AI Conviction Compiler
-│   ├── hedger/                ← Auto-hedging loop
-│   ├── regime/                ← Volatility regime classifier
-│   └── backtest/              ← Historical performance testing
+├── docs/                      ← Project Planning & Technical Specs
+│   ├── SUBMISSION.md          ← Honest submission proof & Q&A
+│   ├── architecture.md        ← Technical architecture specs
+│   ├── decisions.md           ← Architectural Decision Records (ADRs)
+│   ├── idea.md                ← High-level conceptual overview
+│   ├── plan.md                ← 8-week build schedule
+│   └── test.md                ← 278 binary verification checkpoints
+├── tee/                       ← Nautilus TEE Agent Services
+│   ├── src/
+│   │   ├── compiler/          ← AI Conviction Compiler
+│   │   ├── hedger/            ← Auto-hedging loop
+│   │   ├── regime/            ← Volatility regime classifier
+│   │   └── backtest/          ← Historical performance testing
+│   └── test/                  ← TEE Agent tests (20/20 green)
 ├── services/                  ← Off-chain indexers and APIs
-│   ├── indexer/               ← Sui Event Indexer
-│   └── ws-hub/                ← WebSocket notifications hub
-└── web/                       ← Next.js Frontend dApp
-    ├── app/                   ← Pages and routes
-    ├── components/            ← Conviction Canvas, Lineage Tree, Risk Compass
-    └── lib/                   ← Wallet connection and TEE client SDK
+│   └── indexer/               ← Sui Event Indexer & WS hub
+└── tistu/                     ← Deployed Vercel Web Frontend
+    ├── app.html               ← App shell Entrypoint
+    ├── index.html             ← Landing Page Entrypoint
+    ├── DESIGN.md              ← UI visual design spec
+    ├── css/
+    └── js/
 ```
 
 ---
 
 ## 🚦 Project Status
 
-This repository is currently in the **Design & Planning Phase**.
-* All core system specifications are locked.
-* Build phases are scheduled under [plan.md](./plan.md).
-* Verification checkpoints are mapped out in [test.md](./test.md).
+This repository has completed **Phase 5 (Backend Integration)**.
+* Move smart contracts are published to testnet.
+* Nautilus TEE Agent Services are deployed and running on Render.
+* Frontend Web App is deployed and running on Vercel, querying the live compiler and wallet Standard.
 
-Next Steps: Initialize Phase 0 infrastructure setup and begin Phase 1 on-chain core Move module coding.
+Next Steps: Record the final submission demo video and finalize the pitch deck.
 
 ---
 
