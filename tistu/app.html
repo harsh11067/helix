@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-accent="gold">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Helix — App</title>
+<link rel="stylesheet" href="css/helix.css" />
+<link rel="stylesheet" href="css/app.css" />
+<script>
+  // set theme before paint to avoid flash (shares the landing-page preference)
+  (function () {
+    try {
+      var t = localStorage.getItem('helix-theme');
+      if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body class="booting">
+
+<!-- boot / preloader (reused from the landing identity) -->
+<div id="boot" aria-hidden="true">
+  <div class="boot-orbit" aria-hidden="true">
+    <span class="bo-glow"></span><span class="bo-ring"></span>
+    <span class="bo-arc a1"></span><span class="bo-arc a2"></span><span class="bo-arc a3"></span>
+    <span class="bo-dot"><i></i></span><span class="bo-core"></span>
+  </div>
+  <div class="boot-word">Heli<b>x</b></div>
+  <div class="boot-meta"><span class="live"></span><span class="lbl">waking the ecosystem</span></div>
+</div>
+
+<!-- app shell is built by app.js (ES module: Sui SDK + Wallet Standard from CDN) -->
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

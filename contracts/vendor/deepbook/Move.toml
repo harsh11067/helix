@@ -1,0 +1,16 @@
+# Vendored from MystenLabs/deepbookv3 @ predict-testnet-4-16 (packages/deepbook).
+# On Sui, `[addresses]` is the ORIGINAL (defining) package id used in type names,
+# while `published-at` is the LATEST on-chain upgrade id. DeepBook v3 has been
+# upgraded: original 0xfb28… -> upgraded 0x74cd… (v19), per the Predict package's
+# on-chain linkage table. Both verified on-chain.
+[package]
+name = "deepbook"
+edition = "2024.beta"
+version = "0.0.1"
+published-at = "0x74cd5657843c627f3d80f713b71e9f895bbbeb470956d8a8e1185badf6cc77c8"
+
+[dependencies]
+token = { local = "../token" }
+
+[addresses]
+deepbook = "0xfb28c4cbc6865bd1c897d26aecbe1f8792d1509a20ffec692c800660cbec6982"

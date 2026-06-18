@@ -1,3 +1,17 @@
 .antigravitycli/
 .gemini/
 .DS_Store
+
+# build + deps
+node_modules/
+contracts/build/
+*.log
+
+# secrets — never commit the real env (template lives in .env.example)
+.env
+.env.local
+.env.*.local
+
+# local agent / tool state
+.agents/
+.claude/

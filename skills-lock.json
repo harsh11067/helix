@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "skills": {
+    "accessing-data": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "accessing-data/SKILL.md",
+      "computedHash": "f868381cb3e81f7d0ac02701881c0f06a3fdc2b08634210de27b5de2dfaeecef"
+    },
+    "canvas-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/canvas-design/SKILL.md",
+      "computedHash": "3fa7ea60170023ad8268bf9fd734ea75dd404279a2ef8ddf5abaa1102ad8e5f4"
+    },
+    "composable-move-functions": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "composable-move-functions/SKILL.md",
+      "computedHash": "d5d7cdfe4005adf559980352c4a1545b30eb2ff4da5f4999f8ccda7f468e683f"
+    },
+    "frontend-apps": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "frontend-apps/SKILL.md",
+      "computedHash": "b4ecc791f2d333e8df4b5f84dffe96af8dd1baa50dc697a635dc227db9e28181"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "generate-sui-agent-config": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "generate-sui-agent-config/SKILL.md",
+      "computedHash": "207d8ddf0b222e7b1d25c236b6676642161d5a177054f4f29ff3da7f1cfcd81e"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "5e8c66eeffba8dc0c5e0941afbf4aecd6359184f8b0ea08cfc60a33f2e328e49"
+    },
+    "modern-move-syntax": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "modern-move-syntax/SKILL.md",
+      "computedHash": "e43e08d1141c80973e0c1c14f90255d186d8158f2cda40f57e0dcb3ff3557494"
+    },
+    "move-unit-testing": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "move-unit-testing/SKILL.md",
+      "computedHash": "ac8a8fa9142953d002ec423e126b2fea2b35284967f6c84b4a7f1655d823911b"
+    },
+    "naming-conventions": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "naming-conventions/SKILL.md",
+      "computedHash": "010a3d3108bcf4dd8362fac08e4edb86e41a46389bdb59ac8ac83330432e8e83"
+    },
+    "nodejs-backend-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/javascript-typescript/skills/nodejs-backend-patterns/SKILL.md",
+      "computedHash": "b63b54d09c77cec0e84cdd42424c12909785f14bdb286c835c45420b885ff1f3"
+    },
+    "ptbs": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "ptbs/SKILL.md",
+      "computedHash": "3b7fcf97fc007151a015c27b95b5cffd62ab684b7ae8de2590efd1f4fe946541"
+    },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "80a6226e78f6d1fe464214ae0ef449d49d8ffaa3e7704f011e9b418c678ad4d1"
+    },
+    "sui-build": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-build-test/SKILL.md",
+      "computedHash": "8020ad57bb833fb68106eb6de1dd7d53152a76cad13e4a65584d8844ac4dfc1d"
+    },
+    "sui-cli": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-cli/SKILL.md",
+      "computedHash": "95c61ac72248d4a5ab5f05f3163d2a9b8ca4391fa90cf8b79506081fa90c2c13"
+    },
+    "sui-client": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-client/SKILL.md",
+      "computedHash": "ad0cae88fe136f9626d26c7ba6c665ecb1e7d01b80c6cbfb871bda00f2104554"
+    },
+    "sui-install": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-install/SKILL.md",
+      "computedHash": "4b6866124a138116a1f37efd4b71e3c1cd7d8d32b53690eb930e5663cd470561"
+    },
+    "sui-move": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-move/SKILL.md",
+      "computedHash": "e6af855b003c608f05fb98725bf0d9e53a9e8362f1df1c011a4e5b02d8b76ebd"
+    },
+    "sui-move-project": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-move-project/SKILL.md",
+      "computedHash": "7df18d4a0d5250edf6928a700cd3152625bb8186b298bfa052ce5545db111a68"
+    },
+    "sui-object-model": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "object-model/SKILL.md",
+      "computedHash": "149366ae4508c9242f3015aa30b4ab6037db4090b855fdeddc62239b84eaac3f"
+    },
+    "sui-overview": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-overview/SKILL.md",
+      "computedHash": "add0beec8b0ed75573e215824fc4549fb99816fa9bb6d3f74930c27a9c364797"
+    },
+    "sui-publish": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-publish/SKILL.md",
+      "computedHash": "e15ca2ce2504bc8a72207cf4538abcdc92b0ef89398a07f47a0a779adcd61941"
+    },
+    "sui-sdks": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "sui-sdks/SKILL.md",
+      "computedHash": "eead0c125ba28869c287a443dfca839db50215c3c64cbfedd7b6ee42f68d40ab"
+    },
+    "tailwind-design-system": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/frontend-mobile-development/skills/tailwind-design-system/SKILL.md",
+      "computedHash": "cd61afd28f594e8b6712b61749209cbb4466e3eec4e4223793bbd97fc85c1b63"
+    },
+    "typescript-advanced-types": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/javascript-typescript/skills/typescript-advanced-types/SKILL.md",
+      "computedHash": "8cbf2bf600f392d7260e476e3202932a876e2281cda3b15a8b6a5a43f383252d"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "0a413bf988d06481f69bb81df2070741c3ba12dd9f1be2706d57f259c905992d"
+    },
+    "walrus-sites": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "walrus-sites/SKILL.md",
+      "computedHash": "ff2f1ba245b7bed5061dfe918158deb74422de8ebfe81d122f1df8dfea51dbd0"
+    },
+    "your-skill-name": {
+      "source": "mystenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "template/SKILL.md",
+      "computedHash": "cb3f72b6ece2a3b88c4f0034acb63e1f540c3b6768c1626c8cf21595cd7a9d9e"
+    }
+  }
+}

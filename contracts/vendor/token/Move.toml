@@ -1,0 +1,12 @@
+# Vendored from MystenLabs/deepbookv3 @ main (packages/token), the DEEP token.
+# published-at + address pinned to the live Sui testnet package so HELIX links
+# against the on-chain copy instead of republishing it.
+[package]
+name = "token"
+edition = "2024.beta"
+published-at = "0x36dbef866a1d62bf7328989a10fb2f07d769f4ee587c0de4a0a256e57e0a58a8"
+
+[dependencies]
+
+[addresses]
+token = "0x36dbef866a1d62bf7328989a10fb2f07d769f4ee587c0de4a0a256e57e0a58a8"

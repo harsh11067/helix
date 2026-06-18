@@ -1,0 +1,23 @@
+[package]
+name = "helix"
+edition = "2024.beta"
+license = "Apache-2.0"
+authors = ["Helix Labs"]
+
+# predict_adapter composes the REAL DeepBook Predict package (ADR-003 flip).
+# The Predict/DeepBook/DEEP-token packages are vendored under ./vendor with their
+# `published-at` + addresses pinned to the live Sui testnet ids (read on-chain),
+# so HELIX links against the deployed packages and `sui client publish` does not
+# try to republish them. Sources are byte-for-byte from deepbookv3
+# @ predict-testnet-4-16 (token @ main). The Sui/MoveStdlib overrides pin the
+# framework rev to avoid a transitive collision.
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet", override = true }
+MoveStdlib = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "framework/testnet", override = true }
+deepbook_predict = { local = "vendor/predict" }
+
+[addresses]
+helix = "0x0"
+
+[dev-addresses]
+helix = "0x0"

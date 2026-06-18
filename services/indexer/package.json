@@ -1,0 +1,13 @@
+{
+  "name": "@helix/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HELIX Indexer: tails Sui events into denormalized read-models; serves leaderboard/lineage queries + live WebSocket updates.",
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "start": "node src/server.ts"
+  },
+  "dependencies": { "ws": "^8.18.0" },
+  "engines": { "node": ">=22" }
+}
