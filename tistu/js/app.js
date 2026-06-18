@@ -15,6 +15,10 @@
 import { SuiClient, getFullnodeUrl } from 'https://esm.sh/@mysten/sui@1.30.0/client';
 import { Transaction } from 'https://esm.sh/@mysten/sui@1.30.0/transactions';
 import { getWallets } from 'https://esm.sh/@mysten/wallet-standard@0.14.0';
+import {
+  zkConfigured, beginGoogleLogin, completeGoogleLoginIfPresent,
+  loadSession as loadZkSession, clearSession as clearZkSession, zkSignAndExecute,
+} from './zklogin.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
@@ -45,7 +49,9 @@ const client = new SuiClient({ url: CFG.RPC });
 
 /* ---------------- shared app state ---------------- */
 const state = {
+  mode: 'wallet',        // 'wallet' (Wallet Standard) | 'zk' (zkLogin / Google)
   wallet: null,          // wallet-standard wallet
+  zk: null,              // zkLogin session { address, secret, proof, ... }
   account: null,         // { address, ... }
   dusdc: 0n,             // DUSDC balance (base units)
   oracle: null,          // live BTC oracle record (predict server)
@@ -86,17 +92,39 @@ async function connectWallet(w) {
   const res = await w.features['standard:connect'].connect();
   const acct = (res.accounts && res.accounts[0]) || (w.accounts && w.accounts[0]);
   if (!acct) throw new Error('wallet returned no account');
-  state.wallet = w; state.account = acct;
+  state.mode = 'wallet'; state.zk = null; state.wallet = w; state.account = acct;
+  await refreshDusdc();
+  renderWalletChip();
+  window.dispatchEvent(new Event('helix:wallet'));
+}
+// Begin the Google → zkLogin redirect. Returns nothing — the page navigates away
+// and resumes in completeGoogleLoginIfPresent() on the way back.
+async function connectGoogle() {
+  const redirectUri = location.origin + location.pathname; // must be registered in Google
+  await beginGoogleLogin(client, redirectUri);
+}
+// Adopt a finished zkLogin session as the active signer.
+async function activateZkSession(session) {
+  state.mode = 'zk'; state.wallet = null; state.zk = session;
+  state.account = { address: session.address };
   await refreshDusdc();
   renderWalletChip();
   window.dispatchEvent(new Event('helix:wallet'));
 }
 function disconnectWallet() {
-  try { state.wallet?.features['standard:disconnect']?.disconnect(); } catch (e) {}
-  state.wallet = null; state.account = null; state.dusdc = 0n;
+  if (state.mode === 'zk') { clearZkSession(); }
+  else { try { state.wallet?.features['standard:disconnect']?.disconnect(); } catch (e) {} }
+  state.mode = 'wallet'; state.wallet = null; state.zk = null; state.account = null; state.dusdc = 0n;
   renderWalletChip(); window.dispatchEvent(new Event('helix:wallet'));
 }
 async function signAndExecute(tx) {
+  // zkLogin path: same PTB, signed with the assembled zkLogin signature
+  if (state.mode === 'zk') {
+    const res = await zkSignAndExecute(client, state.zk, tx);
+    const digest = res.digest;
+    if (!digest) throw new Error('no digest returned');
+    return client.getTransactionBlock({ digest, options: { showEffects: true, showObjectChanges: true, showEvents: true } });
+  }
   const feat = state.wallet.features['sui:signAndExecuteTransaction'];
   const out = await feat.signAndExecuteTransaction({
     transaction: tx, account: state.account, chain: 'sui:testnet',
@@ -908,9 +936,13 @@ function renderWalletChip() {
   const b = $('#wallet'); if (!b) return;
   if (state.account) {
     const bal = fmt(Number(state.dusdc) / 10 ** CFG.DUSDC_DECIMALS, 2);
-    b.innerHTML = `<span class="sdot active"></span> ${short(state.account.address)} · ${bal} dUSDC`;
-    b.title = 'Click to disconnect';
-  } else { b.innerHTML = 'Connect wallet'; b.title = ''; }
+    const via = state.mode === 'zk'
+      ? `<span class="mono" style="font-size:10px;color:var(--accent-deep)">G</span> ` : '';
+    b.innerHTML = `<span class="sdot active"></span> ${via}${short(state.account.address)} · ${bal} dUSDC`;
+    b.title = state.mode === 'zk'
+      ? `zkLogin via Google${state.zk?.email ? ' (' + state.zk.email + ')' : ''} — click to sign out`
+      : 'Click to disconnect';
+  } else { b.innerHTML = 'Connect'; b.title = ''; }
 }
 function walletButton() {
   const b = $('#wallet');
@@ -919,19 +951,35 @@ function walletButton() {
 function openWalletPicker() {
   const wallets = discoverWallets();
   const ov = document.createElement('div'); ov.className = 'wpick-ov';
+  // zkLogin "Continue with Google" — only shown when an OAuth client id is
+  // configured, so there is never a dead button (scope guard: real or removed).
+  const googleRow = zkConfigured() ? `
+    <button class="wpick-item" id="wpick-google" data-cursor>
+      <svg width="22" height="22" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      <span>Continue with Google</span>
+      <span class="mono" style="margin-left:auto;font-size:10px;color:var(--ink-3)">zkLogin · no seed phrase</span>
+    </button>
+    <div class="wpick-or"><span>or connect a wallet</span></div>` : '';
   ov.innerHTML = `<div class="wpick">
-    <div class="row spread" style="margin-bottom:6px"><b style="font-family:var(--serif);font-size:1.4rem;font-weight:400">Connect a wallet</b><button class="wpick-x" data-cursor>✕</button></div>
-    <div class="muted" style="font-size:13px;margin-bottom:16px">Sui testnet · Wallet Standard</div>
+    <div class="row spread" style="margin-bottom:6px"><b style="font-family:var(--serif);font-size:1.4rem;font-weight:400">Connect</b><button class="wpick-x" data-cursor>✕</button></div>
+    <div class="muted" style="font-size:13px;margin-bottom:16px">Sui testnet · zkLogin or Wallet Standard</div>
+    ${googleRow}
     ${wallets.length ? wallets.map((w, i) => `<button class="wpick-item" data-i="${i}" data-cursor>
         ${w.icon ? `<img src="${w.icon}" alt="" width="26" height="26" style="border-radius:7px"/>` : '<span class="wpick-dot"></span>'}
         <span>${w.name}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>`).join('')
-      : `<div class="muted" style="padding:14px 0">No Sui wallet detected. Install <a class="mono" style="color:var(--accent-deep)" href="https://slush.app" target="_blank" rel="noopener">Slush</a>, Sui Wallet or Suiet, then reload.</div>`}
+      : `<div class="muted" style="padding:14px 0">No browser wallet detected. Install <a class="mono" style="color:var(--accent-deep)" href="https://slush.app" target="_blank" rel="noopener">Slush</a>, Sui Wallet or Suiet${zkConfigured() ? ' — or just continue with Google above' : ''}, then reload.</div>`}
   </div>`;
   document.body.appendChild(ov);
   const close = () => ov.remove();
   ov.addEventListener('click', async (e) => {
     if (e.target === ov || e.target.closest('.wpick-x')) return close();
-    const it = e.target.closest('.wpick-item'); if (!it) return;
+    if (e.target.closest('#wpick-google')) {
+      close();
+      try { toast('Redirecting to Google', 'zkLogin — deriving a Sui address', 'gold'); await connectGoogle(); }
+      catch (err) { toast('Google sign-in failed', err.message || 'error', 'gold'); }
+      return;
+    }
+    const it = e.target.closest('.wpick-item'); if (!it || it.id === 'wpick-google') return;
     close();
     try { await connectWallet(wallets[+it.dataset.i]); toast('Wallet connected', short(state.account.address) + ' · Sui testnet', 'alive'); }
     catch (err) { toast('Connection failed', err.message || 'rejected', 'gold'); }
@@ -971,10 +1019,18 @@ function build() {
 
 function init() {
   build(); cursor(); themeToggle(); walletButton();
-  // restore a previously authorized wallet silently (best-effort)
-  const ws = discoverWallets();
-  const remembered = ws.find(w => (w.accounts && w.accounts.length));
-  if (remembered) { state.wallet = remembered; state.account = remembered.accounts[0]; refreshDusdc().then(renderWalletChip); }
+  // (a) returning from a Google OAuth redirect? finish zkLogin (proof + address).
+  completeGoogleLoginIfPresent(client).then(s => {
+    if (s) { activateZkSession(s).then(() => { toast('Signed in with Google', 'zkLogin address ' + short(s.address), 'alive'); render(); }); }
+  }).catch(err => toast('zkLogin failed', err.message || 'prover error', 'gold'));
+  // (b) restore a still-valid zkLogin session from this tab, else a wallet.
+  const zk = loadZkSession();
+  if (zk) { state.mode = 'zk'; state.zk = zk; state.account = { address: zk.address }; refreshDusdc().then(renderWalletChip); }
+  else {
+    const ws = discoverWallets();
+    const remembered = ws.find(w => (w.accounts && w.accounts.length));
+    if (remembered) { state.wallet = remembered; state.account = remembered.accounts[0]; refreshDusdc().then(renderWalletChip); }
+  }
   addEventListener('hashchange', render);
   render();
   const boot = $('#boot'); if (boot) setTimeout(() => boot.classList.add('done'), 520);

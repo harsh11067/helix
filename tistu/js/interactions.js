@@ -109,11 +109,11 @@
       // structure selection
       let name, sub;
       const ad = Math.abs(d);
-      if (ad < 0.2 && v > 0.55) { name = 'Volatility Harvest'; sub = 'straddle · mint via predict'; }
+      if (ad < 0.2 && v > 0.55) { name = 'Volatility Range'; sub = 'range bet · mint via predict'; }
       else if (ad < 0.2) { name = 'Range Binary'; sub = 'binary · pinned to oracle'; }
-      else if (d > 0) { name = c > 0.6 ? 'Bull Call Spread' : 'Up-Range Binary'; sub = (c > 0.6 ? 'spread' : 'binary') + ' · BTC up-range'; }
-      else { name = c > 0.6 ? 'Bear Put Spread' : 'Down-Range Binary'; sub = (c > 0.6 ? 'spread' : 'binary') + ' · BTC down-range'; }
-      if (v > 0.55 && ad >= 0.2 && c > 0.5) sub += ' + protective leg';
+      else if (d > 0) { name = c > 0.6 ? 'Bracketed Up' : 'Up-Range Binary'; sub = (c > 0.6 ? 'bracketed range' : 'binary') + ' · BTC up-range'; }
+      else { name = c > 0.6 ? 'Bracketed Down' : 'Down-Range Binary'; sub = (c > 0.6 ? 'bracketed range' : 'binary') + ' · BTC down-range'; }
+      if (v > 0.55 && ad >= 0.2 && c > 0.5) sub += ' + hedge leg';
       out.struct.textContent = name;
       out.structSub.textContent = sub;
 

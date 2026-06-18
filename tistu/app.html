@@ -35,6 +35,14 @@
      (app.js then falls back to http://localhost:8081). -->
 <script>window.HELIX_COMPILER_URL = 'https://helix-compiler.onrender.com';</script>
 
+<!-- zkLogin "Continue with Google": paste a Google OAuth *Web* client id below to
+     light up the button. Create one at https://console.cloud.google.com/apis/credentials
+     (OAuth client → Web application) and register these Authorized redirect URIs:
+        https://helix-app-fovn.onrender.com/app.html
+        http://localhost:5173/app.html   (or whatever local port you serve on)
+     The button stays HIDDEN until this is set, so there is never a dead button. -->
+<script>window.HELIX_GOOGLE_CLIENT_ID = '';</script>
+
 <!-- app shell is built by app.js (ES module: Sui SDK + Wallet Standard from CDN) -->
 <script type="module" src="js/app.js"></script>
 </body>
