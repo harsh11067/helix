@@ -41,7 +41,7 @@ secondary DeepBook Predict.
 | Resource | URL |
 | :--- | :--- |
 | **Source (GitHub)** | https://github.com/harsh11067/helix |
-| **App (frontend)** | https://helix-app-fovn.onrender.com · [/app.html](https://helix-app-fovn.onrender.com/app.html) |
+| **App (frontend)** | https://helix-app-fovn.onrender.com/ |
 | **Compiler (TEE) health** | https://helix-compiler.onrender.com/health |
 | **Latest package on explorer** | https://suiscan.xyz/testnet/object/0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0 |
 | **Original package on explorer** | https://suiscan.xyz/testnet/object/0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3 |
