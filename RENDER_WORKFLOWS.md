@@ -57,6 +57,46 @@ and retriable — and therefore a legitimate fit for Render Workflows — are:
 None of these exist yet. They're recorded here as the honest answer to "how would you use it,"
 not as a built feature.
 
+## Render Workflows Fit: HELIX Pipeline Boundary
+
+HELIX is currently deployed on Render as a live web service. The demo-critical path stays
+intentionally simple and reliable:
+
+`user conviction → /compile → Risk Guardian flags → wallet-signed mint`
+
+That path is the exact orchestration boundary that maps naturally onto Render Workflows.
+
+A Render Workflow version of HELIX would split the same pipeline into durable, observable
+steps:
+
+1. **compile-conviction**
+   Parse the user's market conviction and produce the structured HELIX output: structure, DNA,
+   payoff, Greeks, and execution intent.
+
+2. **guardian-check**
+   Run Risk Guardian checks such as volatility/staleness flags, expiry proximity, utilization
+   warnings, and unsafe payoff conditions.
+
+3. **mint-preparation**
+   Prepare the final user-facing mint payload for Sui / DeepBook Predict. The user still signs
+   the transaction — the workflow only prepares and verifies the execution intent.
+
+4. **attestation/archive**
+   Store or emit an attestation bundle containing the input hash, compiled structure, guardian
+   result, timestamp, and package metadata.
+
+Why this fits Render Workflows:
+
+* each stage is independently retryable;
+* a failed guardian or archive step shouldn't force the user to recompute the whole conviction;
+* per-task logs and traces make the agent pipeline easier for a judge to follow and debug;
+* future long-running jobs — strategy monitoring, risk refresh, performance-fee sweeps — can
+  reuse the same workflow pattern instead of bespoke cron/retry glue.
+
+For the hackathon build, HELIX keeps the synchronous `/compile` path for demo reliability. This
+document identifies the concrete Render Workflow boundary without changing core contract logic
+or the live mint flow.
+
 ## Submission-form answers
 
 **"If you have used Render Workflows to build your project, explain how you used it in
