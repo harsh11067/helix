@@ -20,14 +20,14 @@ import {
   loadSession as loadZkSession, clearSession as clearZkSession, zkSignAndExecute,
 } from './zklogin.js';
 import {
-  SEAL_EVENT_TYPE, encryptThesis, addAttachThesis, decryptThesis,
+  SEAL_EVENT_TYPE, SEAL_EVENT_TYPES, encryptThesis, addAttachThesis, decryptThesis,
   uploadToWalrus, fetchFromWalrus, decodeBlobId,
 } from './seal.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
   HELIX:        '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3', // original id — types/events/queries
-  HELIX_LATEST: '0x96b36ef86f445b525eccaa5410a2c6cebe6c6dff85c86fbfee9914581b0ad391', // upgraded id — seal_policy moveCalls
+  HELIX_LATEST: '0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0', // v4 upgraded id — all moveCalls (copy_for_thesis, seal_approve* with the fixed copier sig)
   PREDICT_PKG:  '0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138',
   PREDICT_OBJ:  '0xc8736204d12f0a7277c86388a68bf8a194b0a14c5538ad13f22cbd8e2a38028a',
   DUSDC:        '0xe95040085976bfd54a1a07225cd46c8a2b4e8e2b6732f140a0fc49850ba73e1a::dusdc::DUSDC',
@@ -153,8 +153,13 @@ async function signPersonalMessage(message) {
 // Find the encrypted-thesis Walrus blob id recorded on-chain for a strategy.
 async function getThesisBlobId(strategyId) {
   try {
-    const ev = await client.queryEvents({ query: { MoveEventType: SEAL_EVENT_TYPE }, limit: 50, order: 'descending' });
-    const hit = ev.data.find(e => e.parsedJson?.strategy_id === strategyId);
+    // query each candidate event-type id (defining version + latest) and take the
+    // most recent attach for this strategy across all of them.
+    const results = await Promise.all((SEAL_EVENT_TYPES || [SEAL_EVENT_TYPE]).map(t =>
+      client.queryEvents({ query: { MoveEventType: t }, limit: 50, order: 'descending' })
+        .then(r => r.data).catch(() => [])));
+    const all = results.flat().sort((a, b) => Number(b.timestampMs || 0) - Number(a.timestampMs || 0));
+    const hit = all.find(e => e.parsedJson?.strategy_id === strategyId);
     return hit ? decodeBlobId(hit.parsedJson) : null;
   } catch (e) { return null; }
 }
@@ -278,29 +283,30 @@ const volWord = v => v < 30 ? 'Calm' : v < 60 ? 'Choppy' : v < 85 ? 'Volatile' :
 const confWord = c => c < 30 ? 'Tentative' : c < 60 ? 'Moderate' : c < 85 ? 'Confident' : 'High conviction';
 
 /* ============================================================ charts (payoff from real legs)
-   Persistent SVG whose paths MORPH between compiles (CSS `transition: d`), so the
-   conviction card animates smoothly instead of snapping. Geometry is constant
-   (fixed viewBox + 200 steps + stable x-domain) so the `d` strings interpolate. */
-const PF = { W: 600, H: 240, pad: 8, steps: 200 };
-function payoffPaths(legs, spot) {
+   Persistent SVG whose path is tweened between compiles with a requestAnimationFrame
+   point-interpolation (NOT CSS `transition: d` — that is Chromium-only, snaps in
+   Firefox/Safari, and janks when the y-domain rescales). We interpolate the final
+   SCREEN coordinates point-by-point, so the curve glides smoothly even when its
+   vertical scale changes, and mid-flight recompiles continue from the live frame. */
+const PF = { W: 600, H: 240, pad: 8, steps: 96 };
+function payoffGeometry(legs, spot) {
   const { W, H, pad, steps } = PF;
-  const lo = spot * 0.6, hi = spot * 1.4, pts = [];
+  const lo = spot * 0.6, hi = spot * 1.4, raw = [];
   for (let i = 0; i <= steps; i++) {
     const s = lo + (hi - lo) * i / steps; let intr = 0;
     for (const l of legs) intr += l.qty * (l.type === 'call' ? Math.max(s - l.strike, 0) : Math.max(l.strike - s, 0));
-    pts.push({ x: s, y: intr });
+    raw.push({ s, y: intr });
   }
-  const ys = pts.map(p => p.y); const ymin = Math.min(...ys), ymax = Math.max(...ys);
-  pts.forEach(p => { p.y -= (ymin + ymax) / 2; }); // premium-less intrinsic view, centered
-  const yy = pts.map(p => p.y); let loY = Math.min(...yy, 0), hiY = Math.max(...yy, 0);
+  const ys = raw.map(p => p.y); const mid = (Math.min(...ys) + Math.max(...ys)) / 2;
+  raw.forEach(p => { p.y -= mid; }); // premium-less intrinsic view, centered
+  let loY = Math.min(...raw.map(p => p.y), 0), hiY = Math.max(...raw.map(p => p.y), 0);
   const yr = (hiY - loY) || 1; loY -= yr * 0.14; hiY += yr * 0.14;
   const X = x => pad + (x - lo) / (hi - lo) * (W - 2 * pad);
   const Y = y => pad + (1 - (y - loY) / (hiY - loY)) * (H - 2 * pad);
-  const line = pts.map((p, i) => (i ? 'L' : 'M') + X(p.x).toFixed(1) + ' ' + Y(p.y).toFixed(1)).join(' ');
-  const zeroY = Y(0), spotX = X(spot);
-  const area = `${line} L ${X(hi).toFixed(1)} ${zeroY.toFixed(1)} L ${X(lo).toFixed(1)} ${zeroY.toFixed(1)} Z`;
-  return { line, area, spotX, zeroY };
+  return { pts: raw.map(p => ({ x: X(p.s), y: Y(p.y) })), spotX: X(spot), zeroY: Y(0), x0: X(lo), x1: X(hi) };
 }
+const ptsToLine = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+const ptsToArea = (pts, zeroY, x0, x1) => `${ptsToLine(pts)} L ${x1.toFixed(1)} ${zeroY.toFixed(1)} L ${x0.toFixed(1)} ${zeroY.toFixed(1)} Z`;
 function payoffSkeleton() {
   const { W, H } = PF;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:240px">
@@ -311,15 +317,37 @@ function payoffSkeleton() {
     <path id="pf-line" d="" fill="none" stroke="var(--accent-bright)" stroke-width="2.4"/>
   </svg>`;
 }
+// Smoothly tween the SVG inside `host` from its live frame to `target` geometry.
+function tweenPayoff(host, target) {
+  const line = host.querySelector('#pf-line'); if (!line) return;
+  const area = host.querySelector('#pf-area'), spotl = host.querySelector('#pf-spot'), zero = host.querySelector('#pf-zero');
+  const apply = (g) => {
+    line.setAttribute('d', ptsToLine(g.pts));
+    area.setAttribute('d', ptsToArea(g.pts, g.zeroY, g.x0, g.x1));
+    zero.setAttribute('y1', g.zeroY.toFixed(1)); zero.setAttribute('y2', g.zeroY.toFixed(1));
+    spotl.setAttribute('x1', g.spotX.toFixed(1)); spotl.setAttribute('x2', g.spotX.toFixed(1));
+    host.__pfCur = g; // live frame → seamless continuation if interrupted
+  };
+  if (host.__pfRaf) { cancelAnimationFrame(host.__pfRaf); host.__pfRaf = null; }
+  const prev = host.__pfCur;
+  if (reduce || !prev || prev.pts.length !== target.pts.length) { apply(target); return; } // snap
+  const t0 = performance.now(), dur = 260;
+  const frame = (now) => {
+    const e = 1 - Math.pow(1 - Math.min(1, (now - t0) / dur), 3); // easeOutCubic
+    apply({
+      pts: target.pts.map((p, i) => ({ x: prev.pts[i].x + (p.x - prev.pts[i].x) * e, y: prev.pts[i].y + (p.y - prev.pts[i].y) * e })),
+      zeroY: prev.zeroY + (target.zeroY - prev.zeroY) * e,
+      spotX: prev.spotX + (target.spotX - prev.spotX) * e,
+      x0: target.x0, x1: target.x1,
+    });
+    if ((now - t0) / dur < 1) host.__pfRaf = requestAnimationFrame(frame); else host.__pfRaf = null;
+  };
+  host.__pfRaf = requestAnimationFrame(frame);
+}
 function updatePayoff(el, legs, spot) {
   const host = $('#payoff', el); if (!host) return;
   if (!host.querySelector('svg')) host.innerHTML = payoffSkeleton();
-  const p = payoffPaths(legs, spot);
-  const line = host.querySelector('#pf-line'), area = host.querySelector('#pf-area');
-  const spotl = host.querySelector('#pf-spot'), zero = host.querySelector('#pf-zero');
-  line.setAttribute('d', p.line); area.setAttribute('d', p.area);
-  zero.setAttribute('y1', p.zeroY.toFixed(1)); zero.setAttribute('y2', p.zeroY.toFixed(1));
-  spotl.setAttribute('x1', p.spotX.toFixed(1)); spotl.setAttribute('x2', p.spotX.toFixed(1));
+  tweenPayoff(host, payoffGeometry(legs, spot));
 }
 
 /* honest risk compass — Net Exposure · Directional Bias · Time-to-Resolution · Concentration · Liquidity Headroom */
@@ -440,7 +468,7 @@ function mountCanvas(el) {
     $('#v-cap', el).textContent = conv.capital + ' dUSDC';
     return conv;
   }
-  function schedule() { labels(); clearTimeout(timer); timer = setTimeout(doCompile, 220); }
+  function schedule() { labels(); clearTimeout(timer); timer = setTimeout(doCompile, 150); }
   async function doCompile() {
     const conv = readConv(s); state.conv = conv;
     const box = $('#compiled', el);
@@ -750,6 +778,7 @@ function viewDetail(id) {
       host.addEventListener('click', e => {
         if (e.target.closest('#thesis-unlock')) unlockThesis(host, s);
         if (e.target.closest('#thesis-attach')) attachThesisDetail(host, s);
+        if (e.target.closest('#thesis-copy')) copyStrategyFlow(host, s);
       });
       if (mine) host.addEventListener('click', e => {
         if (e.target.closest('#breed-list-btn')) listAction(host, s.id, 'breedable');
@@ -763,10 +792,8 @@ function viewDetail(id) {
   return { el };
 }
 function updatePayoffNode(host, legs, spot) {
-  const p = payoffPaths(legs, spot);
-  host.querySelector('#pf-line').setAttribute('d', p.line); host.querySelector('#pf-area').setAttribute('d', p.area);
-  host.querySelector('#pf-spot').setAttribute('x1', p.spotX.toFixed(1)); host.querySelector('#pf-spot').setAttribute('x2', p.spotX.toFixed(1));
-  host.querySelector('#pf-zero').setAttribute('y1', p.zeroY.toFixed(1)); host.querySelector('#pf-zero').setAttribute('y2', p.zeroY.toFixed(1));
+  if (!host.querySelector('svg')) host.innerHTML = payoffSkeleton();
+  tweenPayoff(host, payoffGeometry(legs, spot));
 }
 function dnaGrid(d) {
   const dir = (d.dirNegative ? -1 : 1) * d.dirMagnitude;
@@ -882,17 +909,34 @@ async function renderThesisPanel(host, s) {
   const blobId = await getThesisBlobId(s.id);
   const mine = state.account && s.owner === state.account.address;
   const relId = (!mine && state.account && blobId) ? await findCopyRelationship(s.id) : null;
+  // Seal decryption needs a personal-message signature (SessionKey), which only a
+  // browser wallet provides — zkLogin/Google sessions can't decrypt yet. Guard the
+  // UI so a Google user never hits a dead end (or pays to copy then can't read).
+  const canDecrypt = state.mode === 'wallet' && !!state.wallet?.features?.['sui:signPersonalMessage'];
+  const zkNote = `<div class="row" style="gap:10px;align-items:flex-start;margin-top:12px"><span class="sdot pending" style="margin-top:5px;flex:0 0 auto"></span>
+    <span class="muted" style="line-height:1.6">Reading a Seal thesis needs a browser wallet signature (Seal session key). You're signed in with Google (zkLogin) — reconnect with a wallet to unlock theses.</span></div>`;
   if (blobId) {
     panel.dataset.blob = blobId; if (relId) panel.dataset.rel = relId;
     if (mine || relId) {
       panel.innerHTML = `<div class="section-title">private thesis</div>
         <div class="muted" style="line-height:1.6">A Seal-encrypted thesis is attached to this strategy. ${mine ? 'You own it.' : 'You copied it — so you can read it.'} Decrypt with your wallet (a quick signature, no transaction).</div>
-        <button class="btn-soft" id="thesis-unlock" data-cursor style="margin-top:12px">Unlock thesis ${arrow()}</button>
+        ${canDecrypt
+          ? `<button class="btn-soft" id="thesis-unlock" data-cursor style="margin-top:12px">Unlock thesis ${arrow()}</button>`
+          : zkNote}
         <div id="thesis-plain" style="margin-top:12px"></div>`;
     } else {
+      const feeUnits = Math.floor((s.capital || 0) * (s.copyFeeBps || 0) / 10000);
+      const payLbl = feeUnits > 0 ? ` · pay ${fmt(feeUnits)} dUSDC` : ' · free';
       panel.innerHTML = `<div class="section-title">private thesis</div>
         <div class="row" style="gap:10px;align-items:flex-start"><span class="sdot dead" style="margin-top:5px;flex:0 0 auto"></span>
-        <span class="muted" style="line-height:1.6">This strategy carries a Seal-encrypted thesis. Structure and performance are public on-chain, but the owner's reasoning unlocks only for paying copiers.</span></div>`;
+        <span class="muted" style="line-height:1.6">This strategy carries a Seal-encrypted thesis. Structure and performance are public on-chain, but the owner's reasoning unlocks only for paying copiers.</span></div>
+        ${!state.account
+          ? `<div class="muted" style="margin-top:12px">Connect a wallet to copy this strategy and unlock its thesis.</div>`
+          : !canDecrypt
+            ? zkNote
+            : `<button class="btn-soft" id="thesis-copy" data-cursor style="margin-top:14px">Copy strategy${payLbl} ${arrow()}</button>
+               <div class="muted mono" style="font-size:10.5px;margin-top:6px">paying to copy records an on-chain CopyRelationship → Seal then grants you the thesis</div>
+               <div id="thesis-copy-out" style="margin-top:12px"></div>`}`;
     }
   } else if (mine) {
     panel.innerHTML = `<div class="section-title">private thesis</div>
@@ -917,6 +961,54 @@ async function unlockThesis(host, s) {
       <div style="margin-top:8px;line-height:1.6;white-space:pre-wrap">${escapeHtml(text)}</div></div>`;
   } catch (e) {
     out.innerHTML = `<div class="muted" style="color:var(--coral)">Couldn't unlock: ${e.message || 'access denied'}</div>`;
+  }
+}
+// The copier path: a non-owner pays to copy → gets an on-chain CopyRelationship →
+// Seal's seal_approve_copier then grants them the thesis. Uses copy_for_thesis
+// (which doesn't reference the owner's OWNED StrategyObject — a stranger can't pass
+// another wallet's owned object into their transaction). On success, re-render the
+// panel (now finds the relationship) and auto-unlock.
+async function copyStrategyFlow(host, s) {
+  const out = $('#thesis-copy-out', host);
+  if (!state.account) { if (out) out.innerHTML = `<div class="muted">Connect a wallet to copy.</div>`; return; }
+  if (state.busy) return; state.busy = true;
+  const btn = $('#thesis-copy', host); if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+  if (out) out.innerHTML = `<div class="muted"><span class="sdot pending"></span> paying the creator &amp; recording your copy on-chain…</div>`;
+  try {
+    const feeUnits = Math.floor((s.capital || 0) * (s.copyFeeBps || 0) / 10000);
+    const feeBase = BigInt(feeUnits) * BigInt(10 ** CFG.DUSDC_DECIMALS);
+    const tx = new Transaction();
+    let fee;
+    if (feeBase > 0n) {
+      if (state.dusdc < feeBase) throw new Error('INSUFFICIENT_DUSDC');
+      const coinId = await pickDusdcCoin(feeBase);
+      [fee] = tx.splitCoins(tx.object(coinId), [tx.pure.u64(feeBase)]);
+    } else {
+      fee = tx.moveCall({ target: '0x2::coin::zero', typeArguments: [CFG.DUSDC], arguments: [] });
+    }
+    const rel = tx.moveCall({
+      target: `${CFG.HELIX_LATEST}::marketplace::copy_for_thesis`,
+      typeArguments: [CFG.DUSDC],
+      arguments: [tx.pure.id(s.id), tx.pure.address(s.creator), fee],
+    });
+    tx.transferObjects([rel], tx.pure.address(state.account.address));
+    const res = await signAndExecute(tx);
+    if (res.effects?.status?.status !== 'success') throw new Error(res.effects?.status?.error || 'copy failed');
+    await refreshDusdc(); renderWalletChip();
+    // grab the new CopyRelationship id straight from the tx result, so we don't race
+    // an event/owned-object index that may lag right after creation.
+    const createdRel = (res.objectChanges || []).find(o => o.type === 'created' && /::marketplace::CopyRelationship$/.test(o.objectType || ''));
+    toast('Strategy copied', 'on-chain CopyRelationship recorded — unlocking thesis', 'alive');
+    const panel = $('#thesis-panel', host);
+    if (panel && createdRel) panel.dataset.rel = createdRel.objectId; // pin it for unlockThesis
+    await renderThesisPanel(host, s);   // re-render to the "you copied it → unlock" state
+    if (panel && createdRel) panel.dataset.rel = createdRel.objectId; // renderThesisPanel may have cleared it (index lag)
+    await unlockThesis(host, s);        // decrypt via the copier path (decryptThesis retries on FN lag)
+  } catch (e) {
+    const msg = (e.message || '').includes('INSUFFICIENT_DUSDC') ? 'Not enough dUSDC to pay the copy fee.' : (e.message || 'rejected');
+    if (out) out.innerHTML = `<div class="muted" style="color:var(--coral)">Copy failed: ${msg}</div>`;
+  } finally {
+    state.busy = false; const b = $('#thesis-copy', host); if (b) { b.disabled = false; b.style.opacity = '1'; }
   }
 }
 async function attachThesisDetail(host, s) {
@@ -1140,6 +1232,22 @@ function build() {
 
 function init() {
   build(); cursor(); themeToggle(); walletButton();
+  // (a0) arrived from the landing-page "Continue with Google" CTA (app.html?login=google)?
+  // kick straight into the Google → zkLogin redirect (the OAuth flow must complete
+  // here in app.html, which is why the landing button routes through this page).
+  const qp = new URLSearchParams(location.search);
+  if (qp.get('login') === 'google' && zkConfigured() && !loadZkSession() && !location.hash.includes('id_token=')) {
+    history.replaceState(null, '', location.pathname); // drop the ?login flag
+    connectGoogle().catch(err => {
+      // the redirect to Google did NOT happen (e.g. Enoki key missing) — surface the
+      // reason and still render the app so the page isn't left blank/stuck.
+      toast('Google sign-in failed', err.message || 'error', 'gold');
+      addEventListener('hashchange', render); render();
+      const boot = $('#boot'); if (boot) setTimeout(() => boot.classList.add('done'), 520);
+      document.body.classList.remove('booting');
+    });
+    return; // on success the page navigates away to Google; nothing else to do
+  }
   // (a) returning from a Google OAuth redirect? finish zkLogin (proof + address).
   completeGoogleLoginIfPresent(client).then(s => {
     if (s) { activateZkSession(s).then(() => { toast('Signed in with Google', 'zkLogin address ' + short(s.address), 'alive'); render(); }); }

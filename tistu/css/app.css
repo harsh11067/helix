@@ -142,10 +142,10 @@
 .badge { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 10px; border-radius: 100px; border: 1px solid var(--line); color: var(--ink-2); }
 .badge.tee { color: var(--conv); border-color: color-mix(in srgb,var(--conv) 40%, transparent); background: var(--conv-soft); }
 
-/* payoff curve morphs between compiles instead of snapping (smooth conviction card) */
-#pf-line, #pf-area { transition: d var(--d-slow) var(--e-out); }
-#pf-spot, #pf-zero { transition: x1 var(--d-base) var(--e-out), x2 var(--d-base) var(--e-out), y1 var(--d-base) var(--e-out), y2 var(--d-base) var(--e-out); }
-@media (prefers-reduced-motion: reduce) { #pf-line, #pf-area, #pf-spot, #pf-zero { transition: none; } }
+/* payoff curve is tweened in JS (requestAnimationFrame point-interpolation in
+   app.js → tweenPayoff). CSS `transition: d` is intentionally NOT used: it only
+   works in Chromium, snaps elsewhere, and janks when the y-domain rescales. */
+#pf-line, #pf-area, #pf-spot, #pf-zero { transition: none; }
 /* soften the readout panel swap on each recompile */
 #compiled { animation: cFade var(--d-base) var(--e-out); }
 @keyframes cFade { from { opacity: 0.55; } to { opacity: 1; } }

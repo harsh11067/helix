@@ -49,16 +49,22 @@ module helix::seal_policy {
     }
 
     /// Seal key-server access check: a COPIER may decrypt the original strategy's
-    /// thesis. The caller must hold a `CopyRelationship` whose `original` is this
-    /// strategy and whose `copier` is the caller — i.e. they paid to copy it.
+    /// thesis. The caller must hold a `CopyRelationship` whose `original` matches
+    /// the encryption identity and whose `copier` is the caller — i.e. they paid
+    /// to copy it.
+    ///
+    /// IMPORTANT: this takes ONLY the copier's own `CopyRelationship`, NOT the
+    /// `StrategyObject`. The strategy is an OWNED object held by the original
+    /// owner, so the copier (a different address) cannot reference it in the PTB
+    /// the key server dry-runs — doing so produced
+    /// `InvalidParameterError` ("…object the FN has not yet seen"). The identity
+    /// the copier needs is already recorded inside the relationship.
     entry fun seal_approve_copier(
         id: vector<u8>,
-        s: &StrategyObject,
         rel: &CopyRelationship,
         ctx: &TxContext,
     ) {
-        assert!(id == object::id(s).to_bytes(), EBadIdentity);
-        assert!(marketplace::original_strategy_id(rel) == object::id(s), ENoAccess);
+        assert!(marketplace::original_strategy_id(rel).to_bytes() == id, EBadIdentity);
         assert!(marketplace::copier(rel) == ctx.sender(), ENoAccess);
     }
 }

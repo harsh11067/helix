@@ -6,7 +6,8 @@
 
 [![Sui Overflow 2026](https://img.shields.io/badge/Sui%20Overflow-2026-blueviolet?style=for-the-badge&logo=sui)](https://overflow.sui.io)
 [![Track](https://img.shields.io/badge/Track-Agentic%20Web%20%2F%20Intent%20Engine-brightgreen?style=for-the-badge)](https://overflow.sui.io)
-[![Sui Stack](https://img.shields.io/badge/Sui%20Stack-DeepBook%20%7C%20Walrus%20%7C%20Nautilus%20TEE-aqua?style=for-the-badge)](https://sui.io)
+[![Sui Stack](https://img.shields.io/badge/Sui%20Stack-DeepBook%20%7C%20Walrus%20%7C%20Seal%20%7C%20zkLogin-aqua?style=for-the-badge)](https://sui.io)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production%20%26%20Deployed-brightgreen?style=for-the-badge)](./docs/SUBMISSION.md)
 
 > [!IMPORTANT]
@@ -27,8 +28,13 @@
 └────────────────┴─────────────────────────────────────┴──────────────────────────────────────────────────────────┘
 ```
 
-* **On-Chain Package (Sui Testnet):** `0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3`
+* **On-Chain Package — `published-at` (latest, v4):** `0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0`
+* **On-Chain Package — `original-id` (v1, type/identity namespace):** `0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3`
 * **Real Walrus Testnet Blob:** `QE8njhhplCR8s6UHqjS8SBsQ6SO7AxyNZqI6CoBvmX4`
+* **Full on-chain proof, IDs, tx digests & explorer links:** [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+> [!NOTE]
+> The package has been upgraded **four times** on testnet (v1 publish → v2 Seal policy → v3 cross-wallet copy → v4 copier-access fix). Always use `published-at` for `moveCall` targets and `original-id` for type/event identity. The full lineage is in [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ---
 

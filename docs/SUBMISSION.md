@@ -6,14 +6,19 @@
 
 ## 1. What is genuinely real (verifiable, not claimed)
 
-- **On-chain package**, published to Sui testnet: `0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3`
-  - 15 modules; `mock_predict` provably absent from bytecode (the `#[test_only]` gate held)
+- **On-chain package**, published to Sui testnet and upgraded to v4:
+  - `published-at` (latest, v4): `0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0`
+  - `original-id` (v1, type/identity namespace): `0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3`
+  - 16 modules; `mock_predict` provably absent from bytecode (the `#[test_only]` gate held)
   - Linkage table binds the real DeepBook Predict (`0xf5ea…5138`) + upgraded deepbook v19
+  - Upgrade lineage (v1→v2 Seal policy→v3 cross-wallet copy→v4 copier fix), all tx digests, and every deployed ID: see **[DEPLOYMENT.md](../DEPLOYMENT.md)**
 - **Real `predict::mint` from a browser wallet** — personally minted with 5 DUSDC end-to-end through the Conviction Canvas. This is the demo's smoking gun and it is verified by a human, not just CLI dry-run.
 - **Live SVI pricing** — `/compile` prices conviction against the real testnet BTC oracle (verified: spot ≈ $63,945, ATM IV ≈ 37%); guardian SVI-age reads the real on-chain oracle timestamp; oracle auto-rotates when one nears settlement.
 - **Real Walrus** — backtest equity curves upload to and round-trip from Walrus testnet (verified blob `QE8n…mX4`).
 - **Real indexer** — live `SuiEventSource` ingests the real `StrategyCreated` event from the deployed package.
-- **Tests green throughout**: Move 56/56 (87.4% cov), TEE 20/20, Indexer 7/7.
+- **zkLogin (Sign in with Google)** — real self-custodial onboarding via Enoki (hosted prover + per-user salt); a custom Google client ID, proved against the testnet circuit. No seed phrase.
+- **Seal-encrypted private thesis** — structure/performance public, reasoning encrypted client-side with Seal, stored on Walrus, gated on-chain by `helix::seal_policy`. Owner and paying copiers (holding a `CopyRelationship`) can decrypt; strangers cannot — verified end-to-end.
+- **Tests green throughout**: Move 64/64, TEE 20/20, Indexer 7/7.
 - **Frontend** — six pages, all reading real chain/Predict-server data, no fabricated seed data, in a locked design language (`tistu/DESIGN.md`).
 
 ## 2. What is intentionally stubbed (labeled, defensible)

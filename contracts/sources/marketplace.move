@@ -81,6 +81,41 @@ module helix::marketplace {
         (derived, cap, rel)
     }
 
+    /// Pay-to-unlock (cross-wallet copy): mint a `CopyRelationship` for a strategy
+    /// the caller does NOT own, WITHOUT taking the original `StrategyObject` by
+    /// reference. A `StrategyObject` is an OWNED object, so a non-owner can't pass
+    /// it into their own transaction — `copy_strategy` above is therefore only
+    /// reachable by the owner (or in test scenarios). This entry lets a stranger
+    /// pay the copy fee directly to the original creator (both read off-chain) and
+    /// receive a `CopyRelationship`, which grants Seal `seal_approve_copier` access
+    /// to that strategy's encrypted thesis. No DNA clone is minted here — this is
+    /// the thesis-unlock path; full DNA copy requires a shared/owned original.
+    public fun copy_for_thesis<FeeCoin>(
+        original_strategy_id: ID,
+        original_creator: address,
+        fee_payment: Coin<FeeCoin>,
+        ctx: &mut TxContext,
+    ): CopyRelationship {
+        let paid = fee_payment.value();
+        if (paid > 0) {
+            transfer::public_transfer(fee_payment, original_creator);
+        } else {
+            fee_payment.destroy_zero();
+        };
+        let rel = CopyRelationship {
+            id: object::new(ctx),
+            copier: ctx.sender(),
+            original_strategy_id,
+            derived_strategy_id: original_strategy_id, // no clone in the unlock path
+            fee_bps: 0,
+            capital_committed: 0,
+            fees_paid_to_original: paid,
+            started_epoch: ctx.epoch(),
+        };
+        events::strategy_copied(original_strategy_id, original_strategy_id, ctx.sender(), paid);
+        rel
+    }
+
     /// Performance-fee accrual: a share of a derived strategy's realized profit
     /// routes to the original creator over time (test 2.22).
     public fun route_performance_fee<FeeCoin>(

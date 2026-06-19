@@ -35,13 +35,24 @@
      (app.js then falls back to http://localhost:8081). -->
 <script>window.HELIX_COMPILER_URL = 'https://helix-compiler.onrender.com';</script>
 
-<!-- zkLogin "Continue with Google": paste a Google OAuth *Web* client id below to
-     light up the button. Create one at https://console.cloud.google.com/apis/credentials
-     (OAuth client → Web application) and register these Authorized redirect URIs:
-        https://helix-app-fovn.onrender.com/app.html
-        http://localhost:5173/app.html   (or whatever local port you serve on)
-     The button stays HIDDEN until this is set, so there is never a dead button. -->
-<script>window.HELIX_GOOGLE_CLIENT_ID = '';</script>
+<!-- zkLogin "Continue with Google" (powered by Enoki). Two values are required:
+     1) HELIX_GOOGLE_CLIENT_ID — a Google OAuth *Web* client id
+        (https://console.cloud.google.com/apis/credentials → OAuth client → Web).
+        Register these Authorized redirect URIs on it:
+           https://helix-app-fovn.onrender.com/app.html
+           http://localhost:5173/app.html   (or whatever local port you serve on)
+     2) HELIX_ENOKI_KEY — an Enoki *public* API key (enoki_public_…) from
+        https://portal.enoki.mystenlabs.com . In the Enoki portal: create a
+        project, copy the public key, add Google as an auth provider USING THE
+        SAME client id above, and allow-list your app origin(s).
+     WHY ENOKI: the public Mysten prover rejects custom OAuth audiences
+     ("audience … is not supported"); Enoki proves against the testnet circuit for
+     your registered client id and manages a per-user salt. -->
+<script>
+  window.HELIX_GOOGLE_CLIENT_ID = '336366260371-t44qbp4r54kls5fk98nhi439tq9681ou.apps.googleusercontent.com';
+  window.HELIX_ENOKI_KEY = 'enoki_public_e357a56724a84818d4470a37d189372c';          // <<< paste your enoki_public_… key here
+  window.HELIX_ENOKI_NETWORK = 'testnet';
+</script>
 
 <!-- app shell is built by app.js (ES module: Sui SDK + Wallet Standard from CDN) -->
 <script type="module" src="js/app.js"></script>

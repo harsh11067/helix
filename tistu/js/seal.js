@@ -20,13 +20,32 @@ import { SealClient, SessionKey, getAllowlistedKeyServers }
 import { Transaction } from 'https://esm.sh/@mysten/sui@1.30.0/transactions';
 import { fromHex } from 'https://esm.sh/@mysten/sui@1.30.0/utils';
 
-const PKG_ORIGINAL = '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
-const PKG_LATEST   = '0x96b36ef86f445b525eccaa5410a2c6cebe6c6dff85c86fbfee9914581b0ad391';
+// Three distinct package ids — do NOT collapse them (Sui upgrade semantics):
+//   PKG_ORIGINAL  (v1) — Seal encryption identity namespace + SessionKey packageId.
+//                        Seal normalizes any later version back to this, so encrypt
+//                        MUST use the original id.
+//   PKG_LATEST    (v3) — moveCall targets. copy_for_thesis exists ONLY in v3, so
+//                        calls must route here; seal_approve* live here too.
+//   PKG_SEAL_TYPE_ORIGIN (v2) — the package version where seal_policy (and its
+//                        ThesisAttached event) was first defined. A type's canonical
+//                        id is its DEFINING version, so event queries must use this,
+//                        not v3 — even though v3 also contains the module.
+const PKG_ORIGINAL          = '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
+const PKG_LATEST            = '0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0';
+const PKG_SEAL_TYPE_ORIGIN  = '0x96b36ef86f445b525eccaa5410a2c6cebe6c6dff85c86fbfee9914581b0ad391';
 const THRESHOLD = 1; // 1-of-2 Mysten testnet key servers (demo resilience)
 const WALRUS_PUBLISHER  = 'https://publisher.walrus-testnet.walrus.space';
 const WALRUS_AGGREGATOR = 'https://aggregator.walrus-testnet.walrus.space';
 
-export const SEAL_EVENT_TYPE = `${PKG_LATEST}::seal_policy::ThesisAttached`;
+// Canonical type = the DEFINING version (v2). Verified on-chain: existing
+// ThesisAttached events are recorded under 0x96b3, NOT the v1 lineage root and NOT
+// the emitting version. We also list v3 defensively so a thesis is never missed if
+// a runtime ever anchors to the emitting version.
+export const SEAL_EVENT_TYPE = `${PKG_SEAL_TYPE_ORIGIN}::seal_policy::ThesisAttached`;
+export const SEAL_EVENT_TYPES = [
+  `${PKG_SEAL_TYPE_ORIGIN}::seal_policy::ThesisAttached`,
+  `${PKG_LATEST}::seal_policy::ThesisAttached`,
+];
 
 function makeClient(suiClient) {
   return new SealClient({
@@ -83,9 +102,13 @@ export async function decryptThesis(suiClient, address, signPersonalMessage, cip
   const tx = new Transaction();
   const idArg = tx.pure.vector('u8', Array.from(fromHex(idHex(strategyId))));
   if (copyRelationshipId) {
+    // copier path: reference ONLY the copier's own CopyRelationship (it records the
+    // original strategy id). We must NOT pass the owner's StrategyObject — it's an
+    // owned object the copier can't reference, which made the key server return
+    // InvalidParameterError ("…object the FN has not yet seen").
     tx.moveCall({
       target: `${PKG_LATEST}::seal_policy::seal_approve_copier`,
-      arguments: [idArg, tx.object(strategyId), tx.object(copyRelationshipId)],
+      arguments: [idArg, tx.object(copyRelationshipId)],
     });
   } else {
     tx.moveCall({
@@ -94,8 +117,20 @@ export async function decryptThesis(suiClient, address, signPersonalMessage, cip
     });
   }
   const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
-  const out = await client.decrypt({ data: ciphertext, sessionKey: sk, txBytes });
-  return new TextDecoder().decode(out);
+  // A just-created CopyRelationship can lag the key server's fullnode; retry the
+  // key fetch a few times on the transient InvalidParameterError before giving up.
+  let lastErr;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const out = await client.decrypt({ data: ciphertext, sessionKey: sk, txBytes });
+      return new TextDecoder().decode(out);
+    } catch (e) {
+      lastErr = e;
+      if (!/has not yet seen|invalid parameter|InvalidParameter/i.test(e.message || '')) throw e;
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+  throw lastErr;
 }
 
 // Decode the blob_id (a vector<u8> of the UTF-8 blob-id string) from a parsed
