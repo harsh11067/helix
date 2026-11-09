@@ -2,6 +2,9 @@
 
 > The honest state of the build, the locked 5-minute demo, and the answers to the questions judges will ask. Record from this. Do not improvise claims beyond what's here.
 
+> [!NOTE]
+> **This is the Sui Overflow 2026 (June) submission, kept as written.** Since then: DeepBook Predict was redeployed as v4 (2026-09-12; the `predict::mint` flow below is the earlier deployment), the HELIX package was upgraded to **v5** (`0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f`, adds `helix::journal` for commit–reveal), and the **Total Recall** work (Tatum chokepoint, Walrus Memory on mainnet, Commit mode) is described in the [README](../README.md#-total-recall--new-during-20-oct--10-nov-2026) with live evidence in [TOTAL_RECALL_EVIDENCE.md](../TOTAL_RECALL_EVIDENCE.md).
+
 ---
 
 ## 1. What is genuinely real (verifiable, not claimed)
