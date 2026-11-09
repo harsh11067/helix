@@ -30,6 +30,7 @@ import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts
 import { councilRoutes } from '../council/routes.ts';
 import { passportRoutes } from '../passport/offchain/routes.ts';
 import { ticker } from '../fun/ticker.ts';
+import { paymentRoutes } from '../payments/routes.ts';
 import { startCouncil } from '../council/runner.ts';
 import { council } from '../council/state.ts';
 
@@ -198,6 +199,7 @@ export function makeServer() {
     // F1 live proof ticker, from chain events
     'GET /proof/ticker': () => ticker(),
     ...passportOnchainRoutes(),
+    ...paymentRoutes(),
   });
 }
 

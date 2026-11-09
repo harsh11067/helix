@@ -11,9 +11,9 @@ type Handler = (body: any, url: URL, params: Record<string, string>, req: http.I
 
 /** Return from a handler to send a non-JSON body (an SVG card, a well-known file) with its own content type. */
 export class RawResponse {
-  body: string | Uint8Array; contentType: string; headers: Record<string, string>;
-  constructor(body: string | Uint8Array, contentType: string, headers: Record<string, string> = {}) {
-    this.body = body; this.contentType = contentType; this.headers = headers;
+  body: string | Uint8Array; contentType: string; headers: Record<string, string>; status: number;
+  constructor(body: string | Uint8Array, contentType: string, headers: Record<string, string> = {}, status = 200) {
+    this.body = body; this.contentType = contentType; this.headers = headers; this.status = status;
   }
 }
 
@@ -71,7 +71,7 @@ export function jsonServer(routes: Record<string, Handler>): http.Server {
       }
       const out = await m.h(body, url, m.params, req);
       if (out instanceof RawResponse) {
-        res.writeHead(200, { 'content-type': out.contentType, ...cors, ...out.headers });
+        res.writeHead(out.status, { 'content-type': out.contentType, ...cors, ...out.headers });
         res.end(out.body);
         return;
       }
