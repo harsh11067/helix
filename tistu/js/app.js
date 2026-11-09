@@ -28,6 +28,7 @@ import {
   uploadToWalrus, fetchFromWalrus, decodeBlobId,
 } from './seal.js';
 import { voicesHTML, memoryBlockHTML, viewMemory } from './memory-ui.js';
+import { mountAssetSwitch, renderAssetCompiled, assetCommitControl, assetErrorHTML } from './assets.js';
 import { demoRequested, viewingAddress, isReadOnly, demoHref, DEMO_BANNER } from './demo.js';
 import { viewCouncil } from './council.js';
 import { renderPassport } from './passport.js';
@@ -163,6 +164,7 @@ async function pickFeeCoin(min) {
 /* ============================================================ compile (real, no fallback) */
 async function compileConviction(conv) {
   // 55s tolerates a free-tier Render cold start (~50s) on the first compile after idle.
+  if (state.asset && state.asset !== 'BTC') return api('/assets/compile', { ...conv, asset: state.asset, address: viewingAddress(state) }, { timeoutMs: 55000 });   // P5
   return api('/compile', { ...conv, address: viewingAddress(state), currentEpoch: 0 }, { timeoutMs: 55000 });
 }
 
@@ -305,7 +307,7 @@ function viewCanvas() {
     <div class="grid-2" style="align-items:start">
       <div class="panel ink reveal">
         <div class="section-title">your conviction</div>
-        <div style="font-family:var(--serif);font-size:1.9rem;letter-spacing:-0.02em;margin-bottom:22px">what do you believe about <span style="color:var(--accent)">BTC</span>?</div>
+        <div style="font-family:var(--serif);font-size:1.9rem;letter-spacing:-0.02em;margin-bottom:22px">what do you believe about <span style="color:var(--accent)" id="asset-name">${state.asset || 'BTC'}</span>?<span id="asset-switch"></span></div>
         ${ctrl('Direction', 's-dir', 0, 100, 64, 'v-dir')}
         ${ctrl('Confidence', 's-conf', 0, 100, 60, 'v-conf')}
         ${ctrlSteps('Time horizon', 's-hor', 'v-hor')}
@@ -332,6 +334,7 @@ function ctrlSteps(lab, id, out) {
 function mountCanvas(el) {
   const s = { dir: $('#s-dir', el), conf: $('#s-conf', el), hor: $('#s-hor', el), vol: $('#s-vol', el), cap: $('#s-cap', el) };
   pingTEE(el);
+  mountAssetSwitch($('#asset-switch', el), { api, current: () => state.asset || 'BTC', onChange: (a) => { state.asset = a; $('#asset-name', el).textContent = a; delete $('#compiled', el).dataset.ready; schedule(); } });
   let timer = null;
   function labels() {
     const conv = readConv(s);
@@ -352,12 +355,12 @@ function mountCanvas(el) {
       const r = await compileConviction(conv);
       state.compile = r; state.chosen = { commit: conv.capital, useMemoryStructure: false };
       box.dataset.ready = '1';
-      $('#v-hor', el).textContent = `${HOR[conv.horizonCode]} → ${Math.max(1, Math.round(r.predict.market.minutesLeft))} min window`;
+      $('#v-hor', el).textContent = `${HOR[conv.horizonCode]} → ${Math.max(1, Math.round((r.predict?.market ?? r.window).minutesLeft))} min window`;
       renderCompiled(el, r, conv);
     } catch (e) {
       const ph = $('#payoff', el); if (ph) ph.innerHTML = '';
       box.dataset.ready = '';
-      box.innerHTML = compileError(e);
+      box.innerHTML = state.asset && state.asset !== 'BTC' ? assetErrorHTML(e, state.asset) : compileError(e);
       // between Predict windows (quarter-hour roll): the next one opens within a minute — retry by itself
       if (/no open DeepBook Predict|runway/i.test(e.message || '')) setTimeout(() => { if (el.isConnected && !box.dataset.ready) doCompile(); }, 10000);
     }
@@ -414,6 +417,7 @@ function activeOrder(r) {
   return state.chosen.useMemoryStructure && r.memory?.structure_suggestion ? r.memory.structure_suggestion.order : r.predict.order;
 }
 function renderCompiled(el, r, conv) {
+  if (r.asset && r.asset !== 'BTC') return renderAssetCompiled(el, r, { voicesHTML, memoryBlockHTML, chosen: state.chosen, explorer: CFG.EXPLORER, commitControl: assetCommitControl({ account: state.account, readOnly: isReadOnly(state), banner: DEMO_BANNER }) });   // P5
   const o = activeOrder(r), P = r.predict;
   const commit = state.chosen.commit ?? conv.capital;
   const ps = plainStructure(o);

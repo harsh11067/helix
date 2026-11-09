@@ -6,6 +6,7 @@
 import { api, apiBase } from './sui.js';
 import { walruscanBlobUrl, shareCardSVG, xIntentUrl } from './share.js';
 import { humilityMeterHTML, beatTheMarketHTML } from './fun.js';
+import { perAssetHTML } from './assets.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (p) => (p == null || !Number.isFinite(p) ? '—' : Math.round(p * 100) + '%');
@@ -23,13 +24,15 @@ export function voicesHTML(r) {
   const cell = (k, p, note) => `<div class="stat" style="padding:12px 14px">
       <div class="k">${VOICE[k]}</div>
       <div class="v" style="font-size:1.25rem">${p == null ? '<span class="muted" style="font-size:.85rem">' + esc(note || '—') + '</span>' : pct(p)}</div>
-      <div class="muted mono" style="font-size:10.5px;margin-top:4px">${mv[k]?.brier != null ? 'Brier ' + b2(mv[k].brier) + ' (lower = better)' : (k === 'helix' ? 'regime heuristic' : k === 'market' ? 'SVI-implied' : k === 'you' ? 'your confidence' : 'not scored yet')}</div>
+      <div class="muted mono" style="font-size:10.5px;margin-top:4px">${mv[k]?.brier != null ? 'Brier ' + b2(mv[k].brier) + ' (lower = better)' : (k === 'helix' ? (v.helix_detail ? (v.helix_detail.status === 'ok' ? 'lognormal · realized vol ' + Math.round(v.helix_detail.sigma_annual * 100) + '%' : 'needs price history') : 'regime heuristic') : k === 'market' ? (v.market_detail ? 'no Predict market' : 'SVI-implied') : k === 'you' ? 'your confidence' : 'not scored yet')}</div>
     </div>`;
-  const crowdNote = crowd.status === 'ok' ? null : crowd.status === 'not_comparable' ? 'not compared' : crowd.status === 'disabled' ? 'off' : 'unavailable';
+  const crowdNote = crowd.status === 'ok' ? null : crowd.status === 'na' ? 'n/a for this asset' : crowd.status === 'not_comparable' ? 'not compared' : crowd.status === 'disabled' ? 'off' : 'unavailable';
+  const marketNote = v.market_detail?.status === 'na' ? 'n/a for this asset' : undefined;   // P5: ETH/SUI have no Predict market
+  const helixNote = v.helix_detail?.status === 'na' ? 'n/a yet' : undefined;
   const cd = v.council_detail || {};
   const councilNote = cd.status === 'off' ? 'off' : 'no live call';
   return `<div class="grid-4" style="gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
-      ${cell('you', v.you)}${cell('market', v.market)}${cell('helix', v.helix)}${cell('crowd', v.crowd, crowdNote)}${cell('council', v.council, councilNote)}
+      ${cell('you', v.you)}${cell('market', v.market, marketNote)}${cell('helix', v.helix, helixNote)}${cell('crowd', v.crowd, crowdNote)}${cell('council', v.council, councilNote)}
     </div>
     ${cd.status === 'live' ? `<div class="muted mono" style="font-size:10.5px;margin-top:6px">council: ${(cd.calls || []).length} agent call${(cd.calls || []).length === 1 ? '' : 's'}, memory-weighted · P(up) ${pct(cd.p_up)} · edge over the market ${cd.edge >= 0 ? '+' : ''}${(cd.edge * 100).toFixed(1)} pts · <a href="#/council" style="color:var(--accent-deep)">the Council →</a></div>` : ''}
     ${crowd.status && crowd.status !== 'ok' && crowd.reason ? `<div class="muted mono" style="font-size:10.5px;margin-top:6px">crowd: ${esc(crowd.reason)}${crowd.url ? ` · <a href="${esc(crowd.url)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">market ↗</a>` : ''}</div>` : ''}
@@ -168,7 +171,9 @@ export function viewMemory(ctx) {
         : `<div class="muted">${esc(board?.note || 'Board unavailable.')}</div>`;
       const rows = tl.map(r => {
         const f = r.fields || {};
-        const summary = r.type === 'CONVICTION' ? `${esc(f.dir)} · conf ${esc(f.conf)} · ${esc(f.vol)} · ${esc(f.structure)} · commit ${esc(f.commit)} · you ${esc(f.p_you)} / mkt ${esc(f.p_mkt)} / hlx ${esc(f.p_hlx)}${f.p_crowd && f.p_crowd !== 'na' ? ' / crowd ' + esc(f.p_crowd) : ''}${f.origin ? ' · via ' + esc(f.origin) : ''}`
+        const summary = r.type === 'CONVICTION' ? `${f.asset && f.asset !== 'BTC' ? '<b>' + esc(f.asset) + '</b> · ' : ''}${esc(f.dir)} · conf ${esc(f.conf)} · ${esc(f.vol)} · ${esc(f.structure)} · commit ${esc(f.commit)} · you ${esc(f.p_you)} / mkt ${esc(f.p_mkt)} / hlx ${esc(f.p_hlx)}${f.p_crowd && f.p_crowd !== 'na' ? ' / crowd ' + esc(f.p_crowd) : ''}${f.origin ? ' · via ' + esc(f.origin) : ''}`
+          : r.type === 'OUTCOME' && f.oracle === 'pyth' ? `<b style="color:${f.result === 'WIN' ? 'var(--alive)' : 'var(--coral)'}">${esc(f.result)}</b> · <b>${esc(f.asset)}</b> settled ${esc(f.settle_px)} vs ${esc(f.strike_px)} · Pyth ${esc(f.price_source)} published ${f.publish_time ? new Date(Number(f.publish_time) * 1000).toISOString().slice(11, 19) : '?'} UTC (${esc(f.lag_s)}s after expiry)${f.price_tx && f.price_tx !== 'na' ? ` · <a class="mono" href="${explorer(f.price_tx)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">price tx ↗</a>` : ''}${f.reveal_ok === 'true' ? ' · <span style="color:var(--alive)">reveal ✓ hash matches on-chain</span>' : f.reveal_ok === 'false' ? ' · <b style="color:var(--coral)">reveal ✗</b>' : ''}`
+          : r.type === 'OUTCOME' && f.result === 'VOID' ? `<b class="muted">VOID</b> · ${esc(f.reason)}`
           : r.type === 'OUTCOME' ? `<b style="color:${f.result === 'WIN' ? 'var(--alive)' : 'var(--coral)'}">${esc(f.result)}</b> · ${f.mode === 'commit' ? 'would have paid' : 'payoff'} ${esc(f.payoff)} · settled ${esc(f.settle_px)} vs ${esc(f.strike_px)}${f.reveal_ok === 'true' ? ' · <span style="color:var(--alive)">reveal ✓ hash matches on-chain</span>' : f.reveal_ok === 'false' ? ' · <b style="color:var(--coral)">reveal ✗</b>' : ''}${f.witness_usd && f.witness_usd !== 'na' ? ' · Tatum witness ' + esc(f.witness_usd) : ''}`
           : r.type === 'CALIBRATION' ? `${esc(f.bucket)} · n=${esc(f.n)} · won ${esc(f.wins)} · posterior ${esc(f.posterior)} · Brier you ${esc(f.brier_you)} / mkt ${esc(f.brier_mkt)} / hlx ${esc(f.brier_hlx)}`
           : r.type === 'LESSON' ? esc(f.text)
@@ -183,7 +188,7 @@ export function viewMemory(ctx) {
             <div class="proof-out" data-for="${esc(r.blob_id)}"></div></div></div>`;
       }).join('');
       const fun = (t.overall?.n >= 3 || t.today?.n) ? `<div class="grid-2 reveal" style="gap:18px;margin-bottom:18px;align-items:start">${humilityMeterHTML(t.overall)}${beatTheMarketHTML(t.today)}</div>` : '';
-      host.innerHTML = banner + header + fun + `
+      host.innerHTML = banner + header + fun + perAssetHTML(t.assets) + `
         <div class="grid-2 reveal" style="align-items:start;gap:18px">
           <div class="panel"><div class="section-title">who has been right · Brier per voice</div>${voices}
             <div class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.5">${o.n >= 3 && bestK ? `Across ${o.n} settled convictions, <b>${VOICE[bestK]}</b> has been the best-calibrated voice.` : `Scores firm up after 3 settled convictions (n=${o.n || 0}). Lower Brier = better calibrated.`}</div></div>

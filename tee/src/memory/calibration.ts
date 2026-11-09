@@ -17,8 +17,8 @@ export interface SettledRow {
   tx: string;
   won: 0 | 1;
   p_you: number;
-  p_mkt: number;
-  p_hlx: number;
+  p_mkt: number | null;      // null for assets with no Predict market (ETH, SUI): never invented
+  p_hlx: number | null;      // null when the HELIX model had too little price history
   p_crowd: number | null;
   p_council?: number | null; // the Council ensemble's probability for this order, when it was live
   structure: string;          // directional | bracketed_range | range
@@ -60,8 +60,8 @@ export function bucketStats(rows: SettledRow[]): BucketStats {
     gap_you: mpy == null ? null : mpy - post,
     brier: {
       you: brierOf(rows.map((r) => [r.p_you, r.won])),
-      market: brierOf(rows.map((r) => [r.p_mkt, r.won])),
-      helix: brierOf(rows.map((r) => [r.p_hlx, r.won])),
+      market: brierOf(rows.filter((r) => r.p_mkt != null).map((r) => [r.p_mkt as number, r.won])),
+      helix: brierOf(rows.filter((r) => r.p_hlx != null).map((r) => [r.p_hlx as number, r.won])),
       crowd: brierOf(crowd.map((r) => [r.p_crowd as number, r.won])),
       council: brierOf(cncl.map((r) => [r.p_council as number, r.won])),
     },
@@ -187,13 +187,13 @@ export function lessonFor(bucket: string, stats: BucketStats, bias: ReturnType<t
  */
 export function beatTheMarket(rows: SettledRow[], now = Date.now()) {
   const dayStart = Math.floor(now / 86_400_000) * 86_400_000;
-  const today = rows.filter((r) => r.ts * 1000 >= dayStart && r.ts * 1000 <= now);
+  const today = rows.filter((r) => r.ts * 1000 >= dayStart && r.ts * 1000 <= now && r.p_mkt != null);
   const withCouncil = today.filter((r) => r.p_council != null);
   const threeWay = withCouncil.length > 0;
   const use = threeWay ? withCouncil : today;
   const score: Record<string, number> = threeWay ? { you: 0, market: 0, council: 0 } : { you: 0, market: 0 };
   for (const r of use) {
-    const err: Record<string, number> = { you: (r.p_you - r.won) ** 2, market: (r.p_mkt - r.won) ** 2 };
+    const err: Record<string, number> = { you: (r.p_you - r.won) ** 2, market: ((r.p_mkt as number) - r.won) ** 2 };
     if (threeWay) err.council = ((r.p_council as number) - r.won) ** 2;
     const best = Math.min(...Object.values(err));
     for (const [k, e] of Object.entries(err)) if (Math.abs(e - best) < 1e-12) score[k]++;

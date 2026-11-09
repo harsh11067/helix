@@ -29,7 +29,7 @@ export interface PassportStats {
  * Passport numbers from a `timelineFor(address)` result (memory/service.ts). Pure.
  * Throws when the on-chain commit ledger could not be read: `hidden` is never assumed to be 0.
  */
-export function statsFromTimeline(t: any, settledRows: (recs: MemRecord[]) => { won: 0 | 1; p_mkt: number }[], owner?: string): PassportStats {
+export function statsFromTimeline(t: any, settledRows: (recs: MemRecord[]) => { won: 0 | 1; p_mkt: number | null }[], owner?: string): PassportStats {
   const o = t?.overall;
   const c = t?.commits;
   if (!o || typeof o.n !== 'number') throw new Error('no calibration summary for this address');
@@ -39,7 +39,7 @@ export function statsFromTimeline(t: any, settledRows: (recs: MemRecord[]) => { 
   const gap: number = Number.isFinite(o.gap_you) && o.n > 0 ? o.gap_you : 0;
   const recs: MemRecord[] = (t.timeline ?? []).map((e: any) => ({ type: e.type, version: 1, f: e.fields ?? {}, text: e.text ?? '', blob_id: e.blob_id, created_at: e.created_at }));
   const rows = settledRows(recs);
-  const contrarian_wins = rows.filter((r) => r.won === 1 && r.p_mkt < 0.5).length;
+  const contrarian_wins = rows.filter((r) => r.won === 1 && r.p_mkt != null && r.p_mkt < 0.5).length;   // no market (ETH/SUI) → not contrarian
   const losses = Math.max(0, o.n - o.wins);   // settled losses, as Lane A's passport summary counts them
   const hidden = c.missing_memory;
   return {

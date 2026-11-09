@@ -8,7 +8,7 @@ import type { Conviction, CompileResult } from '../shared/types.ts';
 import * as P from '../predict/predict.ts';
 import { recordForward, currentRegime, helixProbability, type RegimeView } from '../predict/regime.ts';
 import {
-  formatRecord, parseRecord, namespaceFor, bucketKey, bucketOfConviction, dirWord, volWord, pYou,
+  formatRecord, parseRecord, namespaceFor, bucketKey, bucketOfConviction, assetOf, dirWord, volWord, pYou,
   num, str, p2, p3, signed2, type MemRecord,
 } from './format.ts';
 import {
@@ -38,7 +38,8 @@ export function settledRows(recs: MemRecord[]): SettledRow[] {
     const res = str(o, 'result');
     if (!o || (res !== 'WIN' && res !== 'LOSS')) continue;
     const pyou = num(c, 'p_you'), pm = num(c, 'p_mkt'), ph = num(c, 'p_hlx');
-    if (pyou == null || pm == null || ph == null) continue;
+    // BTC rows need every voice (unchanged); ETH/SUI have no Predict market and may lack the HELIX voice (P5)
+    if (pyou == null || (assetOf(c) === 'BTC' && (pm == null || ph == null))) continue;
     rows.push({
       tx: tx!, won: res === 'WIN' ? 1 : 0, p_you: pyou, p_mkt: pm, p_hlx: ph, p_crowd: num(c, 'p_crowd'), p_council: num(c, 'p_council'),
       structure: str(c, 'structure') ?? 'directional', regime: str(c, 'regime'),
@@ -306,6 +307,11 @@ export async function buildFund(body: { address: string; amount: number }) {
 // ---------------------------------------------------------------- Commit mode: hash on-chain → remember → resolve
 interface CommitCtx { id: string; at: number; address: string; body: string; hash: string; market: P.LiveMarket; origin: string; reason: string | null }
 const commitsPending = new Map<string, CommitCtx>();
+/** P5: ETH/SUI commits (tee/src/assets) are recorded by the same /tx/execute → recordCommit path. */
+export function registerPendingCommit(c: { id: string; at: number; address: string; body: string; hash: string; market: { id: string; expiryMs: number }; origin: string; reason: string | null }): void {
+  commitsPending.set(c.id, c as CommitCtx);
+  for (const [k, v] of commitsPending) if (Date.now() - v.at > 30 * 60_000) commitsPending.delete(k);
+}
 
 /** The canonical CONVICTION body for a paper commit (hashed; hash/tx/commit_tx are appended after signing). */
 export function convictionCommitBody(c: CompileCtx, o: { order: P.PredictOrder; commit: number; usedMemoryStructure: boolean; followed: boolean; origin: string; at: number; nonce: string }): string {
@@ -345,6 +351,7 @@ function friendlyGasError(e: unknown, sponsored: boolean): Error {
 }
 
 export async function buildCommit(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean }; noSponsor?: boolean }) {
+  if (String(body.compileId ?? '').startsWith('acmp_')) return (await import('../assets/compile.ts')).buildAssetCommit(body);   // P5 ETH/SUI
   const c = compiles.get(body.compileId);
   if (!c) throw new Error('compile expired — recompile and try again');
   if (!/^0x[0-9a-f]{64}$/i.test(body.address || '')) throw new Error('invalid address');
@@ -496,29 +503,41 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
   const expiry = num(conv, 'expiry'), marketId = str(conv, 'market');
   if (!expiry || !marketId) return { status: 'bad_record' };
   if (Date.now() < expiry * 1000 + 4000) return { status: 'not_expired' };
-  const s = await P.settlementOf({ expiryMs: expiry * 1000, marketId });
-  if (!s.settled || s.price == null) return { status: 'not_settled' };
+  // P5: ETH/SUI have no Predict market; they settle on the first Pyth price at or after expiry
+  const asset = assetOf(conv), pyth = asset !== 'BTC';
+  const s: any = pyth
+    ? await (await import('../assets/resolver.ts')).resolverFor(asset as 'ETH' | 'SUI').settle(expiry * 1000, marketId)
+    : await P.settlementOf({ expiryMs: expiry * 1000, marketId });
+  if ((!s.settled || s.price == null) && !s.void) return { status: 'not_settled' };
   // dedupe across restarts / multiple watchers: Walrus Memory is the record of what was written
   const recs = await recallAll(ns, { fresh: true });
   if (recs.some((r) => r.type === 'OUTCOME' && str(r, 'tx') === tx)) { pending.delete(tx); return { status: 'already_resolved' }; }
+  if (s.void) {     // no Pyth price within PYTH_MAX_LAG_S of expiry: recorded, never scored as a win or a loss
+    await remember(ns, formatRecord('OUTCOME', [['tx', tx], ['mode', str(conv, 'mode') ?? 'commit'], ['asset', asset], ['result', 'VOID'], ['reason', s.reason], ['feed_id', s.feed_id ?? 'na'], ['ts', expiry]]), { tx, origin: 'watcher' });
+    pending.delete(tx);
+    return { status: 'void' };
+  }
 
   const order = orderFromRule(str(conv, 'order'));
   if (!order) return { status: 'bad_record' };
   const qty = num(conv, 'qty') ?? 0;
   const costPaid = num(conv, 'cost') ?? num(conv, 'commit') ?? 0;
   const orderId = str(conv, 'order_id');
-  let payout: number;
-  if (orderId && s.priceRaw != null) payout = P.payoutFromOrderId(orderId, s.priceRaw, s.tickSizeRaw);
-  else payout = P.orderWon(order, s.price) ? qty : 0;
-  const won = payout > 0;
-  const payoff = payout - costPaid;
+  let payout: number | null, won: boolean, payoff: number | null;
+  if (pyth) { won = P.orderWon(order, s.price); payout = null; payoff = null; }   // a call, not a priced contract
+  else {
+    if (orderId && s.priceRaw != null) payout = P.payoutFromOrderId(orderId, s.priceRaw, s.tickSizeRaw);
+    else payout = P.orderWon(order, s.price) ? qty : 0;
+    won = payout > 0;
+    payoff = payout - costPaid;
+  }
 
   // W3 counterfactual: what following memory's size (and its structure, if it preferred another) would have made
   const sugg = num(conv, 'sugg_commit'), commit = num(conv, 'commit') ?? costPaid, memN = num(conv, 'mem_n') ?? 0;
   const altRule = orderFromRule(str(conv, 'alt_rule')), altCost = num(conv, 'alt_cost');
   let alt_payoff: number | null = null, memory_pnl: number | null = null;
-  if (altRule && altCost && sugg) alt_payoff = (P.orderWon(altRule, s.price) ? sugg / altCost : 0) - sugg;
-  if (sugg && commit) memory_pnl = payoff * (sugg / commit);
+  if (!pyth && altRule && altCost && sugg) alt_payoff = (P.orderWon(altRule, s.price) ? sugg / altCost : 0) - sugg;
+  if (!pyth && sugg && commit) memory_pnl = payoff! * (sugg / commit);
 
   // Commit mode: re-hash the remembered text and compare with the on-chain ConvictionCommitted event
   const mode = str(conv, 'mode') ?? 'onchain';
@@ -527,15 +546,26 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
     const ev = commitEventsOf(await P.waitTx(tx).catch(() => null))[0];
     reveal_ok = !!ev && verifyReveal(conv.text, ev.hash) && ev.committed_ms < (num(conv, 'expiry_ms') ?? expiry * 1000);
   }
-  const witness = await witnessBtc(s.price).catch(() => null);
   const strikeTxt = order.side === 'range' ? `${order.lower}-${order.upper}` : String(order.strike);
-  const text = formatRecord('OUTCOME', [
-    ['tx', tx], ['mode', mode], ['reveal_ok', reveal_ok], ['result', won ? 'WIN' : 'LOSS'], ['payout', p2(payout)], ['cost', p2(costPaid)], ['payoff', signed2(payoff)],
-    ['settle_px', p2(s.price)], ['strike_px', strikeTxt],
-    ['witness_usd', witness?.status === 'ok' ? p2(witness.tatum_usd) : 'na'],
-    ['alt_payoff', signed2(alt_payoff)], ['memory_pnl', signed2(memory_pnl)], ['mem_n', memN],
-    ['ts', expiry],
-  ]);
+  let text: string;
+  if (pyth) {
+    // the Pyth price, its publish time and feed id are the evidence; the tx is the on-chain verification (pyth-sui)
+    text = formatRecord('OUTCOME', [
+      ['tx', tx], ['mode', mode], ['asset', asset], ['reveal_ok', reveal_ok], ['result', won ? 'WIN' : 'LOSS'], ['payout', 'na'], ['cost', p2(costPaid)], ['payoff', 'na'],
+      ['settle_px', String(+Number(s.price).toPrecision(9))], ['strike_px', strikeTxt],
+      ['oracle', 'pyth'], ['price_source', s.source], ['feed_id', s.feed_id], ['publish_time', s.publish_time], ['lag_s', s.lag_s], ['price_tx', s.digest ?? 'na'],
+      ['mem_n', memN], ['ts', expiry],
+    ]);
+  } else {
+    const witness = await witnessBtc(s.price).catch(() => null);
+    text = formatRecord('OUTCOME', [
+      ['tx', tx], ['mode', mode], ['reveal_ok', reveal_ok], ['result', won ? 'WIN' : 'LOSS'], ['payout', p2(payout)], ['cost', p2(costPaid)], ['payoff', signed2(payoff)],
+      ['settle_px', p2(s.price)], ['strike_px', strikeTxt],
+      ['witness_usd', witness?.status === 'ok' ? p2(witness.tatum_usd) : 'na'],
+      ['alt_payoff', signed2(alt_payoff)], ['memory_pnl', signed2(memory_pnl)], ['mem_n', memN],
+      ['ts', expiry],
+    ]);
+  }
   await remember(ns, text, { tx, origin: 'watcher' });
   pending.delete(tx);
   for (const h of resolvedHooks) { try { h(str(conv, 'origin'), tx); } catch (e) { console.error('[watcher] hook', (e as Error).message); } }
@@ -669,7 +699,17 @@ export async function timelineFor(address: string) {
     buckets: [...buckets].map(([bucket, rs]) => ({ bucket, ...bucketStats(rs) })),
     reliability: reliability(rows),
     reasons: reasonStats(recs),
+    ...(process.env.FEATURE_ASSETS === '1' ? { assets: perAsset(recs, rows) } : {}),
   };
+}
+
+/** P5: settled record per asset (BTC first); every number from the same rows as `overall`. */
+export function perAsset(recs: MemRecord[], rows: SettledRow[]) {
+  const assetByTx = new Map(recs.filter((r) => r.type === 'CONVICTION' && str(r, 'tx')).map((r) => [str(r, 'tx')!, assetOf(r)]));
+  const by = new Map<string, SettledRow[]>();
+  for (const r of rows) { const a = assetByTx.get(r.tx) ?? 'BTC'; (by.get(a) ?? by.set(a, []).get(a)!).push(r); }
+  const order = ['BTC', 'ETH', 'SUI'];
+  return [...by].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([asset, rs]) => ({ asset, ...bucketStats(rs) }));
 }
 
 /**
