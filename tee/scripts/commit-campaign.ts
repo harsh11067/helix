@@ -5,7 +5,8 @@
 //
 //   node --env-file=../.env scripts/commit-campaign.ts --once                     # one commit, then exit
 //   node --env-file=../.env scripts/commit-campaign.ts --every 15 --until "2026-11-10T22:00:00+05:30"
-//   flags: --api <url> (default $HELIX_API or http://localhost:8081), --past-expiry-check (J-04 dry run)
+//   flags: --api <url> (default $HELIX_API or http://localhost:8081), --past-expiry-check (J-04 dry run),
+//          --no-focus (rotate the grid only; default alternates with one focus bucket)
 
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
@@ -42,8 +43,13 @@ const GRID = [
   { direction: 45, volView: 70, confidence: 30 }, { direction: -45, volView: 30, confidence: 85 },
 ];
 
+// Every other commit lands in one focus bucket (up/high/choppy) so memory reaches n ≥ 3 there within
+// ~an hour — the point where lessons, Kelly suggestions and the dividend switch on. The rest rotate the grid.
+const FOCUS = { direction: 70, volView: 75, confidence: 85 };
+const pick = (i: number) => (flag('no-focus') ? GRID[i % GRID.length] : i % 2 === 0 ? FOCUS : GRID[((i - 1) / 2) % GRID.length]);
+
 async function once(i: number): Promise<string> {
-  const g = GRID[i % GRID.length];
+  const g = pick(i);
   const conv = { address, ...g, horizonCode: 1 + (i % 3), capital: [3, 5, 8][i % 3] };
   const c = await call('/compile', conv);
   const o = c.predict.order;
