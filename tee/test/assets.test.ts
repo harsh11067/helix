@@ -53,6 +53,7 @@ test('pyth: Hermes PriceUpdate (documented schema: parsed[].price {price, conf, 
     assert.equal(seen.auth, 'Bearer test-key');
     assert.equal(q!.publish_time, 1794255193);
     assert.equal(priceSource('ETH'), 'pyth-hermes', 'with a key, ETH resolves through Hermes');
+    assert.equal(priceSource('SUI'), 'pyth-sui', 'SUI stays on Pyth\'s on-chain updates even with a key (per-feed entitlement)');
   } finally { __setPythTransport(null); delete process.env.PYTH_API_KEY; }
   assert.equal(priceSource('SUI'), 'pyth-sui');
   assert.match(unavailableReason('ETH')!, /needs a Pyth Hermes API key/);

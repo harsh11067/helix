@@ -142,8 +142,11 @@ async function defaultQuery(before: string | null) {
 export const tape = new SuiPythTape();
 
 // ---------------------------------------------------------------- the API the rest of HELIX uses
+// SUI/USD is pushed on-chain by Pyth on Sui testnet: read it there (keyless, each price verified by Pyth's Sui
+// contract) even when a Hermes key is set — Hermes keys are entitled per feed, and ours is refused for SUI ("Not
+// entitled", HTTP 403). ETH/USD isn't pushed on testnet, so ETH needs Hermes.
 export const priceSource = (asset: PythAsset): 'pyth-hermes' | 'pyth-sui' | null =>
-  hermesKey() ? 'pyth-hermes' : asset === 'SUI' ? 'pyth-sui' : null;
+  asset === 'SUI' ? 'pyth-sui' : hermesKey() ? 'pyth-hermes' : null;
 /** Why `asset` can't be priced/resolved right now, or null. */
 export const unavailableReason = (asset: PythAsset): string | null =>
   priceSource(asset) ? null : `${asset}/USD is not pushed to Pyth on Sui testnet; resolving ${asset} needs a Pyth Hermes API key (PYTH_API_KEY)`;
