@@ -91,6 +91,8 @@ const ABORTS: Record<number, string> = {
 /** Turn a dry-run MoveAbort in helix_passport::passport into a sentence; other errors pass through. */
 export function friendlyAbort(e: unknown): Error {
   const msg = (e as Error)?.message ?? String(e);
+  if (/insufficient SUI|gas selection|No valid gas|GasBalanceTooLow/i.test(msg))
+    return new Error('This address has no testnet SUI for gas (a claim needs about 0.009 SUI before rebate). Get some at https://faucet.sui.io/?network=testnet and try again.');
   if (/::passport::/.test(msg)) {
     // GraphQL: "MoveAbort in 1st command, abort code: 7, in '0x…::passport::claim'"; JSON-RPC style: "MoveAbort(…, 7)"
     const m = msg.match(/abort code:?\s*(\d+)/i) ?? msg.match(/MoveAbort\(.*,\s*(\d+)\)/);

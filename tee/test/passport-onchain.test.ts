@@ -211,7 +211,8 @@ test('passport chain: Move aborts become sentences; GraphQL JSON parses', () => 
   assert.match(e.message, /already holds a passport/);
   assert.equal((e as any).code, 'EPASSPORT_7');
   assert.match(friendlyAbort(new Error(`MoveAbort in 1st command, abort code: 5, in '${PASSPORT_PACKAGE}::passport::refresh'`)).message, /anti-rollback/);
-  const other = new Error('insufficient SUI');
+  assert.match(friendlyAbort(new Error('Unable to perform gas selection due to insufficient SUI balance')).message, /no testnet SUI for gas/);
+  const other = new Error('object not found');
   assert.equal(friendlyAbort(other), other);
   const p = parsePassportJson('0x1', { owner: OWNER, ns: 'helix-v1-x', n_settled: '12', wins: '8', brier_bps: '1800', gap_bps: '350', gap_negative: false, hidden: '0', badges: '3', issued_ms: '1794000000000', version: '2' });
   assert.equal(p!.n_settled, 12); assert.equal(p!.issued_ms, 1794000000000); assert.equal(p!.version, 2);
