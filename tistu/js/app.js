@@ -180,6 +180,8 @@ const confWord = c => c < 30 ? 'Tentative' : c < 60 ? 'Moderate' : c < 85 ? 'Con
    SCREEN coordinates point-by-point, so the curve glides smoothly even when its
    vertical scale changes, and mid-flight recompiles continue from the live frame. */
 const PF = { W: 600, H: 240, pad: 8, steps: 96 };
+const ptsToLine = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+const ptsToArea = (pts, zeroY, x0, x1) => `${ptsToLine(pts)} L ${x1.toFixed(1)} ${zeroY.toFixed(1)} L ${x0.toFixed(1)} ${zeroY.toFixed(1)} Z`;
 function payoffSkeleton() {
   const { W, H } = PF;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:240px">
