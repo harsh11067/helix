@@ -63,7 +63,7 @@ function commitRow(c) {
 export function passportShareUrls(p, base) {
   const id = p.namespace;
   const link = `${APP}/passport.html?id=${encodeURIComponent(id)}`;
-  const text = `My HELIX Forecaster Passport: ${p.n_settled} settled BTC calls, won ${p.wins}${p.n_settled >= 3 && p.brier != null ? `, Brier ${f2(p.brier)}` : ''}. Committed ${p.committed} on Sui, hidden ${p.hidden}. @Tatum_io @WalrusFoundation`;
+  const text = `My HELIX Forecaster Passport: ${p.n_settled} settled BTC calls, won ${p.wins}${p.n_settled >= 3 && p.brier != null ? `, Brier ${f2(p.brier)}` : ''}. Committed ${p.committed} on Sui${p.hidden == null ? '' : `, hidden ${p.hidden}`}. @Tatum_io @WalrusFoundation`;
   return {
     link, card: `${base}/passport/${encodeURIComponent(id)}/card.svg`, json: `${base}/passport/${encodeURIComponent(id)}.json`,
     x: 'https://x.com/intent/post?' + new URLSearchParams({ text, url: link }).toString(),
@@ -75,7 +75,7 @@ export function passportShareUrls(p, base) {
 export function passportEmbedHTML(p) {
   return `<a href="${APP}/passport.html?id=${encodeURIComponent(p.namespace)}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit">
     <div class="panel" style="padding:14px 16px;max-width:380px">
-      <div class="row spread"><b>HELIX Forecaster Passport</b><span class="badge" style="color:${p.hidden === 0 ? 'var(--alive)' : 'var(--coral)'}">hidden ${p.hidden}</span></div>
+      <div class="row spread"><b>HELIX Forecaster Passport</b><span class="badge" style="color:${p.hidden === 0 ? 'var(--alive)' : 'var(--coral)'}">hidden ${p.hidden ?? '?'}</span></div>
       <div class="row" style="gap:16px;margin-top:10px;font-size:13px">
         <span><span class="muted">settled</span> <b class="mono">${p.n_settled}</b></span><span><span class="muted">won</span> <b class="mono">${p.wins}</b></span>
         <span><span class="muted">Brier</span> <b class="mono">${p.n_settled ? f2(p.brier) : '—'}</b></span><span><span class="muted">committed</span> <b class="mono">${p.committed}</b></span></div>
@@ -94,7 +94,7 @@ export function passportHTML(p, base, signature) {
           <div style="font-family:var(--serif);font-size:2rem;letter-spacing:-.02em;margin-top:6px">${p.kind === 'agent' ? `Council agent · ${esc(p.agent)}` : 'Forecaster'} <span class="mono muted" style="font-size:1rem">${shortA(p.address)}</span></div>
           <div class="muted mono" style="font-size:11.5px;margin-top:4px">${esc(p.namespace)} · ${p.memory_count} memories on Walrus (mainnet)</div></div>
         <div style="text-align:right">
-          <div class="badge" style="font-size:13px;padding:8px 14px;color:${p.hidden === 0 ? 'var(--alive)' : 'var(--coral)'};border-color:color-mix(in srgb,${p.hidden === 0 ? 'var(--alive)' : 'var(--coral)'} 45%,transparent)">committed ${p.committed} · shown ${p.shown ?? '—'} · hidden ${p.hidden}</div>
+          <div class="badge" style="font-size:13px;padding:8px 14px;color:${p.hidden === 0 ? 'var(--alive)' : 'var(--coral)'};border-color:color-mix(in srgb,${p.hidden === 0 ? 'var(--alive)' : 'var(--coral)'} 45%,transparent)">committed ${p.committed} · shown ${p.shown ?? '—'} · hidden ${p.hidden ?? 'unknown'}</div>
           <div class="muted" style="font-size:11.5px;margin-top:6px;max-width:300px">counted from ConvictionCommitted events on Sui — a hidden call would show here</div>
           <div class="row" style="gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px">${(p.badge_names || []).map(b => `<span class="badge" style="color:var(--accent-deep)">★ ${esc(b)}</span>`).join('')}</div></div></div>
       <div class="grid-4" style="gap:10px;margin-top:16px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">

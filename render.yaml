@@ -52,6 +52,9 @@ services:
       # the Council: four rule-based agents, each with its own key and gas (never the judge sponsor)
       - key: FEATURE_COUNCIL
         value: "1"
+      # on-chain soulbound Forecaster Passport (helix_passport, see DEPLOYMENT.md)
+      - key: FEATURE_ONCHAIN_PASSPORT
+        value: "1"
       - key: COUNCIL_KEY_MOMENTUM
         sync: false
       - key: COUNCIL_KEY_REVERSION

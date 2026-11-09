@@ -1056,10 +1056,13 @@ function viewPassport(id) {
   el.innerHTML = `<div id="pp"></div>`;
   renderPassport($('#pp', el), who, {
     base: String(CFG.COMPILER_URL).replace(/\/+$/, ''),
-    // Lane B: on-chain soulbound passport control, mounted only when that module ships
+    // the soulbound on-chain passport (Lane B, P4): mint/refresh for your own record, read-only for anyone else's
     onMount: (p, slot) => {
-      if (!slot || !state.account || state.account.address.toLowerCase() !== p.address) return;
-      import('./onchain-passport.js').then(m => m.mountOnchainPassport?.(slot, { api, address: p.address, ns: p.namespace, signAndExecuteBytes, explorer: CFG.EXPLORER })).catch(() => {});
+      if (!slot) return;
+      import('./onchain-passport.js').then(m => m.mountOnchainPassport?.(slot, {
+        api, address: state.account?.address ?? null, owner: p.address, ns: p.namespace, signAndExecuteBytes,
+        explorer: { tx: CFG.EXPLORER, object: CFG.EXPLORER_OBJ }, readOnly: isReadOnly(state),
+      })).catch(() => {});
     },
   });
   return { el };

@@ -10,6 +10,8 @@ jobs:
           curl -fsSL -o sui.tgz https://github.com/MystenLabs/sui/releases/download/testnet-v1.73.0/sui-testnet-v1.73.0-ubuntu-x86_64.tgz
           mkdir -p "$HOME/sui" && tar -xzf sui.tgz -C "$HOME/sui" && echo "$HOME/sui" >> "$GITHUB_PATH"
       - run: cd contracts && sui move test
+      - name: On-chain Forecaster Passport (helix_passport)
+        run: cd contracts-passport && sui move test
   tee:
     runs-on: ubuntu-latest
     steps:

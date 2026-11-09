@@ -12,6 +12,7 @@ import { normalizeSuiAddress } from '@mysten/sui/utils';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 import { gql } from '../shared/tatum.ts';
+import { isSponsorablePassportCall } from '../passport/onchain/sponsor.ts';
 
 /** v5 of the HELIX package: first version defining `journal` → call target AND event type identity. */
 export const JOURNAL_PKG = normalizeSuiAddress(process.env.HELIX_JOURNAL_PACKAGE ?? '0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f');
@@ -149,9 +150,13 @@ export function sponsorRefusal(txBytesB64: string): string | null | undefined {
   if (owner !== sp) return undefined;
   const cmds = data.commands ?? [];
   const call = cmds[0]?.MoveCall;
-  if (cmds.length !== 1 || !call || normalizeSuiAddress(call.package) !== JOURNAL_PKG || call.module !== 'journal' || call.function !== 'commit')
-    return 'HELIX only sponsors gas for helix::journal::commit';
-  if (Number(data.gasData.budget ?? Infinity) > SPONSOR_GAS_BUDGET) return 'sponsored gas budget too high';
+  const isCommit = cmds.length === 1 && !!call && normalizeSuiAddress(call.package) === JOURNAL_PKG && call.module === 'journal' && call.function === 'commit';
+  if (isCommit) { if (Number(data.gasData.budget ?? Infinity) > SPONSOR_GAS_BUDGET) return 'sponsored gas budget too high'; }
+  else {
+    // the on-chain Forecaster Passport (claim / refresh) is the only other call HELIX pays gas for
+    const why = process.env.PASSPORT_SPONSOR === '0' ? 'passport sponsorship is off' : isSponsorablePassportCall(data);
+    if (why) return why.startsWith('HELIX only sponsors a single') ? 'HELIX only sponsors gas for helix::journal::commit and the passport claim/refresh' : why;
+  }
   const sender = normalizeSuiAddress(data.sender ?? '');
   if (sender === sp) return 'sponsor cannot be the sender';
   if (!underDailyLimit(sender)) return `daily sponsored-commit limit reached (${SPONSOR_DAILY_LIMIT}); fund this address with testnet SUI to keep committing`;

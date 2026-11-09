@@ -15,6 +15,7 @@ import { namespaceFor, str } from '../../memory/format.ts';
 import { passportFor, resolveOwner } from './summary.ts';
 import { passportCardSVG } from './card.ts';
 import { signJson, signAttestation, pubkeyHex, BADGES } from './attest.ts';
+import { setAttestationProvider } from '../onchain/routes.ts';
 
 const enabled = () => process.env.FEATURE_PASSPORT !== '0';
 const cache = new Map<string, { at: number; v: any }>();
@@ -55,6 +56,28 @@ export async function verifyCommit(digest: string) {
   };
 }
 
+/**
+ * The LANES.md §0 attestation: BCS payload + raw Ed25519 signature. Refuses (503) when the commit ledger
+ * can't be read, so an on-chain passport can never certify an unknown "hidden" count as 0.
+ */
+export async function attestationResponse(id: string, owner: string) {
+  if (!/^0x[0-9a-f]{64}$/.test(owner)) throw new HttpError(400, { error: 'owner=<sui address> required' });
+  if (!/^0x/.test(id) && namespaceFor(owner) !== id) throw new HttpError(400, { error: 'namespace does not belong to that owner' });
+  cache.delete(owner);                                   // attest fresh numbers, not a 30s-old summary
+  const pp = await passportCached(await ownerOr404(owner));
+  if (pp.hidden == null) throw new HttpError(503, { error: 'commit ledger unavailable right now — not attesting an unknown hidden count; retry shortly' });
+  const now = Date.now();
+  const brier = pp.brier ?? 0.25, gap = pp.gap_you ?? 0;
+  return signAttestation({
+    owner, ns: pp.namespace, n_settled: pp.n_settled, wins: pp.wins,
+    brier_bps: Math.round((pp.n_settled ? brier : 0.25) * 10_000), gap_bps: Math.round(Math.abs(gap) * 10_000), gap_negative: gap < 0,
+    hidden: pp.hidden, badges: pp.badges, issued_ms: now, expires_ms: now + 15 * 60_000,
+  });
+}
+
+// the on-chain passport (Lane B) builds claim/refresh transactions from THIS signer
+setAttestationProvider((ns, owner) => attestationResponse(ns, owner.toLowerCase()) as any);
+
 export function passportRoutes() {
   return {
     'GET /.well-known/helix-attestation.json': () => ({
@@ -69,19 +92,7 @@ export function passportRoutes() {
     },
     'GET /passport/:id/card.svg': async (_b: any, _u: URL, p: Record<string, string>) =>
       new RawResponse(passportCardSVG(await passportCached(await ownerOr404(p.id))), 'image/svg+xml; charset=utf-8', { 'cache-control': 'public, max-age=60' }),
-    'GET /passport/:id/attestation': async (_b: any, u: URL, p: Record<string, string>) => {
-      const owner = (u.searchParams.get('owner') ?? '').toLowerCase();
-      if (!/^0x[0-9a-f]{64}$/.test(owner)) throw new HttpError(400, { error: 'owner=<sui address> required' });
-      if (!/^0x/.test(p.id) && namespaceFor(owner) !== p.id) throw new HttpError(400, { error: 'namespace does not belong to that owner' });
-      const pp = await passportCached(await ownerOr404(owner));
-      const now = Date.now();
-      const brier = pp.brier ?? 0.25, gap = pp.gap_you ?? 0;
-      return signAttestation({
-        owner, ns: pp.namespace, n_settled: pp.n_settled, wins: pp.wins,
-        brier_bps: Math.round((pp.n_settled ? brier : 0.25) * 10_000), gap_bps: Math.round(Math.abs(gap) * 10_000), gap_negative: gap < 0,
-        hidden: pp.hidden, badges: pp.badges, issued_ms: now, expires_ms: now + 15 * 60_000,
-      });
-    },
+    'GET /passport/:id/attestation': (_b: any, u: URL, p: Record<string, string>) => attestationResponse(p.id, (u.searchParams.get('owner') ?? '').toLowerCase()),
     'GET /verify/:digest': (_b: any, _u: URL, p: Record<string, string>) => verifyCommit(p.digest),
   };
 }

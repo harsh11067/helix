@@ -172,6 +172,28 @@ export async function councilHistory(): Promise<{ ts: number; weights: Record<st
   })).sort((a, b) => a.ts - b.ts);
 }
 
+// ---------------------------------------------------------------- on-chain passports (P4)
+/**
+ * Each agent claims its own soulbound ForecasterPassport with its own key and gas; afterwards it refreshes
+ * at most every 6 hours, and only when its settled count changed (each refresh costs gas).
+ */
+async function agentPassports(): Promise<void> {
+  if (process.env.FEATURE_ONCHAIN_PASSPORT !== '1') return;
+  const { claimOrRefreshAs } = await import('../passport/onchain/routes.ts');
+  const { passportOf } = await import('../passport/onchain/chain.ts');
+  const { namespaceFor } = await import('../memory/format.ts');
+  for (const a of agents) {
+    try {
+      const rec = council.records.find((r) => r.agent === a.name);
+      if (!rec || rec.n < 1) continue;
+      const cur: any = await passportOf(a.address, true).catch(() => null);
+      if (cur && Number(cur.n_settled) === rec.n) continue;
+      const r = await claimOrRefreshAs(a.kp, namespaceFor(a.address));
+      console.log(`[council] ${a.name} passport ${r.action}${r.digest ? ' ' + r.digest : ''}${r.error ? ' error ' + r.error : ''}`);
+    } catch (e) { console.error('[council] passport', a.name, (e as Error).message); }
+  }
+}
+
 export function startCouncil(): void {
   if (process.env.FEATURE_COUNCIL !== '1' || process.env.OFFLINE === '1' || process.env.WATCHER === '0') return;
   agents = agentsFromEnv();
@@ -188,6 +210,7 @@ export function startCouncil(): void {
   console.log(`[council] ${agents.length} agents: ${agents.map((a) => `${a.name}=${a.address.slice(0, 10)}…`).join(' ')}`);
   void tick();
   setInterval(() => { void tick(); }, 60_000).unref?.();
+  setTimeout(() => { void agentPassports(); setInterval(() => { void agentPassports(); }, 6 * 3_600_000).unref?.(); }, 5 * 60_000).unref?.();
   // keep GET /council warm for visitors (its recalls and chain reads take ~10s cold)
   setTimeout(() => { import('./routes.ts').then((m) => { void m.warmCouncil(); setInterval(() => { void m.warmCouncil(); }, 45_000).unref?.(); }); }, 20_000).unref?.();
 }

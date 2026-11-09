@@ -17,7 +17,8 @@ function wrap(text: string, max: number, lines: number): string[] {
 
 export function passportCardSVG(p: any): string {
   const who = p.kind === 'agent' ? `Council agent · ${p.agent}` : 'Forecaster';
-  const hidden = Number(p.hidden ?? 0);
+  const hiddenKnown = p.hidden != null;
+  const hidden = hiddenKnown ? Number(p.hidden) : NaN;
   const gap = p.gap_you == null ? null : Math.round(p.gap_you * 100);
   const lesson = p.latest_lesson?.text ? wrap(p.latest_lesson.text, 78, 2) : ['No lesson yet — HELIX writes one after 3 settled calls in a setup.'];
   const stat = (xx: number, label: string, value: string, color = T.ink) =>
@@ -32,8 +33,8 @@ export function passportCardSVG(p: any): string {
   ${stat(300, 'WON', String(p.wins ?? 0))}
   ${stat(500, 'BRIER', p.n_settled ? f2(p.brier) : '—')}
   ${stat(720, 'CONFIDENCE GAP', gap == null || !p.n_settled ? '—' : `${gap >= 0 ? '+' : ''}${gap} pts`, gap != null && gap > 10 ? T.coral : T.ink)}
-  ${stat(980, 'HIDDEN', String(hidden), hidden === 0 ? T.alive : T.coral)}
-  <text x="80" y="420" font-size="22" fill="${T.ink2}">committed ${x(p.committed ?? 0)} on Sui · shown ${x(p.shown ?? 0)} on Walrus Memory · hidden ${hidden}${p.badge_names?.length ? ' · ' + x(p.badge_names.join(' · ')) : ''}</text>
+  ${stat(980, 'HIDDEN', hiddenKnown ? String(hidden) : '—', hidden === 0 ? T.alive : hiddenKnown ? T.coral : T.ink3)}
+  <text x="80" y="420" font-size="22" fill="${T.ink2}">committed ${x(p.committed ?? 0)} on Sui · shown ${x(p.shown ?? 0)} on Walrus Memory · hidden ${hiddenKnown ? hidden : 'unknown'}${p.badge_names?.length ? ' · ' + x(p.badge_names.join(' · ')) : ''}</text>
   <rect x="80" y="460" width="1040" height="${lesson.length > 1 ? 84 : 56}" rx="10" fill="${T.card}"/>
   ${lesson.map((l, i) => `<text x="100" y="${496 + i * 30}" font-size="22" fill="${T.cardFg}">${x(l)}</text>`).join('\n  ')}
   <text x="80" y="606" font-size="16" fill="${T.ink3}">every call: hash committed on Sui before settlement · record on Walrus Memory (mainnet) · read through Tatum</text>

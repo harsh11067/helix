@@ -73,9 +73,10 @@ export async function passportFor(address: string, opts: { commits?: number } = 
   const contrarianWins = rows.filter((r) => r.won === 1 && r.p_mkt < 0.5).length;
   const assets = new Map<string, number>();
   for (const r of rows) { const a = str(convByTx.get(r.tx), 'asset') ?? 'BTC'; assets.set(a, (assets.get(a) ?? 0) + 1); }
-  const hidden = ledger?.missing_memory ?? 0;
+  // unknown (ledger unreadable) stays null — never a default 0 that would look like an honest record
+  const hidden: number | null = ledger && !ledger.error && Number.isFinite(ledger.missing_memory) ? ledger.missing_memory : null;
   const badges = badgeMask({
-    n: st.n, brier: st.brier.you, losses: st.n - st.wins, hidden, contrarianWins,
+    n: st.n, brier: st.brier.you, losses: st.n - st.wins, hidden: hidden ?? Number.POSITIVE_INFINITY, contrarianWins,
     councilMember: council.agents.some((g) => g.address.toLowerCase() === owner), assetsWith3: [...assets.values()].filter((n) => n >= 3).length,
   });
 
@@ -105,7 +106,7 @@ export async function passportFor(address: string, opts: { commits?: number } = 
     brier: st.brier.you, brier_by_voice: st.brier, gap_you: st.gap_you,
     best_setup: setups[0] ?? null, worst_setup: setups.length > 1 ? setups.at(-1)! : null, setups,
     latest_lesson: latestLesson ? { text: str(latestLesson, 'text'), bucket: str(latestLesson, 'bucket'), blob_id: latestLesson.blob_id } : null,
-    committed: ledger?.onchain ?? evs.length, shown: ledger?.with_memory ?? null, hidden, recording: ledger?.recording ?? 0,
+    committed: ledger?.onchain ?? evs.length, shown: ledger?.with_memory ?? null, hidden, ledger_ok: hidden != null, recording: ledger?.recording ?? 0,
     badges, badge_names: badgeNames(badges),
     memory_count: recs.length, commits,
     issued_ms: now, attestor_pubkey_hex: pubkeyHex(),
