@@ -29,6 +29,7 @@ import {
 } from './seal.js';
 import { voicesHTML, memoryBlockHTML, viewMemory } from './memory-ui.js';
 import { demoRequested, viewingAddress, isReadOnly, demoHref, DEMO_BANNER } from './demo.js';
+import { viewCouncil } from './council.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
@@ -284,6 +285,7 @@ const icons = {
   strategies: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   risk: '<circle cx="12" cy="12" r="9"/><path d="M12 12l5-3" stroke-linecap="round"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>',
   market: '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>',
+  council: '<circle cx="7" cy="8" r="2.6"/><circle cx="17" cy="8" r="2.6"/><circle cx="7" cy="17" r="2.6"/><circle cx="17" cy="17" r="2.6"/><path d="M9.6 8h4.8M9.6 17h4.8" stroke-linecap="round"/>',
   lineage: '<circle cx="12" cy="5" r="2.4"/><circle cx="6" cy="19" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="M12 7.4v4M12 11.4L6.6 16.8M12 11.4l5.4 5.4"/>',
 };
 const wrapIcon = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${p}</svg>`;
@@ -1103,6 +1105,9 @@ const routes = [
   { id: 'strategies', match: /^#\/strategies$/, title: 'My Strategies', sub: 'your living portfolio', view: viewStrategies },
   { id: 'strategies', match: /^#\/strategy\/(.+)$/, title: 'Strategy', sub: 'a living object', view: (m) => viewDetail(m[1]) },
   { id: 'memory', match: /^#\/memory$/, title: 'Memory', sub: 'who was right · walrus mainnet', view: () => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER, address: viewingAddress(state), readOnly: isReadOnly(state), banner: demoBannerHTML() }) },
+  // any forecaster's memory, read-only (agents, other traders): #/memory/0x…
+  { id: 'memory', match: /^#\/memory\/(0x[0-9a-fA-F]{64})$/, title: 'Memory', sub: 'read-only · walrus mainnet', view: (m) => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER, address: m[1].toLowerCase(), readOnly: true, banner: `<div class="panel" style="margin-bottom:16px;border-color:color-mix(in srgb,var(--accent) 40%,transparent)"><b>Viewing ${short(m[1])} — read only</b> <span class="muted">· every number below is recalled from this address's Walrus Memory</span></div>` }) },
+  { id: 'council', match: /^#\/council$/, title: 'The Council', sub: 'four agents · weighted by memory', view: () => viewCouncil({ $, explorer: CFG.EXPLORER }) },
   { id: 'risk', match: /^#\/risk$/, title: 'Risk Compass', sub: 'one unified picture', view: viewRisk },
   { id: 'market', match: /^#\/market$/, title: 'Marketplace', sub: 'copy · breed · compete', view: viewMarket },
   { id: 'lineage', match: /^#\/lineage$/, title: 'Lineage', sub: 'genetic ancestry', view: viewLineage },
@@ -1206,6 +1211,7 @@ function build() {
       ${railLink('memory', '#/memory', 'Memory')}
       ${railLink('risk', '#/risk', 'Risk Compass')}
       ${railLink('market', '#/market', 'Marketplace')}
+      ${railLink('council', '#/council', 'The Council')}
       ${railLink('lineage', '#/lineage', 'Lineage')}
       <div class="rail-spacer"></div>
     </aside>

@@ -12,7 +12,7 @@ const b2 = (x) => (x == null || !Number.isFinite(x) ? '—' : x.toFixed(2));
 const shortB = (b) => b ? b.slice(0, 8) + '…' + b.slice(-4) : '';
 const shortA = (a) => a ? a.slice(0, 6) + '…' + a.slice(-4) : '';
 const signed = (x) => (x == null ? '—' : (x >= 0 ? '+' : '') + x.toFixed(2));
-const VOICE = { you: 'You', market: 'Predict market', helix: 'HELIX model', crowd: 'Polymarket crowd' };
+const VOICE = { you: 'You', market: 'Predict market', helix: 'HELIX model', crowd: 'Polymarket crowd', council: 'The Council' };
 const TYPE_COLOR = { CONVICTION: 'var(--accent)', OUTCOME: 'var(--alive)', CALIBRATION: 'var(--ink-2)', LESSON: 'var(--coral)', REASON: 'var(--ink-3)', VETTING: 'var(--ink-3)' };
 
 /* ---------------- Canvas: the four voices + memory block ---------------- */
@@ -25,9 +25,12 @@ export function voicesHTML(r) {
       <div class="muted mono" style="font-size:10.5px;margin-top:4px">${mv[k]?.brier != null ? 'Brier ' + b2(mv[k].brier) + ' (lower = better)' : (k === 'helix' ? 'regime heuristic' : k === 'market' ? 'SVI-implied' : k === 'you' ? 'your confidence' : 'not scored yet')}</div>
     </div>`;
   const crowdNote = crowd.status === 'ok' ? null : crowd.status === 'not_comparable' ? 'not compared' : crowd.status === 'disabled' ? 'off' : 'unavailable';
-  return `<div class="grid-4" style="gap:10px">
-      ${cell('you', v.you)}${cell('market', v.market)}${cell('helix', v.helix)}${cell('crowd', v.crowd, crowdNote)}
+  const cd = v.council_detail || {};
+  const councilNote = cd.status === 'off' ? 'off' : 'no live call';
+  return `<div class="grid-4" style="gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+      ${cell('you', v.you)}${cell('market', v.market)}${cell('helix', v.helix)}${cell('crowd', v.crowd, crowdNote)}${cell('council', v.council, councilNote)}
     </div>
+    ${cd.status === 'live' ? `<div class="muted mono" style="font-size:10.5px;margin-top:6px">council: ${(cd.calls || []).length} agent call${(cd.calls || []).length === 1 ? '' : 's'}, memory-weighted · P(up) ${pct(cd.p_up)} · edge over the market ${cd.edge >= 0 ? '+' : ''}${(cd.edge * 100).toFixed(1)} pts · <a href="#/council" style="color:var(--accent-deep)">the Council →</a></div>` : ''}
     ${crowd.status && crowd.status !== 'ok' && crowd.reason ? `<div class="muted mono" style="font-size:10.5px;margin-top:6px">crowd: ${esc(crowd.reason)}${crowd.url ? ` · <a href="${esc(crowd.url)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">market ↗</a>` : ''}</div>` : ''}
     ${crowd.status === 'ok' ? `<div class="muted mono" style="font-size:10.5px;margin-top:6px">crowd: <a href="${esc(crowd.url)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">${esc(crowd.title)} ↗</a> (Polymarket resolves on a Chainlink TWAP; Predict on Pyth at expiry)</div>` : ''}`;
 }
