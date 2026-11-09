@@ -19,7 +19,8 @@ import {
   resolveByDigest, startWatcher, pendingCount, reasonCheck,
 } from '../memory/service.ts';
 import { PRIVACY_COPY } from '../memory/reasons.ts';
-import { memwalHealth, mode as memMode, writesLastHour, writeStats } from '../memory/store.ts';
+import { memwalHealth, mode as memMode, writesLastHour, writeStats, warmNamespaces } from '../memory/store.ts';
+import { namespaceFor, NS_PREFIX } from '../memory/format.ts';
 import { memoryProof } from '../memory/proof.ts';
 import { crowdMarketFor } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
@@ -232,6 +233,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE}, memory=${memMode()}, tatum=${tatumConfigured() ? 'keyed' : 'anonymous'})`));
   startWatcher();
   startCouncil();
+  // warm the parsed-memory cache for what judges open first (demo trader, Council, agents)
+  if (!offline() && process.env.WATCHER !== '0') setTimeout(() => {
+    const demo = process.env.DEMO_ADDRESS?.trim();
+    void warmNamespaces([...(demo ? [namespaceFor(demo)] : []), `${NS_PREFIX}-council`, ...council.agents.map((a) => namespaceFor(a.address)), `${NS_PREFIX}-payments`]);
+  }, 2_000);
   // free-tier hosts sleep when idle, which would pause the settlement watcher
   const ka = process.env.KEEPALIVE_URL;
   if (ka && !offline()) setInterval(() => { fetch(ka).catch(() => {}); }, 10 * 60_000).unref?.();
