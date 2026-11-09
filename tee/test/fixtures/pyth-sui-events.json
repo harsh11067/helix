@@ -1,0 +1,2012 @@
+{
+ "recorded_at": "2026-11-09T20:13:33.962Z",
+ "source": "Sui testnet GraphQL via Tatum, events(type: 0xd1ac23e1582080e2e5d43dbad1cf463ea2337cdbbb1a9ca669e470cefb74d8fd::event::PriceFeedUpdateEvent, last: 50)",
+ "page": {
+  "pageInfo": {
+   "hasPreviousPage": true,
+   "startCursor": "AAEBHigBQg4I5MH6wAEQpd7T9Q8YAkoKCOTB+sABEAUYAgEA5KAeGAAAAAAFAAAAAAAAAAIAAAA="
+  },
+  "nodes": [
+   {
+    "timestamp": "2026-11-09T19:47:55.815Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99973895"
+        },
+        "conf": "11113",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253675"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99977035"
+        },
+        "conf": "8922",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253675"
+       }
+      },
+      "timestamp": "1794253675"
+     }
+    },
+    "transaction": {
+     "digest": "8Nz7t5xQQsFikAJymE7CTYDpwTQiFpsz4RRXwWCUe41W"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:47:55.815Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7491808598568"
+        },
+        "conf": "14085012589",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253675"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7462115330000"
+        },
+        "conf": "5009636050",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253675"
+       }
+      },
+      "timestamp": "1794253675"
+     }
+    },
+    "transaction": {
+     "digest": "8Nz7t5xQQsFikAJymE7CTYDpwTQiFpsz4RRXwWCUe41W"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:50:02.293Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1414357"
+        },
+        "conf": "1059",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1416616"
+        },
+        "conf": "1045",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       }
+      },
+      "timestamp": "1794253802"
+     }
+    },
+    "transaction": {
+     "digest": "71p75YmmDi5GadEkC7z2sSCjGJdQMQtsiw48NDV1ByBM"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:50:02.293Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "85092767"
+        },
+        "conf": "81410",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84910221"
+        },
+        "conf": "77353",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       }
+      },
+      "timestamp": "1794253802"
+     }
+    },
+    "transaction": {
+     "digest": "71p75YmmDi5GadEkC7z2sSCjGJdQMQtsiw48NDV1ByBM"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:50:02.293Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99974808"
+        },
+        "conf": "10569",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976950"
+        },
+        "conf": "8976",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       }
+      },
+      "timestamp": "1794253802"
+     }
+    },
+    "transaction": {
+     "digest": "71p75YmmDi5GadEkC7z2sSCjGJdQMQtsiw48NDV1ByBM"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:50:02.293Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7481963006322"
+        },
+        "conf": "9504957426",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7462509330000"
+        },
+        "conf": "5115094860",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253801"
+       }
+      },
+      "timestamp": "1794253802"
+     }
+    },
+    "transaction": {
+     "digest": "71p75YmmDi5GadEkC7z2sSCjGJdQMQtsiw48NDV1ByBM"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:52:10.203Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1415349"
+        },
+        "conf": "1212",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1416567"
+        },
+        "conf": "1051",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       }
+      },
+      "timestamp": "1794253930"
+     }
+    },
+    "transaction": {
+     "digest": "7R6ShJaPZB1B3hNzzrcxXKSRnSfFJuTCGvDMCyDbwtwd"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:52:10.203Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "85058194"
+        },
+        "conf": "77657",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84917538"
+        },
+        "conf": "77290",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       }
+      },
+      "timestamp": "1794253930"
+     }
+    },
+    "transaction": {
+     "digest": "7R6ShJaPZB1B3hNzzrcxXKSRnSfFJuTCGvDMCyDbwtwd"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:52:10.203Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975495"
+        },
+        "conf": "9513",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976885"
+        },
+        "conf": "9013",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       }
+      },
+      "timestamp": "1794253930"
+     }
+    },
+    "transaction": {
+     "digest": "7R6ShJaPZB1B3hNzzrcxXKSRnSfFJuTCGvDMCyDbwtwd"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:52:10.203Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7481598366606"
+        },
+        "conf": "10061126364",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7462842170000"
+        },
+        "conf": "5226978710",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794253929"
+       }
+      },
+      "timestamp": "1794253930"
+     }
+    },
+    "transaction": {
+     "digest": "7R6ShJaPZB1B3hNzzrcxXKSRnSfFJuTCGvDMCyDbwtwd"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:54:16.299Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1413356"
+        },
+        "conf": "1253",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1416494"
+        },
+        "conf": "1055",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       }
+      },
+      "timestamp": "1794254056"
+     }
+    },
+    "transaction": {
+     "digest": "C8YG8mgXUBGjFEUqbKETaWGwSB5hWHdhupW46RBoGgbW"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:54:16.299Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84988148"
+        },
+        "conf": "77713",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84921442"
+        },
+        "conf": "77324",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       }
+      },
+      "timestamp": "1794254056"
+     }
+    },
+    "transaction": {
+     "digest": "C8YG8mgXUBGjFEUqbKETaWGwSB5hWHdhupW46RBoGgbW"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:54:16.299Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99974431"
+        },
+        "conf": "10577",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976824"
+        },
+        "conf": "9046",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       }
+      },
+      "timestamp": "1794254056"
+     }
+    },
+    "transaction": {
+     "digest": "C8YG8mgXUBGjFEUqbKETaWGwSB5hWHdhupW46RBoGgbW"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:54:16.299Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7477165557254"
+        },
+        "conf": "13176695731",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7463069400000"
+        },
+        "conf": "5355939470",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254055"
+       }
+      },
+      "timestamp": "1794254056"
+     }
+    },
+    "transaction": {
+     "digest": "C8YG8mgXUBGjFEUqbKETaWGwSB5hWHdhupW46RBoGgbW"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:56:23.125Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1414360"
+        },
+        "conf": "1114",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1416416"
+        },
+        "conf": "1059",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       }
+      },
+      "timestamp": "1794254182"
+     }
+    },
+    "transaction": {
+     "digest": "9UZMzoa8kFShFW8TQx5n14RuuJDWgo71L48xMRva7swH"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:56:23.125Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "85044316"
+        },
+        "conf": "80684",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84926204"
+        },
+        "conf": "77230",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       }
+      },
+      "timestamp": "1794254182"
+     }
+    },
+    "transaction": {
+     "digest": "9UZMzoa8kFShFW8TQx5n14RuuJDWgo71L48xMRva7swH"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:56:23.125Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975028"
+        },
+        "conf": "9980",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976755"
+        },
+        "conf": "9088",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       }
+      },
+      "timestamp": "1794254182"
+     }
+    },
+    "transaction": {
+     "digest": "9UZMzoa8kFShFW8TQx5n14RuuJDWgo71L48xMRva7swH"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:56:23.125Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7479107423280"
+        },
+        "conf": "15945351714",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7463236590000"
+        },
+        "conf": "5498076360",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254182"
+       }
+      },
+      "timestamp": "1794254182"
+     }
+    },
+    "transaction": {
+     "digest": "9UZMzoa8kFShFW8TQx5n14RuuJDWgo71L48xMRva7swH"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:58:29.668Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1414352"
+        },
+        "conf": "1205",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1416324"
+        },
+        "conf": "1059",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       }
+      },
+      "timestamp": "1794254309"
+     }
+    },
+    "transaction": {
+     "digest": "2HxqeBkFwkkB8X8gkDzNquVEn5NirKz7QgF7akz19Pti"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:58:29.668Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84989934"
+        },
+        "conf": "85614",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84929605"
+        },
+        "conf": "77268",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       }
+      },
+      "timestamp": "1794254309"
+     }
+    },
+    "transaction": {
+     "digest": "2HxqeBkFwkkB8X8gkDzNquVEn5NirKz7QgF7akz19Pti"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:58:29.668Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975860"
+        },
+        "conf": "9148",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976700"
+        },
+        "conf": "9116",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       }
+      },
+      "timestamp": "1794254309"
+     }
+    },
+    "transaction": {
+     "digest": "2HxqeBkFwkkB8X8gkDzNquVEn5NirKz7QgF7akz19Pti"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T19:58:29.668Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7478908841070"
+        },
+        "conf": "15679600709",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7463441630000"
+        },
+        "conf": "5630783870",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254309"
+       }
+      },
+      "timestamp": "1794254309"
+     }
+    },
+    "transaction": {
+     "digest": "2HxqeBkFwkkB8X8gkDzNquVEn5NirKz7QgF7akz19Pti"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:00:36.136Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1413356"
+        },
+        "conf": "1188",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1416231"
+        },
+        "conf": "1059",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       }
+      },
+      "timestamp": "1794254435"
+     }
+    },
+    "transaction": {
+     "digest": "BpDKmyh68N7cD9yPW8FfPAQbXw73Y17Vhn1i2P2Bb93A"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:00:36.136Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84924384"
+        },
+        "conf": "60641",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84930051"
+        },
+        "conf": "77342",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       }
+      },
+      "timestamp": "1794254435"
+     }
+    },
+    "transaction": {
+     "digest": "BpDKmyh68N7cD9yPW8FfPAQbXw73Y17Vhn1i2P2Bb93A"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:00:36.136Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976401"
+        },
+        "conf": "8622",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976668"
+        },
+        "conf": "9120",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       }
+      },
+      "timestamp": "1794254435"
+     }
+    },
+    "transaction": {
+     "digest": "BpDKmyh68N7cD9yPW8FfPAQbXw73Y17Vhn1i2P2Bb93A"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:00:36.136Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7477561829593"
+        },
+        "conf": "16441433736",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7463635820000"
+        },
+        "conf": "5770209320",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254435"
+       }
+      },
+      "timestamp": "1794254435"
+     }
+    },
+    "transaction": {
+     "digest": "BpDKmyh68N7cD9yPW8FfPAQbXw73Y17Vhn1i2P2Bb93A"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:02:42.291Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1410349"
+        },
+        "conf": "837",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1416086"
+        },
+        "conf": "1054",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       }
+      },
+      "timestamp": "1794254562"
+     }
+    },
+    "transaction": {
+     "digest": "7HS791grHDBJjFYxDappH5xqr6fZvzwJXEyPmJAccYtN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:02:42.291Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84805545"
+        },
+        "conf": "81536",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84929220"
+        },
+        "conf": "77427",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       }
+      },
+      "timestamp": "1794254562"
+     }
+    },
+    "transaction": {
+     "digest": "7HS791grHDBJjFYxDappH5xqr6fZvzwJXEyPmJAccYtN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:02:42.291Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975595"
+        },
+        "conf": "9420",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976650"
+        },
+        "conf": "9115",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       }
+      },
+      "timestamp": "1794254562"
+     }
+    },
+    "transaction": {
+     "digest": "7HS791grHDBJjFYxDappH5xqr6fZvzwJXEyPmJAccYtN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:02:42.291Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7481414054321"
+        },
+        "conf": "22106016038",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7463818070000"
+        },
+        "conf": "5922747850",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254561"
+       }
+      },
+      "timestamp": "1794254562"
+     }
+    },
+    "transaction": {
+     "digest": "7HS791grHDBJjFYxDappH5xqr6fZvzwJXEyPmJAccYtN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:04:48.347Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1411315"
+        },
+        "conf": "895",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1415772"
+        },
+        "conf": "1040",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       }
+      },
+      "timestamp": "1794254688"
+     }
+    },
+    "transaction": {
+     "digest": "HdcSqdUsX4Ra9Bs6DP7ZpCFPayLUmwo1FuBZohHaShpG"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:04:48.347Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84903356"
+        },
+        "conf": "83201",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84925615"
+        },
+        "conf": "77466",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       }
+      },
+      "timestamp": "1794254688"
+     }
+    },
+    "transaction": {
+     "digest": "HdcSqdUsX4Ra9Bs6DP7ZpCFPayLUmwo1FuBZohHaShpG"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:04:48.347Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975834"
+        },
+        "conf": "9174",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976620"
+        },
+        "conf": "9121",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       }
+      },
+      "timestamp": "1794254688"
+     }
+    },
+    "transaction": {
+     "digest": "HdcSqdUsX4Ra9Bs6DP7ZpCFPayLUmwo1FuBZohHaShpG"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:04:48.347Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7481428326213"
+        },
+        "conf": "21147796728",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7463979080000"
+        },
+        "conf": "6082585670",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254687"
+       }
+      },
+      "timestamp": "1794254688"
+     }
+    },
+    "transaction": {
+     "digest": "HdcSqdUsX4Ra9Bs6DP7ZpCFPayLUmwo1FuBZohHaShpG"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:06:54.754Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1410360"
+        },
+        "conf": "777",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1415530"
+        },
+        "conf": "1027",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       }
+      },
+      "timestamp": "1794254814"
+     }
+    },
+    "transaction": {
+     "digest": "ANR6VkeEd7W5iEFQeeAUzr3uQCh1MwMAyPKLLRPoyNcN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:06:54.754Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84884241"
+        },
+        "conf": "82743",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84925965"
+        },
+        "conf": "77557",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       }
+      },
+      "timestamp": "1794254814"
+     }
+    },
+    "transaction": {
+     "digest": "ANR6VkeEd7W5iEFQeeAUzr3uQCh1MwMAyPKLLRPoyNcN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:06:54.754Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975492"
+        },
+        "conf": "9516",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976579"
+        },
+        "conf": "9142",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       }
+      },
+      "timestamp": "1794254814"
+     }
+    },
+    "transaction": {
+     "digest": "ANR6VkeEd7W5iEFQeeAUzr3uQCh1MwMAyPKLLRPoyNcN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:06:54.754Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7482665205414"
+        },
+        "conf": "23173760834",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7464252300000"
+        },
+        "conf": "6237120840",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254814"
+       }
+      },
+      "timestamp": "1794254814"
+     }
+    },
+    "transaction": {
+     "digest": "ANR6VkeEd7W5iEFQeeAUzr3uQCh1MwMAyPKLLRPoyNcN"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:09:01.152Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1410318"
+        },
+        "conf": "823",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1415235"
+        },
+        "conf": "1009",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       }
+      },
+      "timestamp": "1794254940"
+     }
+    },
+    "transaction": {
+     "digest": "2aHWohcAqxnckBSGsBgN4C7MH4WEpmbwqfr2fkE6wuRK"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:09:01.152Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84892664"
+        },
+        "conf": "84064",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84923300"
+        },
+        "conf": "77629",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       }
+      },
+      "timestamp": "1794254940"
+     }
+    },
+    "transaction": {
+     "digest": "2aHWohcAqxnckBSGsBgN4C7MH4WEpmbwqfr2fkE6wuRK"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:09:01.152Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975395"
+        },
+        "conf": "9954",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976532"
+        },
+        "conf": "9168",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       }
+      },
+      "timestamp": "1794254940"
+     }
+    },
+    "transaction": {
+     "digest": "2aHWohcAqxnckBSGsBgN4C7MH4WEpmbwqfr2fkE6wuRK"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:09:01.152Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7484284564794"
+        },
+        "conf": "19522485391",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7464452480000"
+        },
+        "conf": "6403073930",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794254940"
+       }
+      },
+      "timestamp": "1794254940"
+     }
+    },
+    "transaction": {
+     "digest": "2aHWohcAqxnckBSGsBgN4C7MH4WEpmbwqfr2fkE6wuRK"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:11:07.509Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1410348"
+        },
+        "conf": "837",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1415027"
+        },
+        "conf": "1000",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       }
+      },
+      "timestamp": "1794255067"
+     }
+    },
+    "transaction": {
+     "digest": "F49UnurSxt3vY1YQHC5g3yFHWfZdsAWMeQk2Uqzku5Xz"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:11:07.509Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84950489"
+        },
+        "conf": "76401",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84923372"
+        },
+        "conf": "77746",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       }
+      },
+      "timestamp": "1794255067"
+     }
+    },
+    "transaction": {
+     "digest": "F49UnurSxt3vY1YQHC5g3yFHWfZdsAWMeQk2Uqzku5Xz"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:11:07.509Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99974396"
+        },
+        "conf": "10612",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976473"
+        },
+        "conf": "9210",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       }
+      },
+      "timestamp": "1794255067"
+     }
+    },
+    "transaction": {
+     "digest": "F49UnurSxt3vY1YQHC5g3yFHWfZdsAWMeQk2Uqzku5Xz"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:11:07.509Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7488559858357"
+        },
+        "conf": "15291892763",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7464781640000"
+        },
+        "conf": "6549612420",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255067"
+       }
+      },
+      "timestamp": "1794255067"
+     }
+    },
+    "transaction": {
+     "digest": "F49UnurSxt3vY1YQHC5g3yFHWfZdsAWMeQk2Uqzku5Xz"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:13:14.040Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "Kb3VJII04zvZPTuBEAtfoy6qWZeEOEfiwssW18bZ9/8="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1413339"
+        },
+        "conf": "1079",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "1414871"
+        },
+        "conf": "996",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       }
+      },
+      "timestamp": "1794255193"
+     }
+    },
+    "transaction": {
+     "digest": "CDsMXw43VuLXcCktVoCLBq7pyET1xtbJ52gdZei9W7q9"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:13:14.040Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "I9cxURP1sdO6eoNgTES5TXn0/Wmvd/gE/H+SCm3GV0Q="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "85153545"
+        },
+        "conf": "81558",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "84927008"
+        },
+        "conf": "77858",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       }
+      },
+      "timestamp": "1794255193"
+     }
+    },
+    "transaction": {
+     "digest": "CDsMXw43VuLXcCktVoCLBq7pyET1xtbJ52gdZei9W7q9"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:13:14.040Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "6qAgxhzEeXEoE0Yc4VOJSpamwAsh7Qz8J5jR+anpyUo="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99975295"
+        },
+        "conf": "10874",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "99976397"
+        },
+        "conf": "9270",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       }
+      },
+      "timestamp": "1794255193"
+     }
+    },
+    "transaction": {
+     "digest": "CDsMXw43VuLXcCktVoCLBq7pyET1xtbJ52gdZei9W7q9"
+    }
+   },
+   {
+    "timestamp": "2026-11-09T20:13:14.040Z",
+    "contents": {
+     "json": {
+      "price_feed": {
+       "price_identifier": {
+        "bytes": "ro8mntnEvtYWyZqYz23+VivTIC5/kYIaRx/4VHE4UbQ="
+       },
+       "price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7484620410428"
+        },
+        "conf": "19216985968",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       },
+       "ema_price": {
+        "price": {
+         "negative": false,
+         "magnitude": "7465091020000"
+        },
+        "conf": "6699498840",
+        "expo": {
+         "negative": true,
+         "magnitude": "8"
+        },
+        "timestamp": "1794255193"
+       }
+      },
+      "timestamp": "1794255193"
+     }
+    },
+    "transaction": {
+     "digest": "CDsMXw43VuLXcCktVoCLBq7pyET1xtbJ52gdZei9W7q9"
+    }
+   }
+  ]
+ }
+}
