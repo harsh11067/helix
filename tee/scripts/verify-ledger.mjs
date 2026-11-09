@@ -34,6 +34,17 @@ if (args[0] === '--rebuild') {
       }
     }
   }
+  // CALIBRATION / LESSON written before they carried `tx`: they are derived from the OUTCOME settled at
+  // the same expiry (`ts=` is the expiry on all three), so trace them through that OUTCOME's digest.
+  const f = (t, k) => new RegExp(`\\b${k}=([^|\\s]+)`).exec(t)?.[1];
+  const band = (c) => (c < 0.4 ? 'low' : c < 0.7 ? 'mid' : 'high');
+  const bucketOf = (t) => `${f(t, 'dir')}/${band(Number(f(t, 'conf')))}/${f(t, 'vol')}`;
+  for (const e of rebuilt) {
+    if (e.tx || !['CALIBRATION', 'LESSON'].includes(e.type)) continue;
+    const o = rebuilt.find((x) => x.type === 'OUTCOME' && x.namespace === e.namespace && x.tx && f(x.text, 'ts') === f(e.text, 'ts')
+      && rebuilt.some((c) => c.type === 'CONVICTION' && c.tx === x.tx && bucketOf(c.text) === f(e.text, 'bucket')));
+    if (o) { e.tx = o.tx; e.tx_via = 'outcome-same-expiry-and-bucket'; }
+  }
   rebuilt.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
   ledger = rebuilt;
   mkdirSync(new URL('../data/', import.meta.url), { recursive: true });
@@ -66,7 +77,7 @@ for (const e of trading) {
   const st = e.tx ? txStatus[e.tx] : 'NO_TX';
   const blob = args.includes('--skip-blobs') ? '' : blobOk[e.blob_id] ? ` blob ${blobOk[e.blob_id]}B` : ' blob MISSING';
   if ((e.tx && st !== 'SUCCESS') || (!e.tx) || (!args.includes('--skip-blobs') && !blobOk[e.blob_id])) bad++;
-  console.log(`${e.type.padEnd(11)} ${e.blob_id}  tx ${e.tx ?? '—'} ${st}${blob}`);
+  console.log(`${e.type.padEnd(11)} ${e.blob_id}  tx ${e.tx ?? '—'} ${st}${blob}${e.tx_via ? ' (via ' + e.tx_via + ')' : ''}`);
 }
 console.log(`\n${trading.length} trading memories (${Object.entries(byType).map(([k, v]) => `${k} ${v}`).join(', ')}) · ${digests.length} distinct tx · ${bad} problem(s)`);
 process.exit(bad ? 1 : 0);

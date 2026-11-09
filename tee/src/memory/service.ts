@@ -518,7 +518,7 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
     const rows = settledRows(after).filter((r) => bucketOfRow(after, r.tx) === bucket);
     const st = bucketStats(rows);
     const cal = formatRecord('CALIBRATION', [
-      ['bucket', bucket], ['n', st.n], ['wins', st.wins], ['mean_p_you', p3(st.mean_p_you)], ['realized', p3(st.realized)],
+      ['tx', tx], ['bucket', bucket], ['n', st.n], ['wins', st.wins], ['mean_p_you', p3(st.mean_p_you)], ['realized', p3(st.realized)],
       ['gap_you', signed2(st.gap_you)], ['brier_you', p3(st.brier.you)], ['brier_mkt', p3(st.brier.market)],
       ['brier_hlx', p3(st.brier.helix)], ['brier_crowd', p3(st.brier.crowd)], ['n_crowd', st.n_crowd],
       ['posterior', p3(st.posterior)], ['pnl', signed2(st.pnl)], ['ts', expiry],
@@ -529,7 +529,7 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
     const lesson = lessonFor(bucket, st, bias);
     const prevLesson = after.filter((r) => r.type === 'LESSON' && str(r, 'bucket') === bucket).pop();
     if (lesson && str(prevLesson, 'text') !== lesson) {
-      await remember(ns, formatRecord('LESSON', [['bucket', bucket], ['n', st.n], ['text', lesson], ['ts', expiry]]), { tx, origin: 'watcher' });
+      await remember(ns, formatRecord('LESSON', [['tx', tx], ['bucket', bucket], ['n', st.n], ['text', lesson], ['ts', expiry]]), { tx, origin: 'watcher' });
     }
   }
   // W6: a lesson by reason category, once that category has 3+ settled calls
@@ -540,7 +540,7 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
     if (rs && rs.n >= MIN_N) {
       const text = `Calls you justified with ${cat} reasoning won ${rs.wins} of ${rs.n}.` + (rs.best && rs.best !== cat ? ` Calls citing ${rs.best} have done best (${rs.bestWins}/${rs.bestN}).` : '');
       const prev = after.filter((r) => r.type === 'LESSON' && str(r, 'bucket') === `reason/${cat}`).pop();
-      if (str(prev, 'text') !== text) await remember(ns, formatRecord('LESSON', [['bucket', `reason/${cat}`], ['n', rs.n], ['text', text], ['ts', expiry]]), { tx, origin: 'watcher' });
+      if (str(prev, 'text') !== text) await remember(ns, formatRecord('LESSON', [['tx', tx], ['bucket', `reason/${cat}`], ['n', rs.n], ['text', text], ['ts', expiry]]), { tx, origin: 'watcher' });
     }
   }
   return { status: 'resolved', outcome: won ? 'WIN' : 'LOSS' };
