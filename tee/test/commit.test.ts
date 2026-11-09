@@ -88,3 +88,10 @@ test('paper commits settle into calibration exactly like minted convictions', ()
   assert.equal(rows.length, 1);
   assert.equal(rows[0].won, 1); assert.equal(rows[0].p_you, 0.86); assert.equal(rows[0].payoff, 6.11);
 });
+
+test('watcher: a conviction is never resolved twice concurrently', async () => {
+  const { resolveOnce } = await import('../src/memory/service.ts');
+  const rec = parseRecord(formatRecord('CONVICTION', [['tx', 'X'], ['expiry', Math.floor(Date.now() / 1000) + 3600], ['market', '0x1']]))!;
+  const [a, b] = await Promise.all([resolveOnce('X', 'ns', rec), resolveOnce('X', 'ns', rec)]);
+  assert.deepEqual([a.status, b.status].sort(), ['in_progress', 'not_expired']);
+});

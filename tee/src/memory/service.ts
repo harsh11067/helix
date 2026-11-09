@@ -546,13 +546,26 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
   return { status: 'resolved', outcome: won ? 'WIN' : 'LOSS' };
 }
 
+// A resolution writes up to three memories (~20s each), longer than the tick interval:
+// ticks never overlap, and a conviction is never resolved by two code paths at once.
+let ticking = false;
+const resolving = new Set<string>();
+export async function resolveOnce(tx: string, ns: string, rec: MemRecord): Promise<{ status: string; outcome?: string }> {
+  if (resolving.has(tx)) return { status: 'in_progress' };
+  resolving.add(tx);
+  try { return await resolveConviction(ns, rec); } finally { resolving.delete(tx); }
+}
 export async function watcherTick(): Promise<void> {
-  for (const [tx, { ns, rec }] of [...pending]) {
-    try {
-      const r = await resolveConviction(ns, rec);
-      if (r.status === 'resolved') console.log(`[watcher] ${tx} → ${r.outcome}`);
-    } catch (e) { console.error('[watcher]', tx, (e as Error).message); }
-  }
+  if (ticking) return;
+  ticking = true;
+  try {
+    for (const [tx, { ns, rec }] of [...pending]) {
+      try {
+        const r = await resolveOnce(tx, ns, rec);
+        if (r.status === 'resolved') console.log(`[watcher] ${tx} → ${r.outcome}`);
+      } catch (e) { console.error('[watcher]', tx, (e as Error).message); }
+    }
+  } finally { ticking = false; }
 }
 
 export function startWatcher(intervalMs = 20_000): void {
@@ -570,7 +583,7 @@ export async function resolveByDigest(address: string, digest: string) {
   const recs = await recallAll(ns, { fresh: true });
   const c = recs.find((r) => r.type === 'CONVICTION' && str(r, 'tx') === digest);
   if (!c) throw new Error('no CONVICTION memory for that digest in this namespace');
-  return resolveConviction(ns, c);
+  return resolveOnce(digest, ns, c);
 }
 
 // ---------------------------------------------------------------- reasons (W6)
