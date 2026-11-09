@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "helix-memory": {
+      "command": "node",
+      "args": ["mcp/server.mjs"],
+      "env": { "HELIX_API": "https://helix-compiler.onrender.com" }
+    }
+  }
+}

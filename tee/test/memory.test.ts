@@ -142,3 +142,30 @@ test('MemWalMock: write → recall → settled-row join → calibration', async 
   assert.equal(rows[0].won, 0); close(rows[0].p_mkt, 0.45);
   await assert.rejects(remember(ns, 'not a helix record'), /non-HELIX/);
 });
+
+test('W6 reason classifier is deterministic and keyword-based', async () => {
+  const { classifyReason } = await import('../src/memory/reasons.ts');
+  assert.equal(classifyReason('ETF inflows and funding flipped positive, whales bidding'), 'flows');
+  assert.equal(classifyReason('clean breakout above resistance, RSI not overbought'), 'technical');
+  assert.equal(classifyReason('CPI tomorrow and the Fed is dovish, DXY rolling over'), 'macro');
+  assert.equal(classifyReason('just a gut feeling'), 'gut');
+  assert.equal(classifyReason('no reason at all'), 'other');
+  assert.equal(classifyReason('breakout'), classifyReason('breakout'));
+});
+
+test('W6 reason stats join REASON with OUTCOME and need n ≥ 3 to name a best category', async () => {
+  const { reasonStats } = await import('../src/memory/service.ts');
+  const recs = [] as any[];
+  const add = (tx: string, cat: string, res: string) => {
+    recs.push(parseRecord(formatRecord('REASON', [['tx', tx], ['category', cat], ['facts', 'x'], ['ts', 1]]))!);
+    recs.push(parseRecord(formatRecord('OUTCOME', [['tx', tx], ['result', res], ['payoff', '+1.00'], ['ts', 2]]))!);
+  };
+  add('a', 'technical', 'LOSS'); add('b', 'technical', 'LOSS'); add('c', 'technical', 'WIN');
+  add('d', 'flows', 'WIN'); add('e', 'flows', 'WIN'); add('f', 'flows', 'WIN');
+  recs.push(parseRecord(formatRecord('REASON', [['tx', 'g'], ['category', 'macro'], ['ts', 1]]))!);   // unsettled → ignored
+  const st = reasonStats(recs);
+  assert.deepEqual([st.technical.n, st.technical.wins], [3, 1]);
+  assert.deepEqual([st.flows.n, st.flows.wins], [3, 3]);
+  assert.equal(st.macro, undefined);
+  assert.equal(st.technical.best, 'flows');
+});

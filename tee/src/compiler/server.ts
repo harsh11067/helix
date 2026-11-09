@@ -16,8 +16,9 @@ import { handleRpc } from '../shared/rpcFacade.ts';
 import * as P from '../predict/predict.ts';
 import {
   liveCompile, buildMint, buildFund, onMintExecuted, timelineFor, dividendFor, credibilityFor,
-  resolveByDigest, startWatcher, pendingCount,
+  resolveByDigest, startWatcher, pendingCount, reasonCheck,
 } from '../memory/service.ts';
+import { PRIVACY_COPY } from '../memory/reasons.ts';
 import { memwalHealth, mode as memMode } from '../memory/store.ts';
 import { memoryProof } from '../memory/proof.ts';
 import { crowdMarketFor } from '../crowd/polymarket.ts';
@@ -50,7 +51,7 @@ function needAddr(a: unknown): string {
 
 let healthCache: { at: number; v: any } | null = null;
 async function health() {
-  if (healthCache && Date.now() - healthCache.at < 5000) return healthCache.v;
+  if (healthCache && Date.now() - healthCache.at < 15_000) return healthCache.v;
   const base: any = { ok: true, agent: 'compiler', mockTee: MOCK_TEE, offline: offline() };
   if (offline()) return { ...base, memwal: 'mock' };
   const [tn, mn, mw] = await Promise.all([
@@ -100,10 +101,12 @@ export function makeServer() {
       };
     },
     'GET /health': () => health(),
+    // dependency-free liveness for the host's health checker / keep-alive (no Tatum credits)
+    'GET /healthz': () => ({ ok: true, agent: 'compiler', uptime_s: Math.round(process.uptime()) }),
 
     // ---------------------------------------------------------------- transactions (Predict v4 via Tatum)
     'POST /tx/fund': (b) => buildFund({ address: needAddr(b.address), amount: Number(b.amount) }),
-    'POST /tx/mint': (b) => buildMint({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser' }),
+    'POST /tx/mint': (b) => buildMint({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser', reason: b.reason }),
     'POST /tx/execute': async (b) => {
       const txBytes = String(b.txBytes ?? '');
       const sigs: string[] = Array.isArray(b.signatures) ? b.signatures : b.signature ? [b.signature] : [];
@@ -149,6 +152,9 @@ export function makeServer() {
       return { namespace: c.namespace, n: c.n, overall: { n: c.overall.n, wins: c.overall.wins, posterior: c.overall.posterior, brier: c.overall.brier }, memory_network: c.memory_network, detail: 'per-bucket detail and lessons: GET /paid/credibility/:address (402, pay-per-call)' };
     },
     'GET /board': () => boardFor(),
+    // W6 reasoning memory (opt-in): category + what memory says about it — the text is NOT stored here
+    'POST /reason/check': (b) => reasonCheck(needAddr(b.address), String(b.text ?? '').slice(0, 2000)),
+    'GET /reason/privacy': () => ({ copy: PRIVACY_COPY, default: 'off' }),
 
     // ---------------------------------------------------------------- win features
     'GET /crowd/btc': async (_b, u) => {

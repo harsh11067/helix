@@ -10,12 +10,35 @@ services:
     region: oregon
     buildCommand: "npm install || true"
     startCommand: "node src/compiler/server.ts"
-    healthCheckPath: /health
+    healthCheckPath: /healthz
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
-        value: "24.4.1"
+        value: "24.14.0"
       - key: OFFLINE
         value: "0"
-      - key: PREDICT_SERVER
-        value: https://predict-server.testnet.mystenlabs.com
+      - key: HELIX_PACKAGE_ID
+        value: "0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3"
+      - key: TATUM_SUI_TESTNET
+        value: https://sui-testnet.gateway.tatum.io
+      - key: TATUM_SUI_MAINNET
+        value: https://sui-mainnet.gateway.tatum.io
+      - key: MEMWAL_RELAYER_URL
+        value: https://relayer.memory.walrus.xyz
+      - key: MEMWAL_NAMESPACE_PREFIX
+        value: helix-v1
+      - key: FEATURE_CROWD
+        value: "1"
+      - key: FEATURE_WITNESS
+        value: "1"
+      - key: KEEPALIVE_URL
+        value: https://helix-compiler.onrender.com/healthz
+      # secrets — set in the Render dashboard / API, never committed
+      - key: TATUM_API_KEY
+        sync: false
+      - key: MEMWAL_ACCOUNT_ID
+        sync: false
+      - key: MEMWAL_PRIVATE_KEY
+        sync: false
+      - key: MEMWAL_AGENT_ID
+        sync: false

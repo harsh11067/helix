@@ -18,6 +18,8 @@ import {
 import { remember, recallAll, recallForAddress, registerNamespace, registeredNamespaces, mode as memMode } from './store.ts';
 import { crowdVoice, type CrowdView } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
+import { classifyReason } from './reasons.ts';
+import { memwal } from './store.ts';
 
 export const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
 const FEE_APPROX = 1.12;   // indicative fee-inclusive price multiple (real fees come from the plan)
@@ -263,10 +265,11 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
 interface MintCtx {
   id: string; at: number; compileId: string; address: string; order: P.PredictOrder; market: P.LiveMarket;
   commit: number; followed_memory: boolean; usedMemoryStructure: boolean; plan: P.MintBuild['plan']; origin: string;
+  reason: string | null;      // opt-in plaintext thesis for reasoning memory (W6); null unless opted in
 }
 const mints = new Map<string, MintCtx>();
 
-export async function buildMint(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string }) {
+export async function buildMint(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean } }) {
   const c = compiles.get(body.compileId);
   if (!c) throw new Error('compile expired — recompile and try again');
   if (!/^0x[0-9a-f]{64}$/i.test(body.address || '')) throw new Error('invalid address');
@@ -279,7 +282,8 @@ export async function buildMint(body: { address: string; compileId: string; comm
     pkg: HELIX_PKG, dna: c.legacy.dna, attestationHex: c.legacy.attestation.signature, capital: commit,
   });
   const id = 'mint_' + randomBytes(8).toString('hex');
-  mints.set(id, { id, at: Date.now(), compileId: c.id, address: body.address, order, market: c.market, commit, followed_memory: followed, usedMemoryStructure: useAlt, plan: built.plan, origin: body.origin ?? 'browser' });
+  const reasonText = body.reason?.optIn === true && typeof body.reason.text === 'string' ? body.reason.text.trim().slice(0, 2000) : '';
+  mints.set(id, { id, at: Date.now(), compileId: c.id, address: body.address, order, market: c.market, commit, followed_memory: followed, usedMemoryStructure: useAlt, plan: built.plan, origin: body.origin ?? 'browser', reason: reasonText || null });
   return { mintId: id, txBytes: built.txBytes, plan: built.plan, order, market: { id: c.market.id, expiryMs: c.market.expiryMs } };
 }
 
@@ -331,6 +335,20 @@ async function writeConviction(mc: MintCtx, c: CompileCtx | undefined, digest: s
   await remember(ns, text, { tx: digest, origin: mc.origin });
   await registerNamespace(ns).catch((e) => console.error('[memory] registry write failed', (e as Error).message));
   if (fillWord === 'filled') pending.set(digest, { ns, rec: parseRecord(text)! });
+  if (mc.reason) await writeReason(ns, digest, mc.reason, mc.origin).catch((e) => console.error('[memory] reason write failed', (e as Error).message));
+}
+
+/** W6 (opt-in only): relayer `analyze` extracts + stores facts; HELIX records the category. */
+async function writeReason(ns: string, digest: string, thesis: string, origin: string) {
+  const category = classifyReason(thesis);
+  let facts = '';
+  try {
+    const a = await memwal().analyze(thesis, { namespace: ns });
+    facts = (a?.facts ?? []).map((f: any) => f.text).join('; ');
+  } catch (e) { facts = `analyze unavailable (${(e as Error).message.slice(0, 60)})`; }
+  await remember(ns, formatRecord('REASON', [
+    ['tx', digest], ['category', category], ['facts', facts.slice(0, 200) || 'none'], ['ts', Math.floor(Date.now() / 1000)],
+  ]), { tx: digest, origin });
 }
 
 // ---------------------------------------------------------------- settlement watcher
@@ -420,6 +438,17 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
       await remember(ns, formatRecord('LESSON', [['bucket', bucket], ['n', st.n], ['text', lesson], ['ts', expiry]]), { tx, origin: 'watcher' });
     }
   }
+  // W6: a lesson by reason category, once that category has 3+ settled calls
+  const reasonOf = after.find((r) => r.type === 'REASON' && str(r, 'tx') === tx);
+  if (reasonOf) {
+    const cat = str(reasonOf, 'category')!;
+    const rs = reasonStats(after)[cat];
+    if (rs && rs.n >= MIN_N) {
+      const text = `Calls you justified with ${cat} reasoning won ${rs.wins} of ${rs.n}.` + (rs.best && rs.best !== cat ? ` Calls citing ${rs.best} have done best (${rs.bestWins}/${rs.bestN}).` : '');
+      const prev = after.filter((r) => r.type === 'LESSON' && str(r, 'bucket') === `reason/${cat}`).pop();
+      if (str(prev, 'text') !== text) await remember(ns, formatRecord('LESSON', [['bucket', `reason/${cat}`], ['n', rs.n], ['text', text], ['ts', expiry]]), { tx, origin: 'watcher' });
+    }
+  }
   return { status: 'resolved', outcome: won ? 'WIN' : 'LOSS' };
 }
 
@@ -450,6 +479,36 @@ export async function resolveByDigest(address: string, digest: string) {
   return resolveConviction(ns, c);
 }
 
+// ---------------------------------------------------------------- reasons (W6)
+export function reasonStats(recs: MemRecord[]): Record<string, { n: number; wins: number; best?: string; bestWins?: number; bestN?: number }> {
+  const out: Record<string, { n: number; wins: number }> = {};
+  const outcome = new Map(recs.filter((r) => r.type === 'OUTCOME').map((r) => [str(r, 'tx'), str(r, 'result')]));
+  for (const r of recs.filter((x) => x.type === 'REASON')) {
+    const res = outcome.get(str(r, 'tx'));
+    if (res !== 'WIN' && res !== 'LOSS') continue;
+    const c = str(r, 'category') ?? 'other';
+    out[c] ??= { n: 0, wins: 0 };
+    out[c].n++; if (res === 'WIN') out[c].wins++;
+  }
+  const qualified = Object.entries(out).filter(([, v]) => v.n >= MIN_N).sort((a, b) => b[1].wins / b[1].n - a[1].wins / a[1].n);
+  const best = qualified[0];
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, { ...v, ...(best ? { best: best[0], bestWins: best[1].wins, bestN: best[1].n } : {}) }]));
+}
+
+export async function reasonCheck(address: string, text: string) {
+  const category = classifyReason(text);
+  const recs = await recallForAddress(address);
+  const st = reasonStats(recs)[category] ?? { n: 0, wins: 0 };
+  const losing = st.n >= MIN_N && st.wins / st.n < 0.4;
+  return {
+    category, n: st.n, wins: st.wins,
+    guardian: st.n >= MIN_N
+      ? `Memory: calls you justified with ${category} reasoning won ${st.wins} of ${st.n}.${losing ? ' This thesis matches a losing pattern.' : ''}`
+      : `Memory: ${st.n} settled call${st.n === 1 ? '' : 's'} with ${category} reasoning so far — not enough to judge yet.`,
+    losing,
+  };
+}
+
 // ---------------------------------------------------------------- read APIs
 export async function timelineFor(address: string) {
   const ns = namespaceFor(address);
@@ -466,6 +525,7 @@ export async function timelineFor(address: string) {
     overall,
     buckets: [...buckets].map(([bucket, rs]) => ({ bucket, ...bucketStats(rs) })),
     reliability: reliability(rows),
+    reasons: reasonStats(recs),
   };
 }
 

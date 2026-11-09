@@ -153,6 +153,9 @@ export function viewMemory(ctx) {
           <div class="panel"><div class="section-title">reliability · stated vs realized</div><div style="display:grid;place-items:center">${rel}</div>
             <div class="muted mono" style="font-size:10.5px;text-align:center">on the dashed line = perfectly calibrated · above = you were better than you said</div></div>
         </div>
+        ${Object.keys(t.reasons || {}).length ? `<div class="panel reveal d1" style="margin-top:18px"><div class="section-title">reasoning memory · opt-in</div>
+          <div class="row" style="gap:10px;flex-wrap:wrap">${Object.entries(t.reasons).map(([c, v]) => `<span class="badge">${esc(c)} · won ${v.wins}/${v.n}</span>`).join('')}</div>
+          <div class="muted" style="font-size:12.5px;margin-top:8px">Only theses you opted in were analyzed (plaintext to the Walrus Memory relayer). Categories come from a deterministic keyword classifier.</div></div>` : ''}
         <div class="panel reveal d1" style="margin-top:18px"><div class="section-title">memory dividend · did listening pay?</div>${divPanel}</div>
         <div class="panel reveal d1" style="margin-top:18px"><div class="section-title">timeline · every memory with its Walrus blob</div>${rows}</div>
         <div class="panel reveal d2" style="margin-top:18px"><div class="section-title">who to trust · ranked by calibration, not luck</div>${boardPanel}</div>`;

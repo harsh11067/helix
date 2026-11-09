@@ -360,6 +360,22 @@ function mountCanvas(el) {
     }
   }
   Object.values(s).forEach(x => x.addEventListener('input', schedule));
+  // W6: only when opted in, ask memory how this KIND of reasoning has done (text is not stored by this check)
+  let rtimer = null;
+  el.addEventListener('input', (e) => {
+    if (!e.target.closest('#thesis') && !e.target.closest('#reason-optin')) return;
+    clearTimeout(rtimer);
+    rtimer = setTimeout(async () => {
+      const out = $('#reason-check', el), text = ($('#thesis', el)?.value || '').trim();
+      if (!out) return;
+      if (!$('#reason-optin', el)?.checked || text.length < 8 || !state.account) { out.innerHTML = ''; return; }
+      try {
+        const c = await api('/reason/check', { address: state.account.address, text });
+        out.innerHTML = `<span class="sdot ${c.losing ? 'dead' : 'pending'}"></span> <span style="color:${c.losing ? 'var(--coral)' : 'inherit'}">reason: <b>${c.category}</b> · ${c.guardian.replace(/^Memory:\s*/, '')}</span>`;
+      } catch (err) { out.innerHTML = ''; }
+    }, 500);
+  });
+  el.addEventListener('change', (e) => { if (e.target.closest('#reason-optin')) el.dispatchEvent(new Event('input', { bubbles: true })); });
   schedule();
   window.addEventListener('helix:wallet', () => { if (el.isConnected) doCompile(); });
   el.addEventListener('click', (e) => {
@@ -453,6 +469,10 @@ function deployControl(commit) {
       <label class="ctrl-head" for="thesis" style="margin-bottom:6px"><span class="lab">private thesis <span class="muted" style="font-weight:400">— optional, Seal-encrypted</span></span></label>
       <textarea id="thesis" class="hx-textarea" rows="2" placeholder="Why you believe this. Encrypted with Seal, stored on Walrus — only you (and paying copiers) can read it." data-cursor></textarea>
       <div class="muted mono" style="font-size:10.5px;margin-top:4px">structure &amp; performance stay public · reasoning stays private</div>
+      <label class="row" style="gap:9px;margin-top:10px;align-items:flex-start;cursor:pointer;font-size:12.5px;line-height:1.5" data-cursor>
+        <input type="checkbox" id="reason-optin" style="margin-top:3px;accent-color:var(--accent)"/>
+        <span class="muted">Let HELIX learn from my reasoning — sends a <b>plaintext</b> copy of this thesis to the Walrus Memory relayer, which extracts and stores facts from it. Your Seal-encrypted thesis stays private. Off by default.</span></label>
+      <div id="reason-check" class="muted" style="font-size:12.5px;margin-top:6px"></div>
     </div>
     <button class="btn-solid" id="deploy" data-cursor style="margin-top:12px">Bring it to life — commit ${fmt(commit, 2)} on Sui ${arrow()}</button>`;
   const wallet = a.walletQuoteBalance ?? 0;
@@ -503,7 +523,9 @@ async function onDeploy(el) {
   const commit = state.chosen.commit ?? conv.capital;
   out.innerHTML = `<div class="muted"><span class="sdot pending"></span> planning the order with DeepBook Predict…</div>`;
   try {
-    const m = await api('/tx/mint', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure }, { timeoutMs: 60000 });
+    const thesisText = ($('#thesis', el)?.value || '').trim();
+    const reason = $('#reason-optin', el)?.checked && thesisText ? { text: thesisText, optIn: true } : undefined;
+    const m = await api('/tx/mint', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure, reason }, { timeoutMs: 60000 });
     out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: pay <b class="mono">${fmt(m.plan.totalDebit, 2)}</b> dUSDC (incl. ${fmt(m.plan.orderFee, 2)} order fee) → <b class="mono">${fmt(m.plan.potentialPayout, 2)}</b> dUSDC if ${m.order.label.replace(/^BTC /, 'BTC is ')}. Filled ~1s after landing at Pyth's price (or refunded).</div></div>`;
     const res = await signAndExecuteBytes(m.txBytes, { mintId: m.mintId });
     if (!res.success) throw new Error(res.error || 'transaction failed');
