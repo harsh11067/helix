@@ -15,13 +15,13 @@ import {
   bucketStats, blendedProbability, suggestCommit, structureBias, bestVoice, lessonFor, oddsFromPrice,
   VOICE_LABEL, MIN_N, RANGEISH, type SettledRow, type BucketStats,
 } from './calibration.ts';
-import { remember, recallAll, recallForAddress, registerNamespace, registeredNamespaces, mode as memMode } from './store.ts';
+import { remember, recallAll, recallForAddress, registerNamespace, registeredNamespaces, recallCoverage, mode as memMode } from './store.ts';
 import { crowdVoice, type CrowdView } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
 import { classifyReason } from './reasons.ts';
 import { memwal } from './store.ts';
-import { commitBody, commitMemoryText, commitTx, commitEventsOf, checkCommit, commitsBy, sha256hex, verifyReveal, JOURNAL_PKG } from './commit.ts';
-import { suiClient } from '../shared/tatum.ts';
+import { commitBody, commitMemoryText, commitTx, commitEventsOf, checkCommit, commitsBy, sha256hex, verifyReveal, JOURNAL_PKG, sponsorAddress, SPONSOR_GAS_BUDGET } from './commit.ts';
+import { suiClient, gql } from '../shared/tatum.ts';
 
 export const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
 
@@ -324,6 +324,21 @@ export function convictionCommitBody(c: CompileCtx, o: { order: P.PredictOrder; 
 }
 
 /** Build `journal::commit(sha256(body), market, expiry)` for the wallet to sign. Costs gas only. */
+const FAUCET = 'https://faucet.sui.io/?network=testnet';
+/** Testnet SUI held by an address (MIST), via Tatum. */
+async function suiBalance(owner: string): Promise<bigint> {
+  const r: any = await gql('testnet', `query($a:SuiAddress!){ address(address:$a){ balance(coinType:"0x2::sui::SUI"){ totalBalance } } }`, { a: owner });
+  return BigInt(r.data?.address?.balance?.totalBalance ?? 0);
+}
+/** Turn the SDK's gas-selection failure into something a person can act on. */
+function friendlyGasError(e: unknown, sponsored: boolean): Error {
+  const msg = (e as Error)?.message ?? String(e);
+  if (!/insufficient SUI|gas selection|No valid gas|InsufficientGas|GasBalanceTooLow/i.test(msg)) return e as Error;
+  return new Error(sponsored
+    ? `HELIX's gas sponsor is out of testnet SUI right now. Fund your own address at ${FAUCET} and commit again.`
+    : `This address has no testnet SUI for gas (a commit needs about 0.002 SUI). Get some at ${FAUCET} and commit again.`);
+}
+
 export async function buildCommit(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean } }) {
   const c = compiles.get(body.compileId);
   if (!c) throw new Error('compile expired — recompile and try again');
@@ -338,12 +353,20 @@ export async function buildCommit(body: { address: string; compileId: string; co
   const text = convictionCommitBody(c, { order, commit, usedMemoryStructure: useAlt, followed, origin: body.origin ?? 'browser', at, nonce: randomBytes(4).toString('hex') });
   const hash = sha256hex(text);
   const tx = commitTx(body.address, hash, c.market.id, c.market.expiryMs);
-  const txBytes = Buffer.from(await tx.build({ client: suiClient(P.NETWORK) as any })).toString('base64');
+  // gas: the user's own SUI if they have some; otherwise HELIX sponsors this one journal::commit (if configured)
+  const sp = sponsorAddress();
+  let sponsored = false;
+  if (sp && (await suiBalance(body.address).catch(() => 0n)) < 10_000_000n) {
+    tx.setGasOwner(sp); tx.setGasBudget(SPONSOR_GAS_BUDGET); sponsored = true;
+  }
+  let txBytes: string;
+  try { txBytes = Buffer.from(await tx.build({ client: suiClient(P.NETWORK) as any })).toString('base64'); }
+  catch (e) { throw friendlyGasError(e, sponsored); }
   const id = 'cmt_' + randomBytes(8).toString('hex');
   const reasonText = body.reason?.optIn === true && typeof body.reason.text === 'string' ? body.reason.text.trim().slice(0, 2000) : '';
   commitsPending.set(id, { id, at, address: body.address, body: text, hash, market: c.market, origin: body.origin ?? 'browser', reason: reasonText || null });
   for (const [k, v] of commitsPending) if (Date.now() - v.at > 30 * 60_000) commitsPending.delete(k);
-  return { commitId: id, txBytes, text, hash, order, market: { id: c.market.id, expiryMs: c.market.expiryMs }, journal: JOURNAL_PKG };
+  return { commitId: id, txBytes, text, hash, order, market: { id: c.market.id, expiryMs: c.market.expiryMs }, journal: JOURNAL_PKG, sponsored };
 }
 
 /**
@@ -569,11 +592,14 @@ export async function watcherTick(): Promise<void> {
 }
 
 export function startWatcher(intervalMs = 20_000): void {
-  if (watcherStarted || process.env.OFFLINE === '1' || memMode() !== 'mainnet') return;
+  // WATCHER=0: run a second server (local debugging) without a second watcher racing the deployed one
+  if (watcherStarted || process.env.OFFLINE === '1' || process.env.WATCHER === '0' || memMode() !== 'mainnet') return;
   watcherStarted = true;
   rebuildPending().then((n) => console.log(`[watcher] started; ${n} pending conviction(s) rebuilt from Walrus Memory`))
     .catch((e) => console.error('[watcher] rebuild failed', (e as Error).message));
   setInterval(() => { void watcherTick(); }, intervalMs).unref?.();
+  // convictions recorded by another instance (deploy overlap, a second server) are picked up within 10 min
+  setInterval(() => { rebuildPending().catch((e) => console.error('[watcher] rescan failed', (e as Error).message)); }, 10 * 60_000).unref?.();
 }
 export const pendingCount = () => pending.size;
 
@@ -628,6 +654,7 @@ export async function timelineFor(address: string) {
   return {
     namespace: ns,
     commits,
+    recall: recallCoverage.get(ns) ?? null,
     memory_network: memMode() === 'mainnet' ? 'walrus-mainnet' : memMode(),
     count: recs.length,
     timeline: recs.map((r) => ({ type: r.type, blob_id: r.blob_id, created_at: r.created_at, fields: r.f, text: r.text })),
@@ -648,17 +675,19 @@ export async function commitLedger(address: string, recs: MemRecord[]) {
   const byHash = new Map(recs.filter((r) => r.type === 'CONVICTION' && str(r, 'hash')).map((r) => [str(r, 'hash')!, r]));
   const outcome = new Map(recs.filter((r) => r.type === 'OUTCOME').map((r) => [str(r, 'tx'), r]));
   const now = Date.now();
-  let wins = 0, settled = 0, missingExpired = 0, revealOk = 0;
+  let wins = 0, settled = 0, missingExpired = 0, revealOk = 0, recording = 0;
   const missing: { digest?: string; hash: string | null; expiry_ms: number }[] = [];
   for (const e of evs) {
     const m = e.hash ? byHash.get(e.hash) : undefined;
+    // the memory write lands ~20-40s after the commit: a fresh commit is "recording", not missing
+    if (!m && now - e.committed_ms < 120_000) { recording++; continue; }
     if (!m) { missing.push({ digest: e.digest, hash: e.hash, expiry_ms: e.expiry_ms }); if (e.expiry_ms < now) missingExpired++; continue; }
     const o = outcome.get(str(m, 'tx'));
     if (o && (str(o, 'result') === 'WIN' || str(o, 'result') === 'LOSS')) { settled++; if (str(o, 'result') === 'WIN') wins++; if (str(o, 'reveal_ok') === 'true') revealOk++; }
   }
   const denom = settled + missingExpired;
   return {
-    journal: JOURNAL_PKG, onchain: evs.length, with_memory: evs.length - missing.length, missing_memory: missing.length,
+    journal: JOURNAL_PKG, onchain: evs.length, with_memory: evs.length - missing.length - recording, recording, missing_memory: missing.length,
     settled, wins, reveal_ok: revealOk, win_rate_all_commits: denom ? wins / denom : null, missing: missing.slice(0, 20),
   };
 }

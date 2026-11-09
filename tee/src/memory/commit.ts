@@ -9,6 +9,8 @@
 import { createHash } from 'node:crypto';
 import { Transaction } from '@mysten/sui/transactions';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 import { gql } from '../shared/tatum.ts';
 
 /** v5 of the HELIX package: first version defining `journal` → call target AND event type identity. */
@@ -75,13 +77,22 @@ export function commitTx(sender: string, hashHexStr: string, market: string, exp
   tx.setSender(sender);
   tx.moveCall({
     target: `${JOURNAL_PKG}::journal::commit`,
-    arguments: [tx.pure.vector('u8', [...Buffer.from(hashHexStr, 'hex')]), tx.pure.address(market), tx.pure.u64(BigInt(expiryMs)), tx.object(CLOCK)],
+    arguments: [tx.pure.vector('u8', [...Buffer.from(hashHexStr, 'hex')]), tx.pure.address(market), tx.pure.u64(BigInt(expiryMs)), tx.object.clock()],
   });
   return tx;
 }
 
-/** Every ConvictionCommitted by `owner`, from chain events via Tatum (the anti-cherry-picking source). */
+/** Every ConvictionCommitted by `owner`, from chain events via Tatum (the anti-cherry-picking source). 15s cache. */
+const commitsCache = new Map<string, { at: number; v: CommitEvent[] }>();
 export async function commitsBy(owner: string, max = 500): Promise<CommitEvent[]> {
+  const key = normalizeSuiAddress(owner), hit = commitsCache.get(key);
+  if (hit && Date.now() - hit.at < 15_000) return hit.v;
+  const v = await commitsByUncached(key, max);
+  commitsCache.set(key, { at: Date.now(), v });
+  if (commitsCache.size > 200) commitsCache.clear();
+  return v;
+}
+async function commitsByUncached(owner: string, max: number): Promise<CommitEvent[]> {
   const out: CommitEvent[] = [];
   let after: string | null = null;
   for (let page = 0; page < Math.ceil(max / 50); page++) {
@@ -94,4 +105,62 @@ export async function commitsBy(owner: string, max = 500): Promise<CommitEvent[]
     after = ev.pageInfo.endCursor;
   }
   return out;
+}
+
+// ---------------------------------------------------------------- sponsored commits (gas paid by HELIX)
+// A new zkLogin or wallet address has no testnet SUI, so committing would fail on gas. When
+// SPONSOR_SUI_KEY is set, HELIX pays the gas for journal::commit — and ONLY for that: the sponsor
+// co-signs a transaction solely if it is exactly one journal::commit call, its gas owner is the
+// sponsor, the budget is capped, and the sender is under a daily limit.
+export const SPONSOR_GAS_BUDGET = 4_000_000;      // MIST; a commit only emits an event
+const SPONSOR_DAILY_LIMIT = Number(process.env.SPONSOR_DAILY_LIMIT ?? 40);
+let sponsorKp: Ed25519Keypair | null | undefined;
+export function sponsor(): Ed25519Keypair | null {
+  if (sponsorKp !== undefined) return sponsorKp;
+  const sk = process.env.SPONSOR_SUI_KEY?.trim();
+  try { sponsorKp = sk ? Ed25519Keypair.fromSecretKey((decodeSuiPrivateKey(sk) as any).secretKey) : null; }
+  catch { sponsorKp = null; }
+  return sponsorKp;
+}
+export const sponsorAddress = () => sponsor()?.toSuiAddress() ?? null;
+/** Test hook. */
+export function __setSponsor(kp: Ed25519Keypair | null): void { sponsorKp = kp; sponsoredBy.clear(); }
+
+const sponsoredBy = new Map<string, number[]>();
+function underDailyLimit(sender: string, now = Date.now()): boolean {
+  const recent = (sponsoredBy.get(sender) ?? []).filter((t) => now - t < 86_400_000);
+  sponsoredBy.set(sender, recent);
+  return recent.length < SPONSOR_DAILY_LIMIT;
+}
+
+/**
+ * If `txBytesB64` asks the sponsor to pay gas, return the reason it may not, or null when it is a valid
+ * sponsored journal::commit. `undefined` means the transaction is not sponsored at all.
+ */
+export function sponsorRefusal(txBytesB64: string): string | null | undefined {
+  const sp = sponsorAddress();
+  if (!sp) return undefined;
+  let data: any;
+  try { data = Transaction.from(txBytesB64).getData(); } catch { return undefined; }
+  const owner = data?.gasData?.owner ? normalizeSuiAddress(data.gasData.owner) : null;
+  if (owner !== sp) return undefined;
+  const cmds = data.commands ?? [];
+  const call = cmds[0]?.MoveCall;
+  if (cmds.length !== 1 || !call || normalizeSuiAddress(call.package) !== JOURNAL_PKG || call.module !== 'journal' || call.function !== 'commit')
+    return 'HELIX only sponsors gas for helix::journal::commit';
+  if (Number(data.gasData.budget ?? Infinity) > SPONSOR_GAS_BUDGET) return 'sponsored gas budget too high';
+  const sender = normalizeSuiAddress(data.sender ?? '');
+  if (sender === sp) return 'sponsor cannot be the sender';
+  if (!underDailyLimit(sender)) return `daily sponsored-commit limit reached (${SPONSOR_DAILY_LIMIT}); fund this address with testnet SUI to keep committing`;
+  return null;
+}
+
+/** Co-sign a validated sponsored commit; records it against the sender's daily limit. */
+export async function sponsorSign(txBytesB64: string): Promise<string> {
+  const kp = sponsor();
+  if (!kp) throw new Error('no sponsor configured');
+  const data: any = Transaction.from(txBytesB64).getData();
+  const sender = normalizeSuiAddress(data.sender);
+  sponsoredBy.set(sender, [...(sponsoredBy.get(sender) ?? []), Date.now()]);
+  return (await kp.signTransaction(Uint8Array.from(Buffer.from(txBytesB64, 'base64')))).signature;
 }

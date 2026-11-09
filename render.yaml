@@ -46,3 +46,6 @@ services:
         sync: false
       - key: MEMWAL_AGENT_ID
         sync: false
+      # gas sponsor for helix::journal::commit only (dedicated low-value testnet key)
+      - key: SPONSOR_SUI_KEY
+        sync: false

@@ -25,6 +25,7 @@ import { crowdMarketFor } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
 import { paidRoutes } from '../agents/paid.ts';
 import { boardFor } from '../memory/board.ts';
+import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts';
 
 const offline = () => process.env.OFFLINE === '1';
 
@@ -50,9 +51,11 @@ function needAddr(a: unknown): string {
 }
 
 let healthCache: { at: number; v: any } | null = null;
+// Render injects the deployed commit; exposing it makes a stale or rolled-back deploy visible.
+const RUNNING_COMMIT = (process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? '').slice(0, 7) || null;
 async function health() {
   if (healthCache && Date.now() - healthCache.at < 15_000) return healthCache.v;
-  const base: any = { ok: true, agent: 'compiler', mockTee: MOCK_TEE, offline: offline() };
+  const base: any = { ok: true, agent: 'compiler', commit: RUNNING_COMMIT, gas_sponsor: sponsorAddress(), mockTee: MOCK_TEE, offline: offline() };
   if (offline()) return { ...base, memwal: 'mock' };
   const [tn, mn, mw] = await Promise.all([
     latestCheckpoint('testnet').catch((e) => ({ error: (e as Error).message })),
@@ -102,7 +105,7 @@ export function makeServer() {
     },
     'GET /health': () => health(),
     // dependency-free liveness for the host's health checker / keep-alive (no Tatum credits)
-    'GET /healthz': () => ({ ok: true, agent: 'compiler', uptime_s: Math.round(process.uptime()) }),
+    'GET /healthz': () => ({ ok: true, agent: 'compiler', commit: RUNNING_COMMIT, uptime_s: Math.round(process.uptime()) }),
 
     // ---------------------------------------------------------------- transactions (Predict v4 via Tatum)
     'POST /tx/fund': (b) => buildFund({ address: needAddr(b.address), amount: Number(b.amount) }),
@@ -114,6 +117,10 @@ export function makeServer() {
       const txBytes = String(b.txBytes ?? '');
       const sigs: string[] = Array.isArray(b.signatures) ? b.signatures : b.signature ? [b.signature] : [];
       if (!txBytes || !sigs.length) throw new HttpError(400, { error: 'txBytes and signature(s) required' });
+      // sponsored commit: co-sign only a validated helix::journal::commit (see memory/commit.ts)
+      const refusal = sponsorRefusal(txBytes);
+      if (refusal) throw new HttpError(403, { error: refusal });
+      if (refusal === null) sigs.push(await sponsorSign(txBytes));
       const res = await P.executeSigned(txBytes, sigs);
       const tx = res.Transaction ?? res.FailedTransaction ?? res;
       const digest: string = tx?.digest;

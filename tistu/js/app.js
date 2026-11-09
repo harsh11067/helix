@@ -243,18 +243,21 @@ function updatePredictPayoff(host, o, forward, commit) {
 }
 
 /* honest risk compass — Net Exposure · Directional Bias · Time-to-Resolution · Concentration · Entry headroom */
+// Every axis is computed from the compile (or omitted) — no placeholder values on the radar.
 function riskAxes(r, conv) {
   const dirBias = Math.abs(conv.direction) / 100;
-  const mins = r.predict?.market?.minutesLeft ?? 15;
+  const mins = r.predict?.market?.minutesLeft;
   const o = r.predict?.order, band = r.predict?.band;
-  const headroom = o && band ? Math.max(0, Math.min(1, Math.min(o.pMkt - band.minEntry, band.maxEntry - o.pMkt) / 0.25)) : 0.5;
-  return [
+  const commit = state.chosen?.commit ?? conv.capital;
+  const live = state.liveCapital ?? 0;   // known once your strategies have been read; else this conviction is the whole book
+  const axes = [
     ['Net Exposure', Math.min(1, dirBias * 0.9 + 0.1)],
     ['Directional Bias', dirBias],
-    ['Time-to-Resolution', Math.min(1, 1 - Math.min(mins, 15) / 15)],
-    ['Concentration', 0.7],
-    ['Entry Headroom', headroom],
-  ].map(([k, v]) => ({ k, v }));
+    mins == null ? null : ['Time-to-Resolution', Math.min(1, 1 - Math.min(mins, 15) / 15)],
+    ['Concentration', commit > 0 ? commit / (commit + live) : 1],
+    o && band ? ['Entry Headroom', Math.max(0, Math.min(1, Math.min(o.pMkt - band.minEntry, band.maxEntry - o.pMkt) / 0.25))] : null,
+  ];
+  return axes.filter(Boolean).map(([k, v]) => ({ k, v }));
 }
 function radarSVG(axes) {
   const cx = 150, cy = 150, R = 104, n = axes.length;
@@ -263,7 +266,8 @@ function radarSVG(axes) {
   let spokes = '', labels = '';
   axes.forEach((a, i) => { const [x, y] = pt(i, R); spokes += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)"/>`; const [lx, ly] = pt(i, R + 22); labels += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="var(--ink-3)" font-size="10.5" font-family="var(--mono)" text-anchor="middle" dominant-baseline="middle">${a.k.split(' ')[0]}</text>`; });
   const poly = axes.map((a, i) => pt(i, Math.max(0.05, a.v) * R).map(v => v.toFixed(1)).join(',')).join(' ');
-  return `<svg viewBox="0 0 300 300" style="width:100%;max-width:320px">${rings}${spokes}<polygon points="${poly}" fill="var(--accent-soft)" stroke="var(--accent-bright)" stroke-width="2"/>${labels}</svg>`;
+  // padded viewBox: axis labels sit outside R and long ones ("Directional") would clip at the edge
+  return `<svg viewBox="-50 -6 400 312" style="width:100%;max-width:400px">${rings}${spokes}<polygon points="${poly}" fill="var(--accent-soft)" stroke="var(--accent-bright)" stroke-width="2"/>${labels}</svg>`;
 }
 
 /* ============================================================ toast */
@@ -470,7 +474,7 @@ function deployControl(commit) {
   if (!state.account)
     return `<button class="btn-solid" id="wallet-inline" data-cursor>Connect a wallet to commit this conviction ${arrow()}</button>`;
   const commitBtn = `<button class="btn-solid" id="commit" data-cursor style="margin-top:12px">Commit conviction — hash on Sui, gas only ${arrow()}</button>
-    <div class="muted mono" style="font-size:10.5px;margin-top:6px">sha256 of this call goes on-chain before the window settles · can't be backdated · every commit counts in your record</div>`;
+    <div class="muted mono" style="font-size:10.5px;margin-top:6px">sha256 of this call goes on-chain before the window settles · can't be backdated · every commit counts in your record · no SUI? HELIX sponsors the gas</div>`;
   const a = state.acct;
   let mint = '';
   if (!a) mint = `<div class="muted" style="margin-top:12px"><span class="sdot pending"></span> checking your DeepBook Predict account…</div>`;
@@ -532,7 +536,7 @@ async function onCommit(el) {
     const reason = $('#reason-optin', el)?.checked && thesisText ? { text: thesisText, optIn: true } : undefined;
     const c = await api('/tx/commit', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure, reason }, { timeoutMs: 60000 });
     const settles = new Date(c.market.expiryMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: commit <span class="mono">sha256 ${c.hash.slice(0, 10)}…</span> of “${escapeHtml(c.order.label)}” to <span class="mono">helix::journal</span> — before the window settles at ${settles}. Gas only; no USDC.</div></div>`;
+    out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: commit <span class="mono">sha256 ${c.hash.slice(0, 10)}…</span> of “${escapeHtml(c.order.label)}” to <span class="mono">helix::journal</span> — before the window settles at ${settles}. ${c.sponsored ? 'Gas is sponsored by HELIX — no SUI or USDC needed.' : 'Gas only; no USDC.'}</div></div>`;
     const res = await signAndExecuteBytes(c.txBytes, { commitId: c.commitId });
     if (!res.success) throw new Error(res.error || 'transaction failed');
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--alive) 45%,transparent);background:var(--alive-soft)">
@@ -634,7 +638,10 @@ const STATUS = ['pending', 'active', 'closed', 'dead'];
 async function getMyStrategies() {
   if (!state.account) return [];
   const objs = await ownedOfType(state.account.address, `${CFG.HELIX}::strategy::StrategyObject`);
-  return objs.map(o => parseStrategy(o.id, o.json)).filter(Boolean);
+  const list = objs.map(o => parseStrategy(o.id, o.json)).filter(Boolean);
+  // remembered for the Canvas radar's Concentration axis (this conviction's share of live capital)
+  state.liveCapital = list.filter(s => s.status === 'active' || s.status === 'pending').reduce((a, s) => a + s.capital, 0);
+  return list;
 }
 async function getStrategy(id) {
   const o = await objectOf(id);
@@ -1019,9 +1026,11 @@ function viewRisk() {
       strats.forEach(s => { bias += (s.dna.dirNegative ? -1 : 1) * s.dna.dirMagnitude / 100 * s.capital; cap += s.capital; conc += s.dna.legCount <= 1 ? 1 : 0.5; });
       const netBias = cap ? Math.abs(bias) / cap : 0;
       const mins = state.compile?.predict?.market?.minutesLeft;
+      const o = state.compile?.predict?.order, band = state.compile?.predict?.band;
+      // axes that need a live compile (time, entry headroom) are omitted until you compile — never placeholders
       const axes = [{ k: 'Net Exposure', v: Math.min(1, netBias * 0.9 + 0.1) }, { k: 'Directional Bias', v: netBias },
-        { k: 'Time-to-Resolution', v: mins == null ? 0.5 : Math.min(1, 1 - Math.min(mins, 15) / 15) }, { k: 'Concentration', v: Math.min(1, conc / strats.length) },
-        { k: 'Entry Headroom', v: 0.6 }];
+        mins == null ? null : { k: 'Time-to-Resolution', v: Math.min(1, 1 - Math.min(mins, 15) / 15) }, { k: 'Concentration', v: Math.min(1, conc / strats.length) },
+        o && band ? { k: 'Entry Headroom', v: Math.max(0, Math.min(1, Math.min(o.pMkt - band.minEntry, band.maxEntry - o.pMkt) / 0.25)) } : null].filter(Boolean);
       const flags = state.compile?.guardian || [];
       host.innerHTML = `<div class="grid-2 reveal" style="align-items:start">
         <div class="panel ink"><div class="section-title">portfolio risk compass</div><div style="display:grid;place-items:center">${radarSVG(axes)}</div>
@@ -1069,7 +1078,7 @@ function viewLineage() {
     try {
       const [all, breeds] = await Promise.all([getAllStrategies(), getBreedings()]);
       if (!all.length) { host.innerHTML = `<div class="empty"><h3>No lineage yet</h3><p>Generational trees grow as strategies breed. Mint one to begin a bloodline.</p><a class="btn-solid" href="#/canvas">Plant a conviction</a></div>`; return; }
-      host.innerHTML = `<div class="panel reveal"><div class="row spread"><div class="section-title" style="margin:0">conviction lineage · the family tree</div><span class="badge">${all.length} strategies · ${breeds.length} breeds</span></div>
+      host.innerHTML = `<div class="panel reveal"><div class="row spread"><div class="section-title" style="margin:0">conviction lineage · the family tree</div><span class="badge">${all.length} strateg${all.length === 1 ? 'y' : 'ies'} · ${breeds.length} breed${breeds.length === 1 ? '' : 's'}</span></div>
         <div style="overflow:auto;margin-top:10px">${lineageSVG(all)}</div>
         <div class="legend" style="margin-top:14px"><span><i style="border-color:var(--alive)"></i>living</span><span><i style="border-color:var(--accent)"></i>closed</span><span><i style="border-color:var(--ink-3)"></i>dead</span></div></div>`;
       host.addEventListener('click', e => { const n = e.target.closest('.ln-node'); if (n) location.hash = '#/strategy/' + n.dataset.id; });

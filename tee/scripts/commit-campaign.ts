@@ -82,7 +82,15 @@ if (flag('past-expiry-check')) process.exit((await pastExpiryCheck()) ? 0 : 1);
 
 let i = Number(opt('start', String(Math.floor(Date.now() / 60_000) % GRID.length)));
 for (;;) {
-  try { await once(i); } catch (e) { log(`#${i} failed: ${(e as Error).message}`); }
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { await once(i); break; } catch (e) {
+      const msg = (e as Error).message;
+      log(`#${i} attempt ${attempt} failed: ${msg.slice(0, 200)}`);
+      // between Predict windows / window about to settle / cold start: the next try a minute later usually works
+      if (attempt === 3 || !/no open DeepBook Predict|runway|settles too soon|HTTP 5\d\d|fetch failed|aborted|timeout/i.test(msg)) break;
+      await new Promise((r) => setTimeout(r, 70_000));
+    }
+  }
   i++;
   if (flag('once') || Date.now() + EVERY_MIN * 60_000 > UNTIL) break;
   // keep the (free-tier) server awake between commits so its settlement watcher keeps resolving

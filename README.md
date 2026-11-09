@@ -25,7 +25,7 @@ No wallet needed. (The free-tier compiler may take ~50 s to wake on the first re
 2. **Check any memory:** click a blob id → **Walruscan mainnet**; click *verify on mainnet* → the MemWal account read through **Tatum's mainnet gateway** plus the blob from the Walrus mainnet aggregator.
 3. **See memory change the product:** open the **Canvas** (still in demo mode), move the sliders — the compile uses the demo trader's memory: *you set X · memory suggests Y*, the four voices, and the **Memory** line in the risk guardian.
 4. **See Tatum is the chokepoint:** [`/health`](https://helix-compiler.onrender.com/health) shows live testnet + mainnet checkpoints read through Tatum.
-5. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — it costs testnet gas only (no USDC). The demo is read-only, so committing and minting unlock only for your own address.
+5. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
 
 ## 🏗️ Architecture
 
@@ -122,6 +122,7 @@ Evidence (health output, every memory with its blob id and source tx, before/aft
 - The crowd comparison covers only at-the-money directional bets over matching 15-min windows; everything else is marked "not compared". Polymarket resolves on a Chainlink TWAP, Predict on Pyth at expiry. Polymarket may be unreachable from some networks — HELIX then shows "unavailable", never a number.
 - Indicative payouts on the Canvas use a fee model fitted to Predict quotes; the exact cost and fees come from Predict's own plan at signing. Memory-dividend counterfactuals ignore fills and slippage.
 - Some convictions were placed by an operator script (`tee/scripts/commit-campaign.ts`, `tee/scripts/mint-conviction.ts`) on the same server path as the browser; every such memory is tagged `origin=cli`.
+- Gas for `journal::commit` is sponsored from a dedicated low-value testnet key when the committer has no SUI. The sponsor co-signs only a lone `journal::commit` with a capped budget, and only a limited number per address per day.
 - Hardware TEE attestation remains a labeled dev stub (unchanged).
 
 ---

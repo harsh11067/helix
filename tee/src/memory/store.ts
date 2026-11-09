@@ -117,23 +117,52 @@ const QUERIES = [
 ];
 const timelineCache = new Map<string, { at: number; recs: MemRecord[] }>();
 
-/** Every HELIX record in a namespace, fresh from Walrus Memory (10s cache). */
+/** Blob ids the relayer holds for a namespace (paged listMemories; the authoritative count). */
+async function listedBlobIds(namespace: string): Promise<Set<string> | null> {
+  const m: any = memwal();
+  if (typeof m.listMemories !== 'function') return null;           // MemWalMock / older SDKs
+  const ids = new Set<string>();
+  let cursor: string | undefined;
+  for (let page = 0; page < 40; page++) {
+    const p = await m.listMemories({ cursor, limit: 500, namespace });
+    for (const x of p.memories ?? []) if (x.namespace_id === namespace && x.blob_id) ids.add(String(x.blob_id));
+    if (!p.has_more || !p.next_cursor) break;
+    cursor = p.next_cursor;
+  }
+  return ids;
+}
+
+/** How much of the namespace the last recall actually returned (memory is only as honest as it is complete). */
+export const recallCoverage = new Map<string, { listed: number | null; recalled: number; at: number }>();
+
+/**
+ * Every HELIX record in a namespace, fresh from Walrus Memory (10s cache).
+ * Recall is a vector search capped by `limit`, so it is sized from listMemories and checked against it:
+ * if a single sweep misses blobs, the typed queries run too, and any remaining gap is reported.
+ */
 export async function recallAll(namespace: string, opts: { fresh?: boolean } = {}): Promise<MemRecord[]> {
   const hit = timelineCache.get(namespace);
   if (!opts.fresh && hit && Date.now() - hit.at < 10_000) return hit.recs;
+  const listed = await listedBlobIds(namespace).catch(() => null);
+  const limit = Math.max(100, (listed?.size ?? 0) + 20);
   const seen = new Map<string, MemRecord>();
+  let unparsed = 0;
   for (const q of QUERIES) {
     let res: any;
-    try { res = await memwal().recall({ query: q, limit: 100, namespace }); }
+    try { res = await memwal().recall({ query: q, limit, namespace }); }
     catch (e) {
       if (/not found|no memories|empty/i.test((e as Error).message)) continue;
       throw e;
     }
     for (const h of res?.results ?? []) {
+      if (!h.blob_id || seen.has(h.blob_id)) continue;
       const r = parseRecord(h.text, { blob_id: h.blob_id, created_at: h.created_at });
-      if (r && h.blob_id && !seen.has(h.blob_id)) seen.set(h.blob_id, r);
+      if (r) seen.set(h.blob_id, r); else unparsed++;
     }
+    if (listed && seen.size + unparsed >= listed.size) break;       // complete: no need for more sweeps
   }
+  if (listed && seen.size + unparsed < listed.size) console.warn(`[memory] recall covered ${seen.size + unparsed}/${listed.size} blobs in ${namespace}`);
+  recallCoverage.set(namespace, { listed: listed?.size ?? null, recalled: seen.size + unparsed, at: Date.now() });
   const recs = [...seen.values()].sort((a, b) => (Number(a.f.ts ?? 0) - Number(b.f.ts ?? 0)) || a.type.localeCompare(b.type));
   timelineCache.set(namespace, { at: Date.now(), recs });
   return recs;

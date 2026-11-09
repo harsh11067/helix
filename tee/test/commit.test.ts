@@ -95,3 +95,45 @@ test('watcher: a conviction is never resolved twice concurrently', async () => {
   const [a, b] = await Promise.all([resolveOnce('X', 'ns', rec), resolveOnce('X', 'ns', rec)]);
   assert.deepEqual([a.status, b.status].sort(), ['in_progress', 'not_expired']);
 });
+
+// ---------------------------------------------------------------- sponsored commits
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { Transaction } from '@mysten/sui/transactions';
+import { sponsorRefusal, sponsorSign, __setSponsor, SPONSOR_GAS_BUDGET } from '../src/memory/commit.ts';
+
+const SP = Ed25519Keypair.generate();
+const DIG = '11111111111111111111111111111111';  // 32-byte base58 digest placeholder for an offline gas coin ref
+async function bytesOf(tx: Transaction, gasOwner: string | null, budget = SPONSOR_GAS_BUDGET) {
+  if (gasOwner) tx.setGasOwner(gasOwner);
+  tx.setGasBudget(budget); tx.setGasPrice(1000);
+  tx.setGasPayment([{ objectId: '0x' + '7'.repeat(64), version: '1', digest: DIG }]);
+  return Buffer.from(await tx.build()).toString('base64');
+}
+
+test('sponsor: only a lone helix::journal::commit paid by the sponsor is co-signed', async () => {
+  __setSponsor(SP);
+  const sp = SP.toSuiAddress();
+  assert.equal(sponsorRefusal(await bytesOf(commitTx(ADDR, hash, MKT, 1794218400000), null)), undefined, 'not sponsored → untouched');
+  assert.equal(sponsorRefusal(await bytesOf(commitTx(ADDR, hash, MKT, 1794218400000), sp)), null, 'valid sponsored commit');
+
+  const extra = commitTx(ADDR, hash, MKT, 1794218400000);
+  extra.transferObjects([extra.splitCoins(extra.gas, [1])], ADDR);
+  assert.match(sponsorRefusal(await bytesOf(extra, sp))!, /only sponsors gas for helix::journal::commit/, 'cannot smuggle a gas transfer');
+
+  const other = new Transaction(); other.setSender(ADDR);
+  other.moveCall({ target: '0x2::coin::zero', typeArguments: ['0x2::sui::SUI'] });
+  assert.match(sponsorRefusal(await bytesOf(other, sp))!, /only sponsors gas/);
+
+  assert.match(sponsorRefusal(await bytesOf(commitTx(ADDR, hash, MKT, 1794218400000), sp, SPONSOR_GAS_BUDGET + 1))!, /budget too high/);
+  assert.match(sponsorRefusal(await bytesOf(commitTx(sp, hash, MKT, 1794218400000), sp))!, /cannot be the sender/);
+  __setSponsor(null);
+  assert.equal(sponsorRefusal(await bytesOf(commitTx(ADDR, hash, MKT, 1794218400000), sp)), undefined, 'no sponsor configured → never co-signs');
+});
+
+test('sponsor: per-sender daily limit', async () => {
+  __setSponsor(SP);
+  const b = await bytesOf(commitTx(ADDR, hash, MKT, 1794218400000), SP.toSuiAddress());
+  for (let i = 0; i < 40; i++) { assert.equal(sponsorRefusal(b), null); await sponsorSign(b); }
+  assert.match(sponsorRefusal(b)!, /daily sponsored-commit limit/);
+  __setSponsor(null);
+});
