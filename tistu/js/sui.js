@@ -2,7 +2,7 @@
    HELIX — browser chain access (Total Recall)
 
    Every Sui call the page makes goes to the HELIX compiler service, which is
-   the single chokepoint to Tatum's Sui gateway (the Tatum key never reaches the
+   the single chokepoint to Tatum's Sui gateway (the Tatum credential never reaches the
    browser). Sui retired public JSON-RPC in 2026, so reads are GraphQL:
      reads    → POST {compiler}/graphql      (proxied to Tatum, read-only)
      builds   → @mysten/sui v2 SuiGraphQLClient on the same proxy

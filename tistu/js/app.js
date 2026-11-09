@@ -5,7 +5,7 @@
    Real chain integration (no mocks, no offline fallback) — Total Recall edition:
      • chain   : every Sui read goes to the HELIX compiler's /graphql proxy, which is
                  the single chokepoint to Tatum's Sui gateway (Sui retired public
-                 JSON-RPC in 2026). The Tatum key never reaches the browser.
+                 JSON-RPC in 2026). The Tatum credential stays on the server.
      • compile : POST /compile (live DeepBook Predict v4 pricer + your Walrus Memory)
      • mint    : the compiler builds ONE PTB — a queued Predict v4 order (filled by
                  the keeper at Pyth's price) + helix::strategy::create_strategy —
