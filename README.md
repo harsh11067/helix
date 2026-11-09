@@ -16,6 +16,48 @@
 
 ---
 
+## 🧠 Total Recall — new during 20 Oct – 10 Nov 2026
+
+HELIX existed before this hackathon (Move package, DeepBook Predict integration, Seal theses, zkLogin). **Everything below was built in the build window** — the commits on branch `total-recall` are the record.
+
+**HELIX now remembers who was right.** Every conviction carries up to four probability calls on the same outcome — **you** (your confidence), the **Predict market** (implied by DeepBook Predict's on-chain SVI pricer), **HELIX's regime model**, and, when the windows match, the **Polymarket crowd**. Each call, each settled outcome, each recalculated calibration score and each lesson is written to **Walrus Memory on mainnet**, and the next compile visibly changes because of it.
+
+| New in the window | Where |
+|---|---|
+| **Tatum single chokepoint** — every Sui read, event query and transaction execution goes through Tatum's Sui gateway (GraphQL; Sui retired public JSON-RPC in 2026). Testnet for trading, mainnet for memory proofs. Free-plan rate limit (3 req/s) respected by a serialized queue with jittered backoff and a 2s read cache. The browser never sees the key. | `tee/src/shared/tatum.ts`, `/graphql`, `/rpc`, `/tx/execute` |
+| **DeepBook Predict v4** (redeployed 2026-09-12: queued orders filled by a keeper at Pyth's price) — live pricer snapshot, admissible directional / bracketed-range / range orders, server-built PTB that places the Predict order **and** mints the HELIX strategy object in one signature | `tee/src/predict/` |
+| **Walrus Memory layer** — CONVICTION / OUTCOME / CALIBRATION / LESSON records, hashed namespaces, Beta(2,2) posterior, Brier per voice, ¼-Kelly commit suggestion, structure bias | `tee/src/memory/` |
+| **Settlement watcher** — resolves every filled order at expiry, writes OUTCOME → CALIBRATION → LESSON; rebuilt from Walrus Memory on restart (no duplicate writes) | `memory/service.ts` |
+| **Memory changes the compile** — "you set X · memory suggests Y" with one-click accept (never silent), memory-preferred structure, a 4th guardian class *Memory* in plain language | Canvas |
+| **Memory page** — timeline with every Walrus blob id and an inline **mainnet proof** (MemWal account read via Tatum mainnet + blob fetched from the Walrus mainnet aggregator), Brier per voice, reliability diagram, memory dividend, who-to-trust board | `tistu/js/memory-ui.js` |
+| **W1 Crowd voice** (Polymarket BTC 15-min Up/Down, compared only when windows and strikes match) · **W2 Price witness** (Tatum exchange-rate API) · **W3 Memory dividend** · **W5 MCP server + agent skill** · **W6 opt-in reasoning memory** · **W7 who-to-trust board** | see [WIN_FEATURES.md](./WIN_FEATURES.md) |
+
+Verify it yourself:
+
+```bash
+C=https://helix-compiler.onrender.com
+curl -s $C/health | jq '{tatum_testnet_checkpoint, tatum_mainnet_checkpoint, memwal, memory_network}'
+curl -s -X POST $C/rpc -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"unsafe_transferSui","params":[]}'   # 403 — allowlisted
+curl -s $C/memory/<address> | jq '.timeline[] | {type, blob_id}'            # recalled from Walrus Memory (mainnet)
+curl -s $C/memory/<address>/proof/<blob_id> | jq .verdict                   # read back through Tatum mainnet
+cd tee && node --env-file=../.env scripts/verify-ledger.mjs                 # every memory → a SUCCESS tx + a mainnet blob
+```
+
+Evidence (health output, every memory with its blob id and source tx, before/after compile): [TOTAL_RECALL_EVIDENCE.md](./TOTAL_RECALL_EVIDENCE.md).
+
+### Honest limits
+
+- HELIX positions trade on **Sui testnet** (DeepBook Predict v4 testnet, test USDC). **Memory is written on Walrus Mainnet.**
+- Memories are written by the HELIX service's Walrus Memory account with an **operator-held delegate key**; the hosted relayer embeds and Seal-encrypts, so **the relayer sees plaintext**. User-owned memory spaces are roadmap.
+- Calibration with small n is noisy. A Beta(2,2) prior and an n ≥ 3 gate keep early numbers conservative, and the UI always shows n.
+- HELIX's own voice is a transparent **heuristic** (regime-tilted market probability), labeled as such; memory scores it like any other voice.
+- The crowd comparison covers only at-the-money directional bets over matching 15-min windows; everything else is marked "not compared". Polymarket resolves on a Chainlink TWAP, Predict on Pyth at expiry. Polymarket may be unreachable from some networks — HELIX then shows "unavailable", never a number.
+- Indicative payouts on the Canvas use a fee model fitted to Predict quotes; the exact cost and fees come from Predict's own plan at signing. Memory-dividend counterfactuals ignore fills and slippage.
+- Some convictions were placed by an operator CLI (`tee/scripts/mint-conviction.ts`) on the same server path as the browser; every such memory is tagged `origin=cli`.
+- Hardware TEE attestation remains a labeled dev stub (unchanged).
+
+---
+
 ### 🚀 Live URLs
 
 ```text
