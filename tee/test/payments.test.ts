@@ -59,3 +59,12 @@ test('a payment whose response failed can be retried with the same digest', asyn
   assert.equal(digestFromAuthorization(hdr), 'Abc');
   assert.equal(digestFromAuthorization('Bearer x'), null);
 });
+
+test('allocator admits only calibrated forecasters with enough history', async () => {
+  const { decide } = await import('../src/council/allocator.ts');
+  assert.equal(decide({ n: 26, brier: { you: 0.41 } }).admit, false);
+  assert.match(decide({ n: 26, brier: { you: 0.41 } }).reason, /not calibrated enough/);
+  assert.equal(decide({ n: 7, brier: { you: 0.1 } }).admit, false, 'needs n ≥ 8');
+  assert.equal(decide({ n: 8, brier: { you: 0.22 } }).admit, true, 'boundary inclusive');
+  assert.equal(decide(null).admit, false);
+});

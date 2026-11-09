@@ -101,6 +101,12 @@ export function viewCouncil({ $, explorer }) {
             ${sb && sb.n ? `<div class="muted" style="font-size:12.5px;margin-bottom:10px">Brier on the <b>same ${sb.n} settled window${sb.n === 1 ? '' : 's'}</b> where the Council voice was live when ${shortA(sb.address)} committed — lower is better.</div>
               ${['council', 'market', 'you'].map(k => `<div class="row spread" style="padding:9px 0;border-bottom:1px solid var(--line)"><span>${k === 'you' ? 'You' : k === 'market' ? 'Predict market' : 'The Council'}</span><span class="mono">${b3(sb.brier?.[k])}</span></div>`).join('')}`
               : '<div class="muted">No shared settled windows yet: the scoreboard only compares the three voices on windows where all three made a call.</div>'}</div></div>
+        ${c.allocator ? `<div class="panel reveal d2" style="margin-top:18px"><div class="row spread"><div class="section-title" style="margin:0">allocator · memory buys memory</div><a class="badge" href="#/api" style="color:var(--accent-deep)">paid API →</a></div>
+          <div class="muted" style="font-size:12.5px;margin:6px 0 10px;line-height:1.5">The Council's allocator is an agent with its own key. It <b>pays</b> (HTTP 402 → USDC/SUI on Sui → retry) to read a human forecaster's detailed record, then decides: ${esc(c.allocator.rule)}.</div>
+          ${c.allocator.vetting?.length ? c.allocator.vetting.slice(0, 5).map(v => `<div class="row spread" style="padding:8px 0;border-bottom:1px solid var(--line);gap:10px;flex-wrap:wrap">
+            <span><b style="color:${v.decision === 'admit' ? 'var(--alive)' : 'var(--coral)'}">${esc((v.decision || '').toUpperCase())}</b> <span class="mono muted">${esc(v.candidate)}</span> — ${esc(v.reason)}</span>
+            <span class="mono" style="font-size:11px">${v.payment ? `<a style="color:var(--accent-deep)" href="${explorer(v.payment)}" target="_blank" rel="noopener">payment ↗</a>` : ''}${v.blob_id ? ` · <a style="color:var(--accent-deep)" href="${walruscanBlobUrl(v.blob_id)}" target="_blank" rel="noopener">memory ↗</a>` : ''}</span></div>`).join('')
+            : '<div class="muted">No vetting yet — the allocator runs every few hours.</div>'}</div>` : ''}
         ${c.last_error ? `<div class="muted mono" style="font-size:11px;margin-top:12px">last runner note: ${esc(c.last_error)}</div>` : ''}`;
     } catch (e) {
       host.innerHTML = `<div class="empty"><h3>Couldn't reach the Council</h3><p class="mono">${esc(e.message)}</p></div>`;

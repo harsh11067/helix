@@ -211,6 +211,17 @@ export function startCouncil(): void {
   void tick();
   setInterval(() => { void tick(); }, 60_000).unref?.();
   setTimeout(() => { void agentPassports(); setInterval(() => { void agentPassports(); }, 6 * 3_600_000).unref?.(); }, 5 * 60_000).unref?.();
+  // the allocator pays (MPP) to read a human forecaster's record and decides whether they may join the Council
+  if (process.env.FEATURE_PAYMENTS === '1' && process.env.COUNCIL_ALLOCATOR_KEY) {
+    const runVet = async () => {
+      const who = process.env.DEMO_ADDRESS?.trim();
+      if (!who) return;
+      const base = process.env.KEEPALIVE_URL ? new URL(process.env.KEEPALIVE_URL).origin : 'https://helix-compiler.onrender.com';
+      const { vet } = await import('./allocator.ts');
+      await vet(who, base).catch((e) => { council.lastError = `allocator: ${(e as Error).message}`; console.error('[council] allocator', (e as Error).message); });
+    };
+    setTimeout(() => { void runVet(); setInterval(() => { void runVet(); }, 4 * 3_600_000).unref?.(); }, 10 * 60_000).unref?.();
+  }
   // keep GET /council warm for visitors (its recalls and chain reads take ~10s cold)
   setTimeout(() => { import('./routes.ts').then((m) => { void m.warmCouncil(); setInterval(() => { void m.warmCouncil(); }, 45_000).unref?.(); }); }, 20_000).unref?.();
 }

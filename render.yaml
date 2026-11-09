@@ -55,6 +55,17 @@ services:
       # on-chain soulbound Forecaster Passport (helix_passport, see DEPLOYMENT.md)
       - key: FEATURE_ONCHAIN_PASSPORT
         value: "1"
+      # paid Credibility API (MPP on Sui) + Council allocator; Ask your memory
+      - key: FEATURE_PAYMENTS
+        value: "1"
+      - key: FEATURE_ASK
+        value: "1"
+      - key: MPP_SECRET_KEY
+        sync: false
+      - key: COUNCIL_ALLOCATOR_KEY
+        sync: false
+      - key: SUBMISSION_SUI_ADDRESS
+        sync: false
       - key: COUNCIL_KEY_MOMENTUM
         sync: false
       - key: COUNCIL_KEY_REVERSION

@@ -2,6 +2,7 @@
 import { council, councilLive } from './state.ts';
 import { AGENT_BLURB, type AgentName } from './signals.ts';
 import { councilHistory, agentRecords, COUNCIL_NS } from './runner.ts';
+import { vettingHistory, ADMIT_MAX_BRIER, ADMIT_MIN_N } from './allocator.ts';
 import { weightsEqual, MIN_N_WEIGHT } from './ensemble.ts';
 import { commitsBy } from '../memory/commit.ts';
 import { recallForAddress } from '../memory/store.ts';
@@ -65,6 +66,7 @@ async function councilSummary(u: URL) {
     council_p_up: council.pUp, market_p_up: council.pMktUp, edge: council.edge, window: council.window,
     calls_at: council.callsAt || null, last_commit_at: council.lastCommitAt, last_error: council.lastError,
     agents, history: await councilHistory().catch(() => []),
+    allocator: { rule: `admit a human forecaster only if Brier ≤ ${ADMIT_MAX_BRIER} with n ≥ ${ADMIT_MIN_N}; the record is bought per call over MPP`, vetting: await vettingHistory().catch(() => []) },
     scoreboard: who ? { address: who, ...(await scoreboardFor(who).catch(() => ({ n: 0, brier: {} }))) } : null,
   };
 }

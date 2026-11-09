@@ -32,6 +32,7 @@ import { demoRequested, viewingAddress, isReadOnly, demoHref, DEMO_BANNER } from
 import { viewCouncil } from './council.js';
 import { renderPassport } from './passport.js';
 import { tickerText } from './fun.js';
+import { viewApiDocs } from './api-docs.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
@@ -1162,6 +1163,7 @@ const routes = [
   // any forecaster's memory, read-only (agents, other traders): #/memory/0x…
   { id: 'memory', match: /^#\/memory\/(0x[0-9a-fA-F]{64})$/, title: 'Memory', sub: 'read-only · walrus mainnet', view: (m) => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER, address: m[1].toLowerCase(), readOnly: true, banner: `<div class="panel" style="margin-bottom:16px;border-color:color-mix(in srgb,var(--accent) 40%,transparent)"><b>Viewing ${short(m[1])} — read only</b> <span class="muted">· every number below is recalled from this address's Walrus Memory</span></div>` }) },
   { id: 'passport', match: /^#\/passport(?:\/([0-9a-zA-Z-]+))?$/, title: 'Forecaster Passport', sub: 'proof-of-forecast · verifiable', view: (m) => viewPassport(m[1]) },
+  { id: 'api', match: /^#\/api$/, title: 'Credibility API', sub: 'pay-per-call · MPP on Sui', view: () => viewApiDocs({ $ }) },
   { id: 'council', match: /^#\/council$/, title: 'The Council', sub: 'four agents · weighted by memory', view: () => viewCouncil({ $, explorer: CFG.EXPLORER }) },
   { id: 'risk', match: /^#\/risk$/, title: 'Risk Compass', sub: 'one unified picture', view: viewRisk },
   { id: 'market', match: /^#\/market$/, title: 'Marketplace', sub: 'copy · breed · compete', view: viewMarket },
