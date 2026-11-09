@@ -22,7 +22,6 @@ import { classifyReason } from './reasons.ts';
 import { memwal } from './store.ts';
 
 export const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
-const FEE_APPROX = 1.12;   // indicative fee-inclusive price multiple (real fees come from the plan)
 
 // ---------------------------------------------------------------- settled rows from memory
 export function settledRows(recs: MemRecord[]): SettledRow[] {
@@ -122,7 +121,7 @@ export async function memoryBlockFor(
   const regimeRows = rows.filter((r) => r.regime === regimeWord);
   const bias = structureBias(regimeRows);
   const blended = blendedProbability({ you: voicesNow.you, market: voicesNow.market, helix: voicesNow.helix, crowd: voicesNow.crowd }, stats);
-  const b = oddsFromPrice(Math.min(0.97, order.pMkt * FEE_APPROX));
+  const b = oddsFromPrice(order.ppcEst);
   const sugg = suggestCommit(conv.capital, voicesNow.you, stats, b);
 
   // structure: memory may prefer the other family — only offered, never applied silently
@@ -329,7 +328,7 @@ async function writeConviction(mc: MintCtx, c: CompileCtx | undefined, digest: s
     ['market', mc.market.id], ['expiry', Math.floor(mc.market.expiryMs / 1000)], ['record', recordId ?? 'na'],
     ['fill', fillWord], ['order_id', fill.orderId ?? 'na'], ['qty', fill.quantity ?? mc.plan.potentialPayout],
     ['cost', p2(mc.plan.totalDebit)],
-    ['alt_struct', alt?.kind ?? 'na'], ['alt_cost', alt ? p3(Math.min(0.97, alt.pMkt * FEE_APPROX)) : 'na'], ['alt_rule', alt?.rule ?? 'na'],
+    ['alt_struct', alt?.kind ?? 'na'], ['alt_cost', alt ? p3(alt.ppcEst) : 'na'], ['alt_rule', alt?.rule ?? 'na'],
     ['origin', mc.origin], ['ts', Math.floor(mc.at / 1000)],
   ]);
   await remember(ns, text, { tx: digest, origin: mc.origin });

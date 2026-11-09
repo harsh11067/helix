@@ -238,7 +238,7 @@ function predictGeometry(o, forward, commit) {
   const ref = o.side === 'range' ? (o.lower + o.upper) / 2 : o.strike;
   const w = o.side === 'range' ? Math.max(o.upper - o.lower, forward * 0.002) * 1.6 : Math.max(forward * 0.004, Math.abs(o.strike - forward) * 3);
   const lo = Math.min(forward, ref) - w, hi = Math.max(forward, ref) + w;
-  const ppc = Math.min(0.97, Math.max(0.03, o.pMkt * FEE_APPROX));
+  const ppc = o.ppcEst ?? Math.min(0.97, Math.max(0.03, o.pMkt * FEE_APPROX));  // server's fitted fee estimate
   const contracts = commit / ppc;
   const raw = [];
   for (let i = 0; i <= steps; i++) { const s = lo + (hi - lo) * i / steps; raw.push({ s, y: (orderWins(o, s) ? contracts : 0) - commit }); }

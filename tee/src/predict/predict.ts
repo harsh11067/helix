@@ -128,6 +128,7 @@ export interface PredictOrder {
   side: 'up' | 'down' | 'range';
   strike?: number; lower?: number; upper?: number;
   pMkt: number;                // market-implied win probability (the "Market" voice)
+  ppcEst: number;              // indicative all-in price per $1 contract (fees estimated; exact at signing)
   label: string;
   rule: string;                // compact payout rule for memory (type,lo,hi,payout)
   note?: string;
@@ -175,41 +176,57 @@ export function buildOrder(
     k = snapStrike(k, adm, 'nearest');
     const p = bp.probability(k, s);
     return {
-      kind, side: s, strike: k, pMkt: p, note,
+      kind, side: s, strike: k, pMkt: p, note, ppcEst: indicativePrice(p, [bp.up(k)]),
       label: `BTC ${s === 'up' ? 'above' : 'at or below'} ${fmtUsd(k)} at expiry`,
       rule: `binary,${s},${k},1`,
     };
   }
-  if (kind === 'bracketed_range') {
-    const pTarget = clampP(0.36);
-    let lower: number, upper: number;
-    if (side === 'up') {
-      lower = snapStrike(F, adm, 'down');
-      upper = bisect((x) => bp.range(lower, x), lower + adm, F * 1.08, pTarget, true);
-      upper = Math.max(lower + adm, snapStrike(upper, adm, 'up'));
-    } else {
-      upper = snapStrike(F, adm, 'up');
-      lower = bisect((x) => bp.range(x, upper), F * 0.92, upper - adm, pTarget, false);
-      lower = Math.min(upper - adm, snapStrike(lower, adm, 'down'));
-    }
-    const p = bp.range(lower, upper);
-    return {
-      kind, side: 'range', lower, upper, pMkt: p, note,
-      label: `BTC between ${fmtUsd(lower)} and ${fmtUsd(upper)} at expiry (${side === 'up' ? 'upside' : 'downside'} bracket)`,
-      rule: `range,${lower},${upper},1`,
-    };
-  }
-  // symmetric range around the forward
-  const pTarget = clampP(0.5);
-  const h = bisect((x) => bp.range(F - x, F + x), adm, F * 0.08, pTarget, true);
-  const lower = snapStrike(F - h, adm, 'down');
-  const upper = Math.max(lower + adm, snapStrike(F + h, adm, 'up'));
+  // Ranges. Predict admits a range only if the range's own probability AND each bound's
+  // binary probability P(BTC > bound) sit inside the entry band (verified by on-chain dry
+  // runs: a bracket anchored exactly at spot needs p = 0.25 exactly, so it can't be used).
+  // So ranges are chosen by their bounds' probabilities, kept 3 points inside the band:
+  // The high bound needs extra room: the chain's check includes fees, and a bound at
+  // P≈0.70 was refused while 0.60 passed (dry runs, 2026-11-09).
+  //   symmetric range  P(>lower)=0.64, P(>upper)=0.30  → p ≈ 0.34, centred on the forward
+  //   upside bracket   0.59 / 0.29                       → p ≈ 0.30, centred above the forward
+  //   downside bracket 0.64 / 0.34                       → p ≈ 0.30, centred below the forward
+  const hiCap = band.maxEntry - 0.11, loCap = band.minEntry + 0.04;
+  const [uLo0, uHi0] = kind === 'bracketed_range'
+    ? (side === 'up' ? [0.59, 0.29] : [0.64, 0.34])
+    : [0.64, 0.30];
+  const uLo = Math.min(uLo0, hiCap), uHi = Math.max(uHi0, loCap);
+  const strikeAt = (u: number) => bp.strikeAtProbability(clampP(u)) ?? F;
+  const lower = snapStrike(strikeAt(uLo), adm, 'up');                       // round inward: keeps P(>lower) ≤ target
+  const upper = Math.max(lower + adm, snapStrike(strikeAt(uHi), adm, 'down'));
   const p = bp.range(lower, upper);
   return {
-    kind, side: 'range', lower, upper, pMkt: p, note,
-    label: `BTC between ${fmtUsd(lower)} and ${fmtUsd(upper)} at expiry`,
+    kind, side: 'range', lower, upper, pMkt: p, note, ppcEst: indicativePrice(p, [bp.up(lower), bp.up(upper)]),
+    label: kind === 'bracketed_range'
+      ? `BTC between ${fmtUsd(lower)} and ${fmtUsd(upper)} at expiry (${side === 'up' ? 'upside' : 'downside'} bracket)`
+      : `BTC between ${fmtUsd(lower)} and ${fmtUsd(upper)} at expiry`,
     rule: `range,${lower},${upper},1`,
   };
+}
+
+/**
+ * Indicative all-in price per $1 contract. Predict charges a Bernoulli trading fee per
+ * order BOUND, so ranges (two bounds) cost far more than binaries. Fitted to on-chain
+ * dry-run quotes (2026-11-09, 5–15 min windows): fee/premium ≈ 0.22 · Σ √(u(1−u)) / p,
+ * u = P(BTC > bound). An estimate for display and Kelly odds only — the exact cost and
+ * fees come from Predict's own plan when the user signs.
+ */
+export function indicativePrice(p: number, boundUps: number[]): number {
+  const s = boundUps.reduce((a, u) => a + Math.sqrt(Math.max(u * (1 - u), 0)), 0);
+  const feeRatio = 0.22 * s / Math.max(p, 0.05);
+  return Math.min(0.99, p * (1 + feeRatio));
+}
+
+/** The same admission test the chain applies at placement (minus price drift until τ). */
+export function admissible(o: PredictOrder, pv: PricerView, band: { minEntry: number; maxEntry: number }): boolean {
+  const inBand = (x: number) => x >= band.minEntry && x <= band.maxEntry;
+  if (!inBand(o.pMkt)) return false;
+  if (o.side === 'range') return inBand(pv.bp.up(o.lower)) && inBand(pv.bp.up(o.upper));
+  return true;
 }
 
 export const fmtUsd = (x: number) => '$' + Number(x).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -262,7 +279,7 @@ export interface MintBuild {
   plan: {
     accepting: boolean; refusal: string | null; cost: number; totalDebit: number; orderFee: number;
     potentialPayout: number; minPayout: number; pricePerContract: number; entryProbability: number;
-    payoutMultiple: number; tauMs: string; lowerTick: string; higherTick: string;
+    payoutMultiple: number; tauMs: string; lowerTick: string; higherTick: string; slippageCents: number;
   };
 }
 
@@ -276,7 +293,27 @@ export async function buildMintTx(
   helix: { pkg: string; dna: any; attestationHex: string; capital: number },
 ): Promise<MintBuild> {
   const desc = descriptorFor(m, order);
-  const plan = await pc().predict.read.planMint(owner, desc, { amount: amountUsdc, slippageCents: 'auto' });
+  // Slippage ladder. Near expiry the SDK's 'auto' band widens to ~13-15¢ and the chain
+  // refuses orders whose limit band spills outside the entry band (EOrderFailsLimits);
+  // an explicit 6¢ passed every order shape in dry runs. Each attempt is simulated by
+  // tx.build, so a refused attempt costs nothing on-chain.
+  let lastErr: any = null;
+  for (const slippageCents of [6, 'auto', 10] as const) {
+    try {
+      return await planAndBuild(owner, desc, order, amountUsdc, slippageCents, helix);
+    } catch (e) {
+      lastErr = e;
+      const msg = String((e as Error).message ?? '');
+      const retryable = /EOrderFailsLimits|entry-band|MoveAbort|abort code/i.test(msg) || (e as any).code === 'entry-band';
+      if (!retryable) throw e;
+    }
+  }
+  throw lastErr;
+}
+
+async function planAndBuild(owner: string, desc: any, order: PredictOrder, amountUsdc: number, slippageCents: number | 'auto',
+  helix: { pkg: string; dna: any; attestationHex: string; capital: number }): Promise<MintBuild> {
+  const plan = await pc().predict.read.planMint(owner, desc, { amount: amountUsdc, slippageCents });
   const summary = {
     accepting: !!plan.accepting, refusal: plan.refusal ?? null,
     cost: Number(plan.quote?.cost ?? plan.budget), totalDebit: Number(plan.totalDebit), orderFee: Number(plan.orderFee),
@@ -284,6 +321,7 @@ export async function buildMintTx(
     pricePerContract: Number(plan.pricePerContract), entryProbability: Number(plan.quote?.entryProbability ?? order.pMkt),
     payoutMultiple: Number(plan.payoutMultiple), tauMs: String(plan.timing?.tauMs ?? ''),
     lowerTick: String(plan.target?.lowerTick ?? ''), higherTick: String(plan.target?.higherTick ?? ''),
+    slippageCents: Number(plan.slippage?.cents ?? (typeof slippageCents === 'number' ? slippageCents : NaN)),
   };
   if (!plan.accepting) {
     const err: any = new Error(`Predict refused the order now: ${plan.refusal}`);
