@@ -4,7 +4,7 @@ import { HttpError, RawResponse } from '../shared/http.ts';
 import { timelineFor } from '../memory/service.ts';
 import { str } from '../memory/format.ts';
 import { resolveOwner } from '../passport/offchain/summary.ts';
-import { enabled, charge, pricing, paidCalls } from './mpp.ts';
+import { enabled, charge, pricing, paidCalls, seed } from './mpp.ts';
 
 /** The paid detail: per-setup posteriors, Brier per voice, lessons with blob ids, reliability. */
 export async function credibilityDetail(id: string, bucket: string | null) {
@@ -23,7 +23,8 @@ export async function credibilityDetail(id: string, bucket: string | null) {
 
 export function paymentRoutes() {
   return {
-    'GET /api/v1': () => ({ ...pricing(), enabled: enabled(), paid_calls: paidCalls.length, recent: paidCalls.slice(-10).reverse() }),
+    // the counter is every verified payment remembered on Walrus (each digest checkable on Sui), not a boot-time count
+    'GET /api/v1': async () => { await seed().catch(() => {}); return { ...pricing(), enabled: enabled(), paid_calls: paidCalls.length, recent: paidCalls.slice(-10).reverse() }; },
     'GET /api/v1/credibility/:id': async (_b: any, u: URL, p: Record<string, string>, req: IncomingMessage) => {
       if (!enabled()) throw new HttpError(404, { error: 'not found' });
       const bucket = u.searchParams.get('bucket');

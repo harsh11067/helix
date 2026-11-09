@@ -33,7 +33,7 @@ export const recipient = () => normalizeSuiAddress(process.env.PAYMENT_RECIPIENT
 const used = new Set<string>();
 let seeded: Promise<void> | null = null;
 export const paidCalls: { digest: string; payer: string; amount: string; ts: number }[] = [];
-async function seed(): Promise<void> {
+export async function seed(): Promise<void> {
   seeded ??= (async () => {
     const recs = await recallAll(PAYMENTS_NS).catch(() => []);
     for (const r of recs) {
