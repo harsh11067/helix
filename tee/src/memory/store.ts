@@ -39,7 +39,7 @@ export function memwal(): any {
   }
   return client;
 }
-export function __resetMemwal(c: any = null): void { client = c; timelineCache.clear(); }
+export function __resetMemwal(c: any = null): void { client = c; timelineCache.clear(); parsedByNs.clear(); }
 
 /** The delegate PUBLIC key (= MEMWAL_AGENT_ID on the submission form). Never the private key. */
 export async function agentPublicKey(): Promise<string | null> {
@@ -120,6 +120,8 @@ export async function remember(namespace: string, text: string, meta: { tx?: str
     ts: Math.floor(Date.now() / 1000), origin: meta.origin ?? null, text, network: offline() ? 'mock' : 'walrus-mainnet',
   });
   timelineCache.delete(namespace);
+  // we already know this memory's text: put it straight into the parsed cache (no recall round needed)
+  (parsedByNs.get(namespace) ?? parsedByNs.set(namespace, new Map()).get(namespace)!).set(out.blob_id, parseRecord(text, { blob_id: out.blob_id, created_at: new Date().toISOString() }));
   console.log(`[memory] ${rec.type} → ${namespace} blob=${out.blob_id} job=${out.job_id}${meta.tx ? ' tx=' + meta.tx : ''}`);
   return out;
 }
@@ -154,36 +156,86 @@ async function listedBlobIds(namespace: string): Promise<Set<string> | null> {
 export const recallCoverage = new Map<string, { listed: number | null; recalled: number; at: number }>();
 
 /**
- * Every HELIX record in a namespace, fresh from Walrus Memory (10s cache).
- * Recall is a vector search capped by `limit`, so it is sized from listMemories and checked against it:
- * if a single sweep misses blobs, the typed queries run too, and any remaining gap is reported.
+ * Every HELIX record in a namespace, from Walrus Memory.
+ * The relayer Seal-decrypts every result of a recall and times out (~13s) past ~120 at once, so recall is
+ * INCREMENTAL: listMemories gives the authoritative blob set; only blobs not already parsed are fetched,
+ * with typed queries capped at RECALL_CHUNK results each, until everything listed is covered or the time
+ * budget is spent (the rest continues on the next call; coverage is reported, never hidden).
  */
+const RECALL_CHUNK = 50;
+const RECALL_BUDGET_MS = 25_000;
+const RECALL_QUERIES = [
+  ...QUERIES, 'COUNCIL v1 weights n brier', 'PAYMENT v1 digest payer amount', 'USER v1 ns registry',
+  // diversifiers: similar records compete inside a capped recall, so slice large namespaces several ways
+  'CONVICTION v1 mode=commit dir=up conf=0.85 vol=choppy', 'CONVICTION v1 mode=commit dir=down conf=0.35 vol=calm',
+  'CONVICTION v1 origin=agent directional side=up', 'CONVICTION v1 origin=browser bracketed_range',
+  'OUTCOME v1 result=WIN reveal_ok=true', 'OUTCOME v1 result=LOSS reveal_ok=true',
+  'CALIBRATION v1 bucket=up/high/choppy', 'CALIBRATION v1 bucket=down/low/calm', 'CALIBRATION v1 bucket=up/low/calm',
+];
+const parsedByNs = new Map<string, Map<string, MemRecord | null>>();   // blob_id → record (null = not HELIX)
+// blobs no capped query has returned (e.g. facts the relayer's analyze stored): retried every 10 min, not every call
+const unfindable = new Map<string, { blobs: Set<string>; at: number }>();
+const inflight = new Map<string, Promise<MemRecord[]>>();
+
 export async function recallAll(namespace: string, opts: { fresh?: boolean } = {}): Promise<MemRecord[]> {
   const hit = timelineCache.get(namespace);
   if (!opts.fresh && hit && Date.now() - hit.at < 10_000) return hit.recs;
+  const running = inflight.get(namespace);
+  if (running) return running;
+  const p = recallIncremental(namespace).finally(() => inflight.delete(namespace));
+  inflight.set(namespace, p);
+  return p;
+}
+
+async function recallIncremental(namespace: string): Promise<MemRecord[]> {
+  const t0 = Date.now();
   const listed = await listedBlobIds(namespace).catch(() => null);
-  const limit = Math.max(100, (listed?.size ?? 0) + 20);
-  const seen = new Map<string, MemRecord>();
-  let unparsed = 0;
-  for (const q of QUERIES) {
+  const have = parsedByNs.get(namespace) ?? new Map<string, MemRecord | null>();
+  if (listed) for (const b of [...have.keys()]) if (!listed.has(b)) have.delete(b);       // deleted upstream
+  const skip = unfindable.get(namespace);
+  const skipSet = skip && Date.now() - skip.at < 10 * 60_000 ? skip.blobs : new Set<string>();
+  const missing = () => (listed ? [...listed].filter((b) => !have.has(b) && !skipSet.has(b)).length : Infinity);
+  let idle = 0;
+  for (const q of listed ? RECALL_QUERIES : QUERIES) {
+    if (missing() === 0 || Date.now() - t0 > RECALL_BUDGET_MS || idle >= 3) break;
+    const before = have.size;
     let res: any;
-    try { res = await memwal().recall({ query: q, limit, namespace }); }
+    try { res = await memwal().recall({ query: q, limit: listed ? Math.min(RECALL_CHUNK, missing() + 20) : 100, namespace }); }
     catch (e) {
       if (/not found|no memories|empty/i.test((e as Error).message)) continue;
+      if (have.size) { console.warn(`[memory] recall chunk failed for ${namespace}: ${(e as Error).message.slice(0, 120)}`); continue; }
       throw e;
     }
     for (const h of res?.results ?? []) {
-      if (!h.blob_id || seen.has(h.blob_id)) continue;
-      const r = parseRecord(h.text, { blob_id: h.blob_id, created_at: h.created_at });
-      if (r) seen.set(h.blob_id, r); else unparsed++;
+      if (!h.blob_id || have.has(h.blob_id)) continue;
+      have.set(h.blob_id, parseRecord(h.text, { blob_id: h.blob_id, created_at: h.created_at }));
     }
-    if (listed && seen.size + unparsed >= listed.size) break;       // complete: no need for more sweeps
+    idle = have.size > before ? 0 : idle + 1;
   }
-  if (listed && seen.size + unparsed < listed.size) console.warn(`[memory] recall covered ${seen.size + unparsed}/${listed.size} blobs in ${namespace}`);
-  recallCoverage.set(namespace, { listed: listed?.size ?? null, recalled: seen.size + unparsed, at: Date.now() });
-  const recs = [...seen.values()].sort((a, b) => (Number(a.f.ts ?? 0) - Number(b.f.ts ?? 0)) || a.type.localeCompare(b.type));
+  parsedByNs.set(namespace, have);
+  if (listed) {
+    const still = [...listed].filter((b) => !have.has(b));
+    if (still.length && !skipSet.size) unfindable.set(namespace, { blobs: new Set(still), at: Date.now() });
+    else if (!still.length) unfindable.delete(namespace);
+  }
+  const recalled = listed ? [...listed].filter((b) => have.has(b)).length : have.size;
+  if (listed && recalled < listed.size) console.warn(`[memory] recall covered ${recalled}/${listed.size} blobs in ${namespace} (continues next call)`);
+  recallCoverage.set(namespace, { listed: listed?.size ?? null, recalled, at: Date.now() });
+  const recs = [...have.values()].filter((r): r is MemRecord => !!r)
+    .sort((a, b) => (Number(a.f.ts ?? 0) - Number(b.f.ts ?? 0)) || a.type.localeCompare(b.type));
   timelineCache.set(namespace, { at: Date.now(), recs });
   return recs;
+}
+
+/** Warm the parsed-record cache for namespaces judges are likely to open first (after a restart). */
+export async function warmNamespaces(namespaces: string[]): Promise<void> {
+  for (const ns of namespaces) {
+    for (let k = 0; k < 4; k++) {
+      await recallAll(ns, { fresh: true }).catch(() => []);
+      const c = recallCoverage.get(ns);
+      if (!c || c.listed == null || c.recalled >= c.listed) break;
+    }
+  }
 }
 
 export async function recallForAddress(address: string, opts: { fresh?: boolean } = {}) {
