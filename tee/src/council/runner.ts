@@ -188,5 +188,7 @@ export function startCouncil(): void {
   console.log(`[council] ${agents.length} agents: ${agents.map((a) => `${a.name}=${a.address.slice(0, 10)}…`).join(' ')}`);
   void tick();
   setInterval(() => { void tick(); }, 60_000).unref?.();
+  // keep GET /council warm for visitors (its recalls and chain reads take ~10s cold)
+  setTimeout(() => { import('./routes.ts').then((m) => { void m.warmCouncil(); setInterval(() => { void m.warmCouncil(); }, 45_000).unref?.(); }); }, 20_000).unref?.();
 }
 

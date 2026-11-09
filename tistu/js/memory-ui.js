@@ -145,7 +145,7 @@ export function viewMemory(ctx) {
           <div class="muted mono" style="font-size:10.5px;margin-top:8px">generated in your browser from the recalled memory above · tags @Tatum_io and @WalrusFoundation</div></div>`;
       });
       if (!t.count) {
-        host.innerHTML = banner + header + `<div class="empty"><h3>No memories yet</h3><p>Mint a conviction on the Canvas. HELIX writes it to Walrus Memory on mainnet, then records the outcome when the market settles — a few minutes later.</p><a class="btn-solid" href="#/canvas" data-cursor>Open the Canvas</a></div>`;
+        host.innerHTML = banner + header + `<div class="empty"><h3>No memories yet</h3><p>Commit a conviction on the Canvas. HELIX writes it to Walrus Memory on mainnet, then records the outcome when the market settles — a few minutes later.</p><a class="btn-solid" href="#/canvas" data-cursor>Open the Canvas</a></div>`;
         return;
       }
       const voices = ['you', 'market', 'helix', 'crowd'].map(k => {
