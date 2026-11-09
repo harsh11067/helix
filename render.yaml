@@ -63,6 +63,8 @@ services:
       # multi-asset commit mode: SUI via Pyth's on-chain updates; ETH needs PYTH_API_KEY (Hermes)
       - key: FEATURE_ASSETS
         value: "1"
+      - key: PYTH_API_KEY
+        sync: false
       - key: MPP_SECRET_KEY
         sync: false
       - key: COUNCIL_ALLOCATOR_KEY

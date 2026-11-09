@@ -9,9 +9,8 @@
      signing  → the wallet (sui:signTransaction) or the zkLogin ephemeral key
      execute  → POST {compiler}/tx/execute   (Tatum executeTransaction, logged)
    ============================================================ */
-import { SuiGraphQLClient } from 'https://esm.sh/@mysten/sui@2.39.1/graphql';
-import { Transaction } from 'https://esm.sh/@mysten/sui@2.39.1/transactions';
-import { toBase64, fromBase64 } from 'https://esm.sh/@mysten/sui@2.39.1/utils';
+// Vendored @mysten/sui 2.39.1 bundle (js/vendor/README.md): 6 local files instead of ~236 esm.sh modules.
+import { SuiGraphQLClient, Transaction, toBase64, fromBase64 } from './vendor/core.js';
 export { Transaction, toBase64, fromBase64 };
 
 let API = '';

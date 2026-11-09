@@ -9,8 +9,16 @@ const enabled = () => process.env.FEATURE_WITNESS !== '0' && process.env.OFFLINE
 
 let cache: { at: number; v: { usd: number; ts: number; source: string } } | null = null;
 
+let inflight: Promise<{ usd: number; ts: number; source: string }> | null = null;
 export async function getBtcUsd(): Promise<{ usd: number; ts: number; source: string }> {
-  if (cache && Date.now() - cache.at < 30_000) return cache.v;
+  const age = cache ? Date.now() - cache.at : Infinity;
+  if (age < 30_000) return cache!.v;
+  inflight ??= fetchBtcUsd().finally(() => { inflight = null; });
+  // stale-while-revalidate: the witness reports its own price age (tatum_age_s), so a compile can use it now
+  if (age < 120_000) { inflight.catch(() => {}); return cache!.v; }
+  return inflight;
+}
+async function fetchBtcUsd(): Promise<{ usd: number; ts: number; source: string }> {
   const c = new AbortController(); const t = setTimeout(() => c.abort(), 6000);
   try {
     const r = await fetch(RATE_URL, { headers: { 'x-api-key': process.env.TATUM_API_KEY!.trim() }, signal: c.signal });

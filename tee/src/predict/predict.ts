@@ -29,17 +29,31 @@ export interface LiveMarket {
   id: string; expiryMs: number; minutesLeft: number;
   tickSize: number; admissionTickSize: number; referencePrice: number | null; mintPaused: boolean;
 }
+// Stale-while-revalidate: a compile never queues behind Tatum's 3 req/s for data a few seconds old.
+// Fresh → cached. Older but within the limit → cached now plus ONE background refresh. Older → wait.
+// (minutesLeft is recomputed from `now` by every caller; oracle ages come from the oracle's own timestamps.)
+const MARKETS_FRESH_MS = 5000, MARKETS_MAX_STALE_MS = 30_000;
 let marketsCache: { at: number; list: LiveMarket[] } | null = null;
+let marketsInflight: Promise<LiveMarket[]> | null = null;
+function refreshMarkets(): Promise<LiveMarket[]> {
+  marketsInflight ??= (async () => {
+    const at = Date.now();
+    const raw = await pc().predict.read.markets();
+    const list: LiveMarket[] = raw.map((m: any) => ({
+      id: m.id, expiryMs: Number(m.expiryMs), minutesLeft: (Number(m.expiryMs) - at) / 60000,
+      tickSize: Number(m.tickSize), admissionTickSize: Number(m.admissionTickSize),
+      referencePrice: m.referencePrice == null ? null : Number(m.referencePrice), mintPaused: !!m.mintPaused,
+    }));
+    marketsCache = { at, list };
+    return list;
+  })().finally(() => { marketsInflight = null; });
+  return marketsInflight;
+}
 export async function liveMarkets(now = Date.now()): Promise<LiveMarket[]> {
-  if (marketsCache && now - marketsCache.at < 5000) return marketsCache.list;
-  const raw = await pc().predict.read.markets();
-  const list: LiveMarket[] = raw.map((m: any) => ({
-    id: m.id, expiryMs: Number(m.expiryMs), minutesLeft: (Number(m.expiryMs) - now) / 60000,
-    tickSize: Number(m.tickSize), admissionTickSize: Number(m.admissionTickSize),
-    referencePrice: m.referencePrice == null ? null : Number(m.referencePrice), mintPaused: !!m.mintPaused,
-  }));
-  marketsCache = { at: now, list };
-  return list;
+  const age = marketsCache ? now - marketsCache.at : Infinity;
+  if (age < MARKETS_FRESH_MS) return marketsCache!.list;
+  if (age < MARKETS_MAX_STALE_MS) { refreshMarkets().catch(() => {}); return marketsCache!.list; }
+  return refreshMarkets();
 }
 
 /** Open windows (reference price set), unpaused, with time to sign and land. */
@@ -68,10 +82,20 @@ export interface PricerView {
   asOf: number;
   bp: any;   // BoardPricer: up/down/probability/range/strikeAtProbability
 }
+const PRICER_FRESH_MS = 3000, PRICER_MAX_STALE_MS = 15_000;
 const pricerCache = new Map<string, { at: number; v: PricerView }>();
+const pricerInflight = new Map<string, Promise<PricerView>>();
 export async function pricerFor(m: LiveMarket, now = Date.now()): Promise<PricerView> {
   const hit = pricerCache.get(m.id);
-  if (hit && now - hit.at < 3000) return hit.v;
+  const age = hit ? now - hit.at : Infinity;
+  if (age < PRICER_FRESH_MS) return hit!.v;
+  let p = pricerInflight.get(m.id);
+  if (!p) { p = readPricer(m).finally(() => pricerInflight.delete(m.id)); pricerInflight.set(m.id, p); }
+  if (age < PRICER_MAX_STALE_MS) { p.catch(() => {}); return hit!.v; }   // the view carries its own source timestamps
+  return p;
+}
+async function readPricer(m: LiveMarket): Promise<PricerView> {
+  const now = Date.now();
   const p = await pc().predict.read.pricer({ underlying: 'BTC', expiryMs: m.expiryMs, marketId: m.id });
   // SDK 2.11: `asOf` is the per-source timestamp record {pythSpotMs, blockScholesSpotMs, blockScholesForwardMs, blockScholesSviMs}
   const src = p.sources ?? (p.asOf && typeof p.asOf === 'object' ? p.asOf : null);

@@ -119,9 +119,11 @@ export async function remember(namespace: string, text: string, meta: { tx?: str
     type: rec.type, namespace, blob_id: out.blob_id, job_id: out.job_id, tx: meta.tx ?? null,
     ts: Math.floor(Date.now() / 1000), origin: meta.origin ?? null, text, network: offline() ? 'mock' : 'walrus-mainnet',
   });
-  timelineCache.delete(namespace);
   // we already know this memory's text: put it straight into the parsed cache (no recall round needed)
-  (parsedByNs.get(namespace) ?? parsedByNs.set(namespace, new Map()).get(namespace)!).set(out.blob_id, parseRecord(text, { blob_id: out.blob_id, created_at: new Date().toISOString() }));
+  const have = parsedByNs.get(namespace) ?? parsedByNs.set(namespace, new Map()).get(namespace)!;
+  have.set(out.blob_id, parseRecord(text, { blob_id: out.blob_id, created_at: new Date().toISOString() }));
+  // readers see their own write at once; marked stale so the next read also refreshes from the relayer
+  if (timelineCache.has(namespace)) timelineCache.set(namespace, { at: Date.now() - TIMELINE_FRESH_MS, recs: sortedRecs(have) });
   console.log(`[memory] ${rec.type} → ${namespace} blob=${out.blob_id} job=${out.job_id}${meta.tx ? ' tx=' + meta.tx : ''}`);
   return out;
 }
@@ -177,15 +179,24 @@ const parsedByNs = new Map<string, Map<string, MemRecord | null>>();   // blob_i
 const unfindable = new Map<string, { blobs: Set<string>; at: number }>();
 const inflight = new Map<string, Promise<MemRecord[]>>();
 
+const TIMELINE_FRESH_MS = 10_000, TIMELINE_MAX_STALE_MS = 5 * 60_000;
 export async function recallAll(namespace: string, opts: { fresh?: boolean } = {}): Promise<MemRecord[]> {
   const hit = timelineCache.get(namespace);
-  if (!opts.fresh && hit && Date.now() - hit.at < 10_000) return hit.recs;
-  const running = inflight.get(namespace);
-  if (running) return running;
-  const p = recallIncremental(namespace).finally(() => inflight.delete(namespace));
-  inflight.set(namespace, p);
-  return p;
+  const age = hit ? Date.now() - hit.at : Infinity;
+  if (!opts.fresh && age < TIMELINE_FRESH_MS) return hit!.recs;
+  let running = inflight.get(namespace);
+  if (!running) {
+    running = recallIncremental(namespace).finally(() => inflight.delete(namespace));
+    inflight.set(namespace, running);
+  }
+  // stale-while-revalidate: a compile or page never waits on the relayer for a timeline it read minutes ago;
+  // one background recall refreshes it (writes made here are already in the cache, see remember()).
+  // The watcher and anything that must see the latest outcome pass { fresh: true }.
+  if (!opts.fresh && age < TIMELINE_MAX_STALE_MS) { running.catch(() => {}); return hit!.recs; }
+  return running;
 }
+const sortedRecs = (have: Map<string, MemRecord | null>) => [...have.values()].filter((r): r is MemRecord => !!r)
+  .sort((a, b) => (Number(a.f.ts ?? 0) - Number(b.f.ts ?? 0)) || a.type.localeCompare(b.type));
 
 async function recallIncremental(namespace: string): Promise<MemRecord[]> {
   const t0 = Date.now();
@@ -225,8 +236,7 @@ async function recallIncremental(namespace: string): Promise<MemRecord[]> {
   const recalled = listed ? [...listed].filter((b) => have.has(b)).length : have.size;
   if (listed && recalled < listed.size) console.warn(`[memory] recall covered ${recalled}/${listed.size} blobs in ${namespace} (continues next call)`);
   recallCoverage.set(namespace, { listed: listed?.size ?? null, recalled, at: Date.now() });
-  const recs = [...have.values()].filter((r): r is MemRecord => !!r)
-    .sort((a, b) => (Number(a.f.ts ?? 0) - Number(b.f.ts ?? 0)) || a.type.localeCompare(b.type));
+  const recs = sortedRecs(have);
   timelineCache.set(namespace, { at: Date.now(), recs });
   return recs;
 }

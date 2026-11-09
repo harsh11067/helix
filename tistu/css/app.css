@@ -51,8 +51,11 @@
 .chip .live { width: 6px; height: 6px; border-radius: 50%; background: var(--alive); box-shadow: 0 0 0 0 var(--alive); animation: ping 2.4s var(--e-out) infinite; }
 
 .view { padding: 32px; max-width: 1280px; margin: 0 auto; width: 100%; }
-.view-enter { animation: viewIn 420ms var(--e-out) both; }
-@keyframes viewIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.view-enter { animation: viewIn 180ms var(--e-out) both; }
+@keyframes viewIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* in-app navigation should feel instant: a short settle, not the landing page's staggered scroll reveal */
+#view-host .reveal { transform: translateY(6px); transition-duration: 240ms; transition-delay: 0ms; }
+#view-host .reveal.in { transform: none; }
 
 /* ---- panels / cards ---- */
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 26px; }
@@ -147,7 +150,9 @@
    works in Chromium, snaps elsewhere, and janks when the y-domain rescales. */
 #pf-line, #pf-area, #pf-spot, #pf-zero { transition: none; }
 /* soften the readout panel swap on each recompile */
-#compiled { animation: cFade var(--d-base) var(--e-out); }
+#compiled { animation: cFade var(--d-base) var(--e-out); transition: opacity 160ms var(--e-out); }
+/* a slider moved: the readout is being re-priced on the server (the payoff already follows the commit size) */
+#compiled.updating { opacity: .55; pointer-events: none; }
 @keyframes cFade { from { opacity: 0.55; } to { opacity: 1; } }
 
 /* wallet picker (matches the deep-ink card identity) */

@@ -15,10 +15,9 @@
      • The seal_policy module was added in the compatible upgrade, so every
        seal_policy call AND the ThesisAttached event use the LATEST package id.
    ============================================================ */
-import { SealClient, SessionKey }
-  from 'https://esm.sh/@mysten/seal@1.5.4?deps=@mysten/sui@2.39.1';
-import { Transaction } from 'https://esm.sh/@mysten/sui@2.39.1/transactions';
-import { fromHex } from 'https://esm.sh/@mysten/sui@2.39.1/utils';
+// The Seal SDK is loaded only when a thesis is encrypted or decrypted (it is not needed to boot the app).
+import { Transaction, fromHex } from './vendor/core.js';
+const sealSdk = () => import('./vendor/seal.js');
 
 // Three distinct package ids — do NOT collapse them (Sui upgrade semantics):
 //   PKG_ORIGINAL  (v1) — Seal encryption identity namespace + SessionKey packageId.
@@ -53,7 +52,8 @@ const KEY_SERVERS = [
   '0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75',
   '0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8',
 ];
-function makeClient(suiClient) {
+async function makeClient(suiClient) {
+  const { SealClient } = await sealSdk();
   return new SealClient({
     suiClient,
     serverConfigs: KEY_SERVERS.map(id => ({ objectId: id, weight: 1 })),
@@ -80,7 +80,7 @@ export async function fetchFromWalrus(blobId) {
 /* ---- Seal ---- */
 // Encrypt a thesis for a strategy → ciphertext bytes (to be stored on Walrus).
 export async function encryptThesis(suiClient, strategyId, text) {
-  const client = makeClient(suiClient);
+  const client = await makeClient(suiClient);
   const { encryptedObject } = await client.encrypt({
     threshold: THRESHOLD, packageId: PKG_ORIGINAL, id: idHex(strategyId),
     data: new TextEncoder().encode(text),
@@ -100,7 +100,8 @@ export function addAttachThesis(tx, strategyId, blobId) {
 // Decrypt a thesis. `signPersonalMessage(bytes) -> { signature }` abstracts the
 // wallet; `copyRelationshipId` (optional) uses the copier access path.
 export async function decryptThesis(suiClient, address, signPersonalMessage, ciphertext, strategyId, copyRelationshipId) {
-  const client = makeClient(suiClient);
+  const client = await makeClient(suiClient);
+  const { SessionKey } = await sealSdk();
   const sk = await SessionKey.create({ address, packageId: PKG_ORIGINAL, ttlMin: 10, suiClient });
   const { signature } = await signPersonalMessage(sk.getPersonalMessage());
   await sk.setPersonalMessageSignature(signature);

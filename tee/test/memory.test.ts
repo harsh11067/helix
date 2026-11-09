@@ -169,3 +169,31 @@ test('W6 reason stats join REASON with OUTCOME and need n ≥ 3 to name a best c
   assert.equal(st.macro, undefined);
   assert.equal(st.technical.best, 'flows');
 });
+
+test('timeline cache: a write is visible at once, and a stale timeline never waits on the relayer', async () => {
+  const { remember, recallAll, __resetMemwal } = await import('../src/memory/store.ts');
+  const blobs: { blob_id: string; text: string; namespace_id: string }[] = [];
+  let slow = false, release: (() => void) | null = null, lists = 0;
+  __resetMemwal({
+    rememberAndWait: async (text: string, ns: string) => { const id = 'swr' + (blobs.length + 1); blobs.push({ blob_id: id, text, namespace_id: ns }); return { blob_id: id, job_id: null }; },
+    listMemories: async ({ namespace }: any) => {
+      lists++;
+      if (slow) await new Promise<void>((r) => { release = r; });
+      return { memories: blobs.filter((b) => b.namespace_id === namespace), has_more: false };
+    },
+    recall: async ({ namespace }: any) => ({ results: blobs.filter((b) => b.namespace_id === namespace).map((b) => ({ blob_id: b.blob_id, text: b.text, created_at: new Date().toISOString() })) }),
+  });
+  const ns = namespaceFor('0x' + 'ab'.repeat(32));
+  await remember(ns, formatRecord('CONVICTION', [['tx', 'S1'], ['asset', 'BTC'], ['dir', 'up'], ['conf', '0.60'], ['ts', 1]]), { tx: 'S1' });
+  assert.equal((await recallAll(ns)).length, 1);
+  slow = true;                                   // the relayer stalls from here on
+  await remember(ns, formatRecord('CONVICTION', [['tx', 'S2'], ['asset', 'BTC'], ['dir', 'down'], ['conf', '0.70'], ['ts', 2]]), { tx: 'S2' });
+  const t0 = Date.now();
+  const recs = await recallAll(ns);              // stale (just written) → served from cache, refresh in background
+  assert.ok(Date.now() - t0 < 200, 'did not wait on the stalled relayer');
+  assert.deepEqual(recs.map((r) => r.f.tx), ['S1', 'S2'], 'own write visible immediately');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(lists, 2, 'one background refresh was started');
+  (release as any)?.();
+  __resetMemwal();
+});

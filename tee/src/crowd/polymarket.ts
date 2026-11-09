@@ -23,12 +23,21 @@ export interface CrowdMarket { slug: string; title: string; end_ts: number; p_up
 
 const cache = new Map<string, { at: number; v: CrowdMarket | null }>();
 
-async function fetchSlug(slug: string, attempt = 0): Promise<CrowdMarket | null> {
+const inflight = new Map<string, Promise<CrowdMarket | null>>();
+async function fetchSlug(slug: string): Promise<CrowdMarket | null> {
   const hit = cache.get(slug);
-  if (hit && Date.now() - hit.at < 15_000) return hit.v;
+  const age = hit ? Date.now() - hit.at : Infinity;
+  if (age < 15_000) return hit!.v;
+  let p = inflight.get(slug);
+  if (!p) { p = fetchSlugRetry(slug).finally(() => inflight.delete(slug)); inflight.set(slug, p); }
+  // stale-while-revalidate, capped at 45s so the crowd voice never drifts far from the live book
+  if (age < 45_000) { p.catch(() => {}); return hit!.v; }
+  return p;
+}
+async function fetchSlugRetry(slug: string, attempt = 0): Promise<CrowdMarket | null> {
   // some networks reset connections to Polymarket's CDN intermittently: retry with backoff
   try { return await fetchSlugOnce(slug); }
-  catch (e) { if (attempt < 2) { await new Promise((r) => setTimeout(r, 300 + attempt * 500)); return fetchSlug(slug, attempt + 1); } throw e; }
+  catch (e) { if (attempt < 2) { await new Promise((r) => setTimeout(r, 300 + attempt * 500)); return fetchSlugRetry(slug, attempt + 1); } throw e; }
 }
 
 async function fetchSlugOnce(slug: string): Promise<CrowdMarket | null> {

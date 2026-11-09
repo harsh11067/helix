@@ -14,7 +14,7 @@
      • memory  : outcomes, calibration and lessons are recalled from Walrus Memory and
                  visibly change the next compile (Memory page + Canvas memory block).
    ============================================================ */
-import { getWallets } from 'https://esm.sh/@wallet-standard/app@1.1.0';
+import { getWallets } from './vendor/core.js';
 import {
   initChain, client, api, apiBase, Transaction, ownedOfType, objectOf, eventsOfType, coinsOf,
   currentEpoch, buildBytes, walletSign, executeSigned,
@@ -95,10 +95,18 @@ async function connectWallet(w) {
   const res = await w.features['standard:connect'].connect();
   const acct = (res.accounts && res.accounts[0]) || (w.accounts && w.accounts[0]);
   if (!acct) throw new Error('wallet returned no account');
-  state.mode = 'wallet'; state.zk = null; state.wallet = w; state.account = acct;
-  await refreshAccount();
+  state.mode = 'wallet'; state.zk = null; state.wallet = w; state.account = acct; state.acct = null;
+  accountChanged();
+}
+// Show the connection immediately; the Predict account/balance read (via Tatum) fills in when it lands.
+function accountChanged() {
   renderWalletChip();
   window.dispatchEvent(new Event('helix:wallet'));
+  const addr = state.account?.address;
+  refreshAccount().then(() => {
+    if (state.account?.address !== addr) return;
+    renderWalletChip(); window.dispatchEvent(new Event('helix:acct'));
+  });
 }
 // Begin the Google → zkLogin redirect. Returns nothing — the page navigates away
 // and resumes in completeGoogleLoginIfPresent() on the way back.
@@ -109,10 +117,8 @@ async function connectGoogle() {
 // Adopt a finished zkLogin session as the active signer.
 async function activateZkSession(session) {
   state.mode = 'zk'; state.wallet = null; state.zk = session;
-  state.account = { address: session.address };
-  await refreshAccount();
-  renderWalletChip();
-  window.dispatchEvent(new Event('helix:wallet'));
+  state.account = { address: session.address }; state.acct = null;
+  accountChanged();
 }
 function disconnectWallet() {
   if (state.mode === 'zk') { clearZkSession(); }
@@ -300,19 +306,26 @@ icons.memory = '<path d="M12 3a6 6 0 0 0-6 6c0 2.2 1.2 3.7 2.5 4.8.8.7 1.5 1.6 1
 
 /* ============================================================ CONVICTION CANVAS */
 const HOR = ['~3 min', '~6 min', '~12 min', '~20 min'];
+// Recent compiles by exact conviction (+ asset, + whose memory): returning to the Canvas or sliding back
+// to a position you just saw renders at once. Short TTL: the market window and its price keep moving.
+const compileCache = new Map();
+const COMPILE_TTL_MS = 15_000;
 function viewCanvas() {
   const el = document.createElement('div'); el.className = 'view view-enter';
+  const c0 = state.conv;   // your last position survives page changes
+  const v0 = c0 ? { dir: Math.round((c0.direction + 100) / 2), conf: c0.confidence, hor: c0.horizonCode, vol: c0.volView, cap: c0.capital }
+    : { dir: 64, conf: 60, hor: 0, vol: 45, cap: 5 };
   el.innerHTML = `
     <div id="demo-banner">${demoBannerHTML()}</div>
     <div class="grid-2" style="align-items:start">
       <div class="panel ink reveal">
         <div class="section-title">your conviction</div>
         <div style="font-family:var(--serif);font-size:1.9rem;letter-spacing:-0.02em;margin-bottom:22px">what do you believe about <span style="color:var(--accent)" id="asset-name">${state.asset || 'BTC'}</span>?<span id="asset-switch"></span></div>
-        ${ctrl('Direction', 's-dir', 0, 100, 64, 'v-dir')}
-        ${ctrl('Confidence', 's-conf', 0, 100, 60, 'v-conf')}
-        ${ctrlSteps('Time horizon', 's-hor', 'v-hor')}
-        ${ctrl('Volatility view', 's-vol', 0, 100, 45, 'v-vol')}
-        ${ctrl('Commit (dUSDC)', 's-cap', 2, 50, 5, 'v-cap')}
+        ${ctrl('Direction', 's-dir', 0, 100, v0.dir, 'v-dir')}
+        ${ctrl('Confidence', 's-conf', 0, 100, v0.conf, 'v-conf')}
+        ${ctrlSteps('Time horizon', 's-hor', 'v-hor', v0.hor)}
+        ${ctrl('Volatility view', 's-vol', 0, 100, v0.vol, 'v-vol')}
+        ${ctrl('Commit (dUSDC)', 's-cap', 2, 50, v0.cap, 'v-cap')}
         <div class="chart-wrap" style="margin-top:8px"><div id="payoff"></div></div>
         <div class="legend"><span><i style="border-color:var(--accent-bright)"></i>P&amp;L at expiry</span><span><i style="border-color:var(--ink-3)"></i>BTC now</span></div>
       </div>
@@ -327,9 +340,9 @@ function ctrl(lab, id, min, max, val, out) {
   return `<div class="ctrl"><div class="ctrl-head"><span class="lab">${lab}</span><span class="val mono" id="${out}"></span></div>
     <input class="hx-range" type="range" id="${id}" min="${min}" max="${max}" value="${val}" data-cursor></div>`;
 }
-function ctrlSteps(lab, id, out) {
+function ctrlSteps(lab, id, out, val = 0) {
   return `<div class="ctrl"><div class="ctrl-head"><span class="lab">${lab}</span><span class="val mono" id="${out}"></span></div>
-    <input class="hx-range" type="range" id="${id}" min="0" max="3" step="1" value="0" data-cursor></div>`;
+    <input class="hx-range" type="range" id="${id}" min="0" max="3" step="1" value="${val}" data-cursor></div>`;
 }
 function mountCanvas(el) {
   const s = { dir: $('#s-dir', el), conf: $('#s-conf', el), hor: $('#s-hor', el), vol: $('#s-vol', el), cap: $('#s-cap', el) };
@@ -345,20 +358,42 @@ function mountCanvas(el) {
     $('#v-cap', el).textContent = conv.capital + ' dUSDC';
     return conv;
   }
-  function schedule() { labels(); clearTimeout(timer); timer = setTimeout(doCompile, 180); }
+  // Instant feedback while the server re-prices: the commit size is pure client maths, so the payoff follows
+  // that slider exactly; any other slider re-prices on the server and the readout dims until it lands.
+  function instant() {
+    const r = state.compile, box = $('#compiled', el);
+    if (!r?.predict || (r.asset && r.asset !== 'BTC') || !box.dataset.ready) return;
+    updatePredictPayoff($('#payoff', el), activeOrder(r), r.predict.forward, readConv(s).capital);
+    box.classList.add('updating');
+  }
+  function schedule() { labels(); instant(); clearTimeout(timer); timer = setTimeout(doCompile, 140); }
+  let seq = 0;
+  const convKey = (conv) => JSON.stringify([conv, state.asset || 'BTC', viewingAddress(state) || '']);
+  function applyCompile(r, conv) {
+    const box = $('#compiled', el);
+    state.compile = r; state.chosen = { commit: conv.capital, useMemoryStructure: false };
+    box.dataset.ready = '1'; box.classList.remove('updating');
+    $('#v-hor', el).textContent = `${HOR[conv.horizonCode]} → ${Math.max(1, Math.round((r.predict?.market ?? r.window).minutesLeft))} min window`;
+    renderCompiled(el, r, conv);
+  }
   async function doCompile() {
     const conv = readConv(s); state.conv = conv;
     const box = $('#compiled', el);
-    if (state.demoPending && !state.account) { box.innerHTML = `<div class="muted" style="padding:24px 0"><span class="sdot pending"></span> loading the demo trader's Walrus memory…</div>`; return; }
+    const my = ++seq;   // a later slider position supersedes any answer still in flight
+    if (state.demoPending && !state.account) { box.classList.remove('updating'); box.innerHTML = `<div class="muted" style="padding:24px 0"><span class="sdot pending"></span> loading the demo trader's Walrus memory…</div>`; return; }
+    const key = convKey(conv), hit = compileCache.get(key);
+    if (hit && Date.now() - hit.at < COMPILE_TTL_MS) return applyCompile(hit.r, conv);
     if (!box.dataset.ready) box.innerHTML = `<div class="muted" style="padding:24px 0"><span class="sdot pending"></span> compiling against the live DeepBook Predict pricer${state.account ? ' and your Walrus memory' : ''}…</div>`;
     try {
       const r = await compileConviction(conv);
-      state.compile = r; state.chosen = { commit: conv.capital, useMemoryStructure: false };
-      box.dataset.ready = '1';
-      $('#v-hor', el).textContent = `${HOR[conv.horizonCode]} → ${Math.max(1, Math.round((r.predict?.market ?? r.window).minutesLeft))} min window`;
-      renderCompiled(el, r, conv);
+      if (my !== seq || !el.isConnected) return;   // stale: the sliders moved on (never paint an older answer over a newer one)
+      compileCache.set(key, { at: Date.now(), r });
+      if (compileCache.size > 40) compileCache.delete(compileCache.keys().next().value);
+      applyCompile(r, conv);
     } catch (e) {
+      if (my !== seq || !el.isConnected) return;
       const ph = $('#payoff', el); if (ph) ph.innerHTML = '';
+      box.classList.remove('updating');
       box.dataset.ready = '';
       box.innerHTML = state.asset && state.asset !== 'BTC' ? assetErrorHTML(e, state.asset) : compileError(e);
       // between Predict windows (quarter-hour roll): the next one opens within a minute — retry by itself
@@ -383,7 +418,12 @@ function mountCanvas(el) {
   });
   el.addEventListener('change', (e) => { if (e.target.closest('#reason-optin')) el.dispatchEvent(new Event('input', { bubbles: true })); });
   schedule();
-  window.addEventListener('helix:wallet', () => { if (!el.isConnected) return; const b = $('#demo-banner', el); if (b) b.innerHTML = demoBannerHTML(); doCompile(); });
+  const onWallet = () => { if (!el.isConnected) return window.removeEventListener('helix:wallet', onWallet); const b = $('#demo-banner', el); if (b) b.innerHTML = demoBannerHTML(); doCompile(); };
+  const onAcct = () => {
+    if (!el.isConnected) return window.removeEventListener('helix:acct', onAcct);
+    const m = $('#mint-ctl', el); if (m && state.compile && state.conv) m.innerHTML = mintControl(state.chosen.commit ?? state.conv.capital);
+  };
+  window.addEventListener('helix:wallet', onWallet); window.addEventListener('helix:acct', onAcct);
   el.addEventListener('click', (e) => {
     if (e.target.closest('#commit')) onCommit(el);
     if (e.target.closest('#deploy')) onDeploy(el);
@@ -485,6 +525,10 @@ function deployControl(commit) {
     return `<button class="btn-solid" id="wallet-inline" data-cursor>Connect a wallet to commit this conviction ${arrow()}</button>`;
   const commitBtn = `<button class="btn-solid" id="commit" data-cursor style="margin-top:12px">Commit conviction — hash on Sui, gas only ${arrow()}</button>
     <div class="muted mono" style="font-size:10.5px;margin-top:6px">sha256 of this call goes on-chain before the window settles · can't be backdated · every commit counts in your record · no SUI? HELIX sponsors the gas</div>`;
+  return thesisBlock() + commitBtn + `<div id="mint-ctl">${mintControl(commit)}</div>`;
+}
+// The mint option depends on the Predict account read, which can land after the compile: it re-renders alone.
+function mintControl(commit) {
   const a = state.acct;
   let mint = '';
   if (!a) mint = `<div class="muted" style="margin-top:12px"><span class="sdot pending"></span> checking your DeepBook Predict account…</div>`;
@@ -504,7 +548,7 @@ function deployControl(commit) {
     } else
       mint = `<div class="muted" style="margin-top:12px;font-size:12.5px;line-height:1.55">Minting a real position needs DeepBook Predict v4 test USDC (<span class="mono" style="font-size:11px">${short((a.quoteCoinType || '').split('::')[0])}::usdc::USDC</span>), which DeepBook distributes manually. Commit mode needs none.</div>`;
   }
-  return thesisBlock() + commitBtn + mint;
+  return mint;
 }
 const arrow = () => `<span style="width:30px;height:30px;border-radius:50%;background:var(--bg);color:var(--ink);display:grid;place-items:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>`;
 
@@ -536,6 +580,7 @@ async function onFund(el) {
 async function onCommit(el) {
   if (!state.account || isReadOnly(state)) return;   // the demo trader is read-only
   if (state.busy) return; state.busy = true;
+  compileCache.clear();   // your memory is about to change: never serve a pre-commit compile
   const out = $('#deploy-out', el); const btn = $('#commit', el);
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
   const r = state.compile, conv = state.conv;
@@ -565,6 +610,7 @@ async function onCommit(el) {
   }
 }
 async function onDeploy(el) {
+  compileCache.clear();
   if (!state.account || isReadOnly(state)) return;   // the demo trader is read-only
   if (state.busy) return; state.busy = true;
   const out = $('#deploy-out', el); const btn = $('#deploy', el);
@@ -1341,11 +1387,11 @@ function init() {
   }).catch(err => toast('zkLogin failed', err.message || 'prover error', 'gold'));
   // (b) restore a still-valid zkLogin session from this tab, else a wallet.
   const zk = loadZkSession();
-  if (zk) { state.mode = 'zk'; state.zk = zk; state.account = { address: zk.address }; refreshAccount().then(renderWalletChip); }
+  if (zk) { state.mode = 'zk'; state.zk = zk; state.account = { address: zk.address }; refreshAccount().then(() => { renderWalletChip(); window.dispatchEvent(new Event('helix:acct')); }); }
   else {
     const ws = discoverWallets();
     const remembered = ws.find(w => (w.accounts && w.accounts.length));
-    if (remembered) { state.wallet = remembered; state.account = remembered.accounts[0]; refreshAccount().then(renderWalletChip); }
+    if (remembered) { state.wallet = remembered; state.account = remembered.accounts[0]; refreshAccount().then(() => { renderWalletChip(); window.dispatchEvent(new Event('helix:acct')); }); }
   }
   addEventListener('hashchange', render);
   // Judge Mode: ?demo=1 → load the read-only demo trader first (the Canvas waits for it), then re-render

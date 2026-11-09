@@ -33,9 +33,8 @@
    public API key → add Google as an auth provider with the SAME client id above →
    add your app origin(s) to the allow-list.
    ============================================================ */
-import { Ed25519Keypair } from 'https://esm.sh/@mysten/sui@2.39.1/keypairs/ed25519';
-import { getZkLoginSignature } from 'https://esm.sh/@mysten/sui@2.39.1/zklogin';
-import { fromBase64 } from 'https://esm.sh/@mysten/sui@2.39.1/utils';
+import { Ed25519Keypair, getZkLoginSignature } from './vendor/zk.js';
+import { fromBase64 } from './vendor/core.js';
 
 const ENOKI_URL = 'https://api.enoki.mystenlabs.com/v1';
 const NETWORK = (typeof window !== 'undefined' && window.HELIX_ENOKI_NETWORK) || 'testnet';
