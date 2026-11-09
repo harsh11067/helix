@@ -30,6 +30,7 @@ import {
 import { voicesHTML, memoryBlockHTML, viewMemory } from './memory-ui.js';
 import { demoRequested, viewingAddress, isReadOnly, demoHref, DEMO_BANNER } from './demo.js';
 import { viewCouncil } from './council.js';
+import { renderPassport } from './passport.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
@@ -285,6 +286,7 @@ const icons = {
   strategies: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   risk: '<circle cx="12" cy="12" r="9"/><path d="M12 12l5-3" stroke-linecap="round"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>',
   market: '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>',
+  passport: '<rect x="5" y="3.5" width="14" height="17" rx="2"/><circle cx="12" cy="10" r="2.8"/><path d="M8.5 16.5h7" stroke-linecap="round"/>',
   council: '<circle cx="7" cy="8" r="2.6"/><circle cx="17" cy="8" r="2.6"/><circle cx="7" cy="17" r="2.6"/><circle cx="17" cy="17" r="2.6"/><path d="M9.6 8h4.8M9.6 17h4.8" stroke-linecap="round"/>',
   lineage: '<circle cx="12" cy="5" r="2.4"/><circle cx="6" cy="19" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="M12 7.4v4M12 11.4L6.6 16.8M12 11.4l5.4 5.4"/>',
 };
@@ -1014,6 +1016,23 @@ async function attachThesisDetail(host, s) {
   setTimeout(() => renderThesisPanel(host, s), 1600);
 }
 
+/* -------- Forecaster Passport (a wallet's own, the demo trader's, or any id) -------- */
+function viewPassport(id) {
+  const el = document.createElement('div'); el.className = 'view view-enter';
+  const who = id || viewingAddress(state);
+  if (!who) { el.innerHTML = connectPrompt('Your Forecaster Passport', 'Connect a wallet to see your verifiable record — or <a href="app.html?demo=1#/passport" style="color:var(--accent-deep)">open the demo trader\'s passport</a>.'); return { el }; }
+  el.innerHTML = `<div id="pp"></div>`;
+  renderPassport($('#pp', el), who, {
+    base: String(CFG.COMPILER_URL).replace(/\/+$/, ''),
+    // Lane B: on-chain soulbound passport control, mounted only when that module ships
+    onMount: (p, slot) => {
+      if (!slot || !state.account || state.account.address.toLowerCase() !== p.address) return;
+      import('./onchain-passport.js').then(m => m.mountOnchainPassport?.(slot, { api, address: p.address, ns: p.namespace, signAndExecuteBytes, explorer: CFG.EXPLORER })).catch(() => {});
+    },
+  });
+  return { el };
+}
+
 /* -------- Risk Compass (portfolio) -------- */
 function viewRisk() {
   const el = document.createElement('div'); el.className = 'view view-enter';
@@ -1107,6 +1126,7 @@ const routes = [
   { id: 'memory', match: /^#\/memory$/, title: 'Memory', sub: 'who was right · walrus mainnet', view: () => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER, address: viewingAddress(state), readOnly: isReadOnly(state), banner: demoBannerHTML() }) },
   // any forecaster's memory, read-only (agents, other traders): #/memory/0x…
   { id: 'memory', match: /^#\/memory\/(0x[0-9a-fA-F]{64})$/, title: 'Memory', sub: 'read-only · walrus mainnet', view: (m) => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER, address: m[1].toLowerCase(), readOnly: true, banner: `<div class="panel" style="margin-bottom:16px;border-color:color-mix(in srgb,var(--accent) 40%,transparent)"><b>Viewing ${short(m[1])} — read only</b> <span class="muted">· every number below is recalled from this address's Walrus Memory</span></div>` }) },
+  { id: 'passport', match: /^#\/passport(?:\/([0-9a-zA-Z-]+))?$/, title: 'Forecaster Passport', sub: 'proof-of-forecast · verifiable', view: (m) => viewPassport(m[1]) },
   { id: 'council', match: /^#\/council$/, title: 'The Council', sub: 'four agents · weighted by memory', view: () => viewCouncil({ $, explorer: CFG.EXPLORER }) },
   { id: 'risk', match: /^#\/risk$/, title: 'Risk Compass', sub: 'one unified picture', view: viewRisk },
   { id: 'market', match: /^#\/market$/, title: 'Marketplace', sub: 'copy · breed · compete', view: viewMarket },
@@ -1211,6 +1231,7 @@ function build() {
       ${railLink('memory', '#/memory', 'Memory')}
       ${railLink('risk', '#/risk', 'Risk Compass')}
       ${railLink('market', '#/market', 'Marketplace')}
+      ${railLink('passport', '#/passport', 'Passport')}
       ${railLink('council', '#/council', 'The Council')}
       ${railLink('lineage', '#/lineage', 'Lineage')}
       <div class="rail-spacer"></div>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-accent="gold">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HELIX Forecaster Passport</title>
+<meta name="description" content="A verifiable, portable track record of judgment: every call committed on Sui before settlement, remembered on Walrus Memory, scored for calibration." />
+<link rel="stylesheet" href="css/helix.css" />
+<link rel="stylesheet" href="css/app.css" />
+<style>
+  body { background: var(--bg); margin: 0; }
+  .pp-wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+  .pp-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .pp-brand { font-family: var(--serif); font-size: 1.5rem; color: var(--ink); text-decoration: none; }
+  body.embed .pp-wrap { padding: 0; }
+  body.embed .pp-top { display: none; }
+  .table td, .table th { vertical-align: top; }
+</style>
+<script>
+  (function () { try { var t = localStorage.getItem('helix-theme'); if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {} })();
+  window.HELIX_COMPILER_URL = 'https://helix-compiler.onrender.com';
+</script>
+</head>
+<body>
+  <div class="pp-wrap">
+    <div class="pp-top">
+      <a class="pp-brand" href="app.html">Heli<b>x</b> · Forecaster Passport</a>
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <a class="btn-soft" href="app.html?demo=1#/memory">Demo trader</a>
+        <a class="btn-soft" href="app.html#/council">The Council</a>
+        <a class="btn-solid" href="app.html#/canvas">Open the app</a>
+      </div>
+    </div>
+    <div id="pp"><div class="muted">loading…</div></div>
+  </div>
+<script type="module">
+  import { renderPassport } from './js/passport.js';
+  const q = new URLSearchParams(location.search);
+  const embed = q.get('embed') === '1';
+  if (embed) document.body.classList.add('embed');
+  const base = (window.HELIX_COMPILER_URL || 'http://localhost:8081').replace(/\/+$/, '');
+  const id = q.get('id') || '';
+  const host = document.getElementById('pp');
+  if (!id) {
+    host.innerHTML = '<div class="empty"><h3>Which forecaster?</h3><p>Open <span class="mono">passport.html?id=&lt;Sui address or namespace&gt;</span>, or start from the <a href="app.html?demo=1#/memory">demo trader</a>.</p></div>';
+  } else {
+    renderPassport(host, id, { base, embed }).then((p) => { if (p && !embed) document.title = `${p.kind === 'agent' ? 'Council agent ' + p.agent : 'Forecaster'} · HELIX Passport`; });
+  }
+</script>
+</body>
+</html>
