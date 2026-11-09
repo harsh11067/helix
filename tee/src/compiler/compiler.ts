@@ -74,10 +74,8 @@ export function compile(
   void paretoFront;
   let selected = candidates[0];
   let best = -Infinity;
-  for (const c of candidates) {
-    const u = utility(c, conv, maxAbsDelta, maxAbsVega, maxSharpe);
-    if (u > best) { best = u; selected = c; }
-  }
+  const utilities = candidates.map((c) => utility(c, conv, maxAbsDelta, maxAbsVega, maxSharpe));
+  candidates.forEach((c, i) => { if (utilities[i] > best) { best = utilities[i]; selected = c; } });
 
   const dna = buildDNA(conv, selected.legs.length, false, false);
   const ptb = {
@@ -94,6 +92,7 @@ export function compile(
   return {
     selected, candidates, dna, ptb, attestation,
     spot: snap.spot, ivAtm: atmIV(snap), plpUtilizationBps: snap.plpUtilizationBps,
+    utilities,
   };
 }
 

@@ -18,3 +18,7 @@ contracts/build/
 
 # regenerable Move test replay traces
 contracts/traces/
+
+# hackathon secret drop (Tatum / MemWal) — never commit
+toss.env
+*.secret.env

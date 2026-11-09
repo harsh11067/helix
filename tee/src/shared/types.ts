@@ -89,6 +89,7 @@ export interface CompileResult {
   spot: number;
   ivAtm: number;
   plpUtilizationBps: number;
+  utilities?: number[];   // per-candidate utility (same order as candidates) — memory re-ranking
 }
 
 // A declarative PTB spec the frontend turns into a real @mysten/sui transaction.

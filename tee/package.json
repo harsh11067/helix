@@ -10,5 +10,12 @@
     "backtest": "node src/backtest/server.ts",
     "start": "node src/index.ts"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@mysten/sui": "2.39.1",
+    "@mysten/deepbook-v3": "2.11.1",
+    "@mysten-incubation/memwal": "0.1.13"
+  }
 }

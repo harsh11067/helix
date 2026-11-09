@@ -1,11 +1,31 @@
-// Compiler Agent HTTP API (architecture.md §10.3):
-//   POST /compile  → full compile (DNA + PTB + attestation)
-//   POST /preview  → payoff/Greeks only, no attestation (cheap canvas refresh)
-//   GET  /health
-import { jsonServer } from '../shared/http.ts';
+// Compiler service HTTP API — the HELIX hub (architecture.md §10.3 + Total Recall).
+//
+//   POST /compile, /preview      conviction → structure (+ memory block when `address` given)
+//   POST /tx/fund, /tx/mint      unsigned Predict v4 transactions built server-side via Tatum
+//   POST /tx/execute             wallet-signed bytes → executed through Tatum → CONVICTION memory
+//   POST /graphql, /graphql-main browser read proxy → Tatum Sui GraphQL (testnet / mainnet, read-only)
+//   POST /rpc, /rpc-main         JSON-RPC compatibility façade (allowlisted, translated to GraphQL)
+//   GET  /memory/:address[...]   Walrus Memory (mainnet) timeline, proof, dividend
+//   GET  /health                 Tatum checkpoints (both networks) + Walrus Memory health
+import { jsonServer, HttpError } from '../shared/http.ts';
 import { compileLive } from './compiler.ts';
 import { MOCK_TEE } from '../shared/attestation.ts';
 import type { Conviction } from '../shared/types.ts';
+import { gql, latestCheckpoint, stats as tatumStats, checkProxyQuery, recordExecution, tatumConfigured, TATUM_URLS } from '../shared/tatum.ts';
+import { handleRpc } from '../shared/rpcFacade.ts';
+import * as P from '../predict/predict.ts';
+import {
+  liveCompile, buildMint, buildFund, onMintExecuted, timelineFor, dividendFor, credibilityFor,
+  resolveByDigest, startWatcher, pendingCount,
+} from '../memory/service.ts';
+import { memwalHealth, mode as memMode } from '../memory/store.ts';
+import { memoryProof } from '../memory/proof.ts';
+import { crowdMarketFor } from '../crowd/polymarket.ts';
+import { witnessBtc } from '../shared/tatumRates.ts';
+import { paidRoutes } from '../agents/paid.ts';
+import { boardFor } from '../memory/board.ts';
+
+const offline = () => process.env.OFFLINE === '1';
 
 function asConviction(b: any): Conviction {
   const num = (v: any, lo: number, hi: number, name: string): number => {
@@ -17,28 +37,140 @@ function asConviction(b: any): Conviction {
     direction: num(b.direction, -100, 100, 'direction'),
     confidence: num(b.confidence, 0, 100, 'confidence'),
     horizonCode: num(b.horizonCode ?? 0, 0, 3, 'horizonCode'),
-    volView: num(b.volView, 0, 100, 'volView'),
-    capital: num(b.capital, 0, 1e12, 'capital'),
+    volView: num(b.volView ?? b.vol, 0, 100, 'volView'),
+    capital: num(b.capital ?? b.commit, 0, 1e12, 'capital'),
   };
+}
+const addr = (a: unknown): string | null => (typeof a === 'string' && /^0x[0-9a-fA-F]{64}$/.test(a) ? a.toLowerCase() : null);
+function needAddr(a: unknown): string {
+  const x = addr(a);
+  if (!x) throw new HttpError(400, { error: 'invalid Sui address (0x + 64 hex)' });
+  return x;
+}
+
+let healthCache: { at: number; v: any } | null = null;
+async function health() {
+  if (healthCache && Date.now() - healthCache.at < 5000) return healthCache.v;
+  const base: any = { ok: true, agent: 'compiler', mockTee: MOCK_TEE, offline: offline() };
+  if (offline()) return { ...base, memwal: 'mock' };
+  const [tn, mn, mw] = await Promise.all([
+    latestCheckpoint('testnet').catch((e) => ({ error: (e as Error).message })),
+    latestCheckpoint('mainnet').catch((e) => ({ error: (e as Error).message })),
+    memwalHealth(),
+  ]);
+  let predict: any = null;
+  try {
+    const t = await P.tradeableMarkets();
+    predict = { network: P.NETWORK, open_windows: t.map((m) => Math.round(m.minutesLeft * 10) / 10), quote_coin: P.quoteCoinType() };
+  } catch (e) { predict = { error: (e as Error).message.slice(0, 120) }; }
+  const v = {
+    ...base,
+    tatum_testnet_checkpoint: typeof tn === 'number' ? tn : null,
+    tatum_mainnet_checkpoint: typeof mn === 'number' ? mn : null,
+    tatum: {
+      configured: tatumConfigured(), plan: tatumStats.plan,
+      testnet: { url: new URL(TATUM_URLS.testnet).host, checkpoint: tn }, mainnet: { url: new URL(TATUM_URLS.mainnet).host, checkpoint: mn },
+      requests: tatumStats.requests, retries: tatumStats.retries, rate_limited: tatumStats.rateLimited,
+      recent_executions: tatumStats.executed.slice(0, 5),
+    },
+    memwal: mw.status, memwal_detail: mw, memory_network: memMode() === 'mainnet' ? 'walrus-mainnet' : memMode(),
+    watcher: { pending: pendingCount() },
+    predict,
+  };
+  healthCache = { at: Date.now(), v };
+  return v;
 }
 
 export function makeServer() {
   return jsonServer({
-    'POST /compile': (b) => compileLive(asConviction(b), Number(b.currentEpoch ?? 0)),
+    // ---------------------------------------------------------------- compile
+    'POST /compile': async (b) => {
+      const conv = asConviction(b);
+      if (offline()) return compileLive(conv, Number(b.currentEpoch ?? 0));
+      return liveCompile(conv, { address: addr(b.address), currentEpoch: Number(b.currentEpoch ?? 0) });
+    },
     'POST /preview': async (b) => {
-      const r = await compileLive(asConviction(b), Number(b.currentEpoch ?? 0));
+      const conv = asConviction(b);
+      const r: any = offline() ? await compileLive(conv, Number(b.currentEpoch ?? 0))
+        : await liveCompile(conv, { address: addr(b.address), currentEpoch: Number(b.currentEpoch ?? 0) });
       return {
-        selected: r.selected,
-        candidates: r.candidates,
+        selected: r.selected, candidates: r.candidates,
         spot: r.spot, ivAtm: r.ivAtm, plpUtilizationBps: r.plpUtilizationBps,
+        predict: r.predict, voices: r.voices, memory: r.memory, guardian: r.guardian, regime: r.regime,
       };
     },
-    'GET /health': () => ({ ok: true, agent: 'compiler', mockTee: MOCK_TEE }),
+    'GET /health': () => health(),
+
+    // ---------------------------------------------------------------- transactions (Predict v4 via Tatum)
+    'POST /tx/fund': (b) => buildFund({ address: needAddr(b.address), amount: Number(b.amount) }),
+    'POST /tx/mint': (b) => buildMint({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser' }),
+    'POST /tx/execute': async (b) => {
+      const txBytes = String(b.txBytes ?? '');
+      const sigs: string[] = Array.isArray(b.signatures) ? b.signatures : b.signature ? [b.signature] : [];
+      if (!txBytes || !sigs.length) throw new HttpError(400, { error: 'txBytes and signature(s) required' });
+      const res = await P.executeSigned(txBytes, sigs);
+      const tx = res.Transaction ?? res.FailedTransaction ?? res;
+      const digest: string = tx?.digest;
+      if (digest) recordExecution('testnet', digest);
+      const ok = !!tx?.effects?.status?.success;
+      let recordId: string | null = null;
+      if (ok && b.mintId) recordId = (await onMintExecuted(String(b.mintId), digest, res)).recordId;
+      const changed = (tx?.effects?.changedObjects ?? []).map((o: any) => ({ id: o.objectId ?? o.id, op: o.idOperation ?? o.outputState, type: tx?.objectTypes?.[o.objectId ?? o.id] ?? null }));
+      return { digest, success: ok, error: tx?.effects?.status?.error ?? null, recordId, changed, executedVia: new URL(TATUM_URLS.testnet).host };
+    },
+    'GET /predict/account/:address': async (_b, _u, p) => {
+      const a = needAddr(p.address);
+      const [acct, wallet] = await Promise.all([P.accountState(a), P.walletQuoteBalance(a).catch(() => null)]);
+      return { ...acct, walletQuoteBalance: wallet, quoteCoinType: P.quoteCoinType() };
+    },
+    'GET /predict/markets': async () => (await P.tradeableMarkets()).map((m) => ({ id: m.id, expiryMs: m.expiryMs, minutesLeft: m.minutesLeft, referencePrice: m.referencePrice })),
+
+    // ---------------------------------------------------------------- Tatum chokepoint for the browser
+    'POST /graphql': async (b) => {
+      const why = checkProxyQuery('testnet', b);
+      if (why) throw new HttpError(403, { errors: [{ message: why }] });
+      return gql('testnet', b.query, b.variables);
+    },
+    'POST /graphql-main': async (b) => {
+      const why = checkProxyQuery('mainnet', b);
+      if (why) throw new HttpError(403, { errors: [{ message: why }] });
+      return gql('mainnet', b.query, b.variables);
+    },
+    'POST /rpc': (b) => handleRpc('testnet', b),
+    'POST /rpc-main': (b) => handleRpc('mainnet', b),
+
+    // ---------------------------------------------------------------- Walrus Memory
+    'GET /memory/:address': (_b, _u, p) => timelineFor(needAddr(p.address)),
+    'GET /memory/:address/proof/:blobId': (_b, _u, p) => memoryProof(needAddr(p.address), p.blobId),
+    'GET /memory/:address/dividend': (_b, _u, p) => dividendFor(needAddr(p.address)),
+    'POST /memory/resolve/:digest': (b, _u, p) => resolveByDigest(needAddr(b.address), p.digest),
+    'GET /credibility/:address': async (_b, _u, p) => {
+      const c = await credibilityFor(needAddr(p.address));
+      return { namespace: c.namespace, n: c.n, overall: { n: c.overall.n, wins: c.overall.wins, posterior: c.overall.posterior, brier: c.overall.brier }, memory_network: c.memory_network, detail: 'per-bucket detail and lessons: GET /paid/credibility/:address (402, pay-per-call)' };
+    },
+    'GET /board': () => boardFor(),
+
+    // ---------------------------------------------------------------- win features
+    'GET /crowd/btc': async (_b, u) => {
+      const exp = Number(u.searchParams.get('expiry')) || Math.ceil(Date.now() / 900_000) * 900_000;
+      const m = await crowdMarketFor(exp > 1e12 ? exp : exp * 1000);
+      return m ?? { status: 'unavailable', reason: 'no Polymarket BTC Up/Down market for that window' };
+    },
+    'GET /witness/btc': async () => {
+      const t = await P.tradeableMarkets().catch(() => []);
+      const pv = t.length ? await P.pricerFor(t[t.length - 1]).catch(() => null) : null;
+      return witnessBtc(pv?.forward ?? null);
+    },
+    ...paidRoutes(),
   });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   // Render (and most PaaS) inject PORT; prefer it, then COMPILER_PORT, then local default.
   const port = Number(process.env.PORT ?? process.env.COMPILER_PORT ?? 8081);
-  makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE})`));
+  makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE}, memory=${memMode()}, tatum=${tatumConfigured() ? 'keyed' : 'anonymous'})`));
+  startWatcher();
+  // free-tier hosts sleep when idle, which would pause the settlement watcher
+  const ka = process.env.KEEPALIVE_URL;
+  if (ka && !offline()) setInterval(() => { fetch(ka).catch(() => {}); }, 10 * 60_000).unref?.();
 }
