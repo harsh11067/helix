@@ -1,0 +1,26 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Sui CLI 1.73.0 (same as local)
+        run: |
+          curl -fsSL -o sui.tgz https://github.com/MystenLabs/sui/releases/download/testnet-v1.73.0/sui-testnet-v1.73.0-ubuntu-x86_64.tgz
+          mkdir -p "$HOME/sui" && tar -xzf sui.tgz -C "$HOME/sui" && echo "$HOME/sui" >> "$GITHUB_PATH"
+      - run: cd contracts && sui move test
+  tee:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: cd tee && npm ci && OFFLINE=1 npm test
+  indexer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: cd services/indexer && npm install && OFFLINE=1 npm test

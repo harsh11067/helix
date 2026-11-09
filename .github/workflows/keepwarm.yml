@@ -1,0 +1,13 @@
+name: keepwarm
+on:
+  schedule: [{ cron: '*/10 * * * *' }]
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      C: ${{ vars.HELIX_COMPILER_URL || 'https://helix-compiler.onrender.com' }}
+      APP: ${{ vars.HELIX_APP_URL || 'https://helix-app-fovn.onrender.com' }}
+    steps:
+      - run: curl -fsS -m 90 --retry 2 "$C/health" | head -c 400
+      - run: curl -fsS -m 60 --retry 2 -o /dev/null -w "app %{http_code}\n" "$APP/"

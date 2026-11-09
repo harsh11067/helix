@@ -8,6 +8,7 @@
 [![Track](https://img.shields.io/badge/Track-Agentic%20Web%20%2F%20Intent%20Engine-brightgreen?style=for-the-badge)](https://overflow.sui.io)
 [![Sui Stack](https://img.shields.io/badge/Sui%20Stack-DeepBook%20%7C%20Walrus%20%7C%20Seal%20%7C%20zkLogin-aqua?style=for-the-badge)](https://sui.io)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](./LICENSE)
+[![CI](https://github.com/harsh11067/helix/actions/workflows/ci.yml/badge.svg)](https://github.com/harsh11067/helix/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Production%20%26%20Deployed-brightgreen?style=for-the-badge)](./docs/SUBMISSION.md)
 
 > [!IMPORTANT]

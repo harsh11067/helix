@@ -142,7 +142,7 @@ export function viewMemory(ctx) {
           <div><span class="badge" style="color:${TYPE_COLOR[r.type] || 'var(--ink-2)'}">${r.type}</span><div class="muted mono" style="font-size:10px;margin-top:6px">${f.ts ? new Date(Number(f.ts) * 1000).toISOString().slice(5, 16).replace('T', ' ') : ''}</div></div>
           <div style="min-width:0"><div style="font-size:13.5px;line-height:1.5;overflow-wrap:anywhere">${summary}</div>
             <div class="row" style="gap:12px;margin-top:6px;flex-wrap:wrap;font-size:11px">${tx}
-              <span class="mono muted">blob ${shortB(r.blob_id)}</span>
+              <a class="mono" href="https://walruscan.com/mainnet/blob/${encodeURIComponent(r.blob_id)}" target="_blank" rel="noopener" style="color:var(--accent-deep)" title="Walruscan (mainnet)">blob ${shortB(r.blob_id)} ↗</a>
               <button class="mono" data-proof="${esc(r.blob_id)}" style="font-size:11px;color:var(--accent-deep);background:none;border:0;padding:0;cursor:pointer" data-cursor>verify on mainnet ↗</button></div>
             <div class="proof-out" data-for="${esc(r.blob_id)}"></div></div></div>`;
       }).join('');
