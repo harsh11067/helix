@@ -70,7 +70,8 @@ export async function passportFor(address: string, opts: { commits?: number } = 
 
   // badges (bitmask shared with the on-chain passport)
   const convByTx = new Map(recs.filter((r) => r.type === 'CONVICTION').map((r) => [str(r, 'tx'), r]));
-  const contrarianWins = rows.filter((r) => r.won === 1 && r.p_mkt < 0.5).length;
+  // only calls the market actually priced (ETH/SUI have no market voice; a missing p_mkt must not read as 0)
+  const contrarianWins = rows.filter((r) => r.won === 1 && r.p_mkt != null && r.p_mkt < 0.5).length;
   const assets = new Map<string, number>();
   for (const r of rows) { const a = str(convByTx.get(r.tx), 'asset') ?? 'BTC'; assets.set(a, (assets.get(a) ?? 0) + 1); }
   // unknown (ledger unreadable) stays null — never a default 0 that would look like an honest record

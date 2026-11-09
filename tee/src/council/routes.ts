@@ -17,7 +17,8 @@ const addr = (a: unknown) => (typeof a === 'string' && /^0x[0-9a-fA-F]{64}$/.tes
  * person committed (p_council recorded) — the same windows for all three voices.
  */
 export async function scoreboardFor(address: string) {
-  const rows = settledRows(await recallForAddress(address)).filter((r) => r.p_council != null);
+  // the same windows for all three voices: the Council was live AND the market priced the call
+  const rows = settledRows(await recallForAddress(address)).filter((r) => r.p_council != null && r.p_mkt != null);
   const by = (k: 'p_you' | 'p_mkt' | 'p_council') => brierOf(rows.map((r) => [r[k] as number, r.won]));
   return { n: rows.length, brier: { you: by('p_you'), market: by('p_mkt'), council: by('p_council') }, note: 'Brier on the same settled windows (lower is better)' };
 }
