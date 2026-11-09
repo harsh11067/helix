@@ -24,6 +24,7 @@ import { memoryProof } from '../memory/proof.ts';
 import { crowdMarketFor } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
 import { paidRoutes } from '../agents/paid.ts';
+import { passportOnchainRoutes } from '../passport/onchain/routes.ts';
 import { boardFor } from '../memory/board.ts';
 import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts';
 import { councilRoutes } from '../council/routes.ts';
@@ -193,6 +194,7 @@ export function makeServer() {
     ...paidRoutes(),
     ...councilRoutes(),
     ...passportRoutes(),
+    ...passportOnchainRoutes(),
   });
 }
 
