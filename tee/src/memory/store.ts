@@ -181,7 +181,8 @@ export async function registerNamespace(ns: string): Promise<void> {
 }
 export async function registeredNamespaces(): Promise<string[]> {
   let res: any;
-  try { res = await memwal().recall({ query: 'USER v1 ns registry', limit: 100, namespace: REGISTRY_NS }); }
+  const listed = await listedBlobIds(REGISTRY_NS).catch(() => null);
+  try { res = await memwal().recall({ query: 'USER v1 ns registry', limit: Math.max(100, (listed?.size ?? 0) + 20), namespace: REGISTRY_NS }); }
   catch { return []; }
   const out = new Set<string>();
   for (const h of res?.results ?? []) {

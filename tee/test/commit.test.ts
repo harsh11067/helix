@@ -130,10 +130,21 @@ test('sponsor: only a lone helix::journal::commit paid by the sponsor is co-sign
   assert.equal(sponsorRefusal(await bytesOf(commitTx(ADDR, hash, MKT, 1794218400000), sp)), undefined, 'no sponsor configured → never co-signs');
 });
 
-test('sponsor: per-sender daily limit', async () => {
+test('sponsor: per-sender and global limits', async () => {
   __setSponsor(SP);
   const b = await bytesOf(commitTx(ADDR, hash, MKT, 1794218400000), SP.toSuiAddress());
-  for (let i = 0; i < 40; i++) { assert.equal(sponsorRefusal(b), null); await sponsorSign(b); }
-  assert.match(sponsorRefusal(b)!, /daily sponsored-commit limit/);
+  for (let i = 0; i < 30; i++) { assert.equal(sponsorRefusal(b), null); await sponsorSign(b); }
+  assert.match(sponsorRefusal(b)!, /sponsoring many commits right now/, 'global hourly cap (30) applies before the per-sender daily cap');
+  __setSponsor(null);
+});
+
+test('sponsor: fresh addresses cannot bypass the global hourly cap', async () => {
+  __setSponsor(SP);
+  for (let i = 0; i < 30; i++) {
+    const b = await bytesOf(commitTx(Ed25519Keypair.generate().toSuiAddress(), hash, MKT, 1794218400000), SP.toSuiAddress());
+    assert.equal(sponsorRefusal(b), null); await sponsorSign(b);
+  }
+  const b = await bytesOf(commitTx(Ed25519Keypair.generate().toSuiAddress(), hash, MKT, 1794218400000), SP.toSuiAddress());
+  assert.match(sponsorRefusal(b)!, /sponsoring many commits right now/);
   __setSponsor(null);
 });

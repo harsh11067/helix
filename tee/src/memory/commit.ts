@@ -114,6 +114,9 @@ async function commitsByUncached(owner: string, max: number): Promise<CommitEven
 // sponsor, the budget is capped, and the sender is under a daily limit.
 export const SPONSOR_GAS_BUDGET = 4_000_000;      // MIST; a commit only emits an event
 const SPONSOR_DAILY_LIMIT = Number(process.env.SPONSOR_DAILY_LIMIT ?? 40);
+// global cap: fresh addresses cost nothing to make, so the per-sender limit alone cannot stop a drain
+const SPONSOR_HOURLY_LIMIT = Number(process.env.SPONSOR_HOURLY_LIMIT ?? 30);
+const sponsoredAll: number[] = [];
 let sponsorKp: Ed25519Keypair | null | undefined;
 export function sponsor(): Ed25519Keypair | null {
   if (sponsorKp !== undefined) return sponsorKp;
@@ -124,7 +127,7 @@ export function sponsor(): Ed25519Keypair | null {
 }
 export const sponsorAddress = () => sponsor()?.toSuiAddress() ?? null;
 /** Test hook. */
-export function __setSponsor(kp: Ed25519Keypair | null): void { sponsorKp = kp; sponsoredBy.clear(); }
+export function __setSponsor(kp: Ed25519Keypair | null): void { sponsorKp = kp; sponsoredBy.clear(); sponsoredAll.length = 0; }
 
 const sponsoredBy = new Map<string, number[]>();
 function underDailyLimit(sender: string, now = Date.now()): boolean {
@@ -152,6 +155,9 @@ export function sponsorRefusal(txBytesB64: string): string | null | undefined {
   const sender = normalizeSuiAddress(data.sender ?? '');
   if (sender === sp) return 'sponsor cannot be the sender';
   if (!underDailyLimit(sender)) return `daily sponsored-commit limit reached (${SPONSOR_DAILY_LIMIT}); fund this address with testnet SUI to keep committing`;
+  const now = Date.now();
+  while (sponsoredAll.length && now - sponsoredAll[0] > 3_600_000) sponsoredAll.shift();
+  if (sponsoredAll.length >= SPONSOR_HOURLY_LIMIT) return 'HELIX is sponsoring many commits right now; fund this address with testnet SUI or try again later';
   return null;
 }
 
@@ -162,5 +168,6 @@ export async function sponsorSign(txBytesB64: string): Promise<string> {
   const data: any = Transaction.from(txBytesB64).getData();
   const sender = normalizeSuiAddress(data.sender);
   sponsoredBy.set(sender, [...(sponsoredBy.get(sender) ?? []), Date.now()]);
+  sponsoredAll.push(Date.now());
   return (await kp.signTransaction(Uint8Array.from(Buffer.from(txBytesB64, 'base64')))).signature;
 }
