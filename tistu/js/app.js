@@ -552,7 +552,7 @@ async function onCommit(el) {
       <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${res.digest} · sha256 ${c.hash}</div>
       <div id="mem-out" class="muted" style="margin-top:12px"><span class="sdot pending"></span> verifying the commit and writing a CONVICTION memory to Walrus (mainnet)…</div></div>`;
     toast('Conviction committed', 'hash on Sui · executed via Tatum', 'alive');
-    pollConvictionMemory($('#mem-out', el), res.digest, c.market.expiryMs);
+    pollConvictionMemory($('#mem-out', el), res.digest, c.market.expiryMs, c.text);
   } catch (e) {
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)">
       <b style="color:var(--coral)">Not committed</b><div class="muted" style="margin-top:6px">${escapeHtml(e.message || 'rejected')}</div></div>`;
@@ -625,9 +625,11 @@ async function awaitReveal(node, digest, expiryMs) {
   clearInterval(tick);
   if (node?.isConnected && !node.dataset.revealed) node.innerHTML = `<span class="muted">The result is still being written — it will appear on the <a href="#/memory" style="color:var(--accent-deep)">Memory</a> page.</span>`;
 }
-async function pollConvictionMemory(node, digest, expiryMs) {
+async function pollConvictionMemory(node, digest, expiryMs, commitText) {
   for (let i = 0; i < 24 && node?.isConnected; i++) {
     await new Promise(r => setTimeout(r, 5000));
+    // the server records commits in the background; if it restarted mid-write, record it from here (idempotent)
+    if (i === 9 && commitText) api('/memory/conviction', { address: state.account.address, text: commitText, digest }, { timeoutMs: 120000 }).catch(() => {});
     try {
       const t = await api(`/memory/${state.account.address}`);
       const hit = (t.timeline || []).find(x => x.type === 'CONVICTION' && x.fields?.tx === digest);
@@ -1178,11 +1180,25 @@ function render() {
   const host = $('#view-host'); host.innerHTML = '';
   const built = route.view(m); host.appendChild(built.el);
   if (built.mount) built.mount(built.el);
-  revealObserve(built.el); window.scrollTo(0, 0);
+  revealObserve(built.el); watchReveals(); window.scrollTo(0, 0);
 }
 function revealObserve(root) {
   const io = new IntersectionObserver((es) => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0.12 });
-  (root || document).querySelectorAll('.reveal').forEach(el => io.observe(el));
+  (root || document).querySelectorAll('.reveal:not(.in)').forEach(el => io.observe(el));
+}
+// Views render asynchronously (Memory, Council, Passport, API…): any .reveal added after the route's
+// first paint must be observed too, or it stays at opacity 0 — content in the DOM but invisible.
+let revealMO = null;
+function watchReveals() {
+  const host = $('#view-host');
+  if (!host || revealMO) return;
+  revealMO = new MutationObserver((ms) => {
+    for (const m of ms) for (const n of m.addedNodes) {
+      if (n.nodeType !== 1) continue;
+      if (n.classList?.contains('reveal') || n.querySelector?.('.reveal')) revealObserve(n.parentNode || n);
+    }
+  });
+  revealMO.observe(host, { childList: true, subtree: true });
 }
 
 /* ============================================================ chrome: cursor / theme / wallet */

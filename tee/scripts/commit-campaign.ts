@@ -57,7 +57,16 @@ async function once(i: number): Promise<string> {
   const { signature } = await kp.signTransaction(Uint8Array.from(Buffer.from(cm.txBytes, 'base64')));
   const ex = await call('/tx/execute', { txBytes: cm.txBytes, signatures: [signature] });
   if (!ex.success) throw new Error(`commit tx failed: ${ex.error}`);
-  const mem = await call('/memory/conviction', { address, text: cm.text, digest: ex.digest, origin: 'cli' }, 180_000);
+  // the commit is on-chain now: never re-commit; retry RECORDING this exact text + digest (idempotent) until it lands
+  let mem: any = null;
+  for (let k = 1; !mem; k++) {
+    try { mem = await call('/memory/conviction', { address, text: cm.text, digest: ex.digest, origin: 'cli' }, 180_000); }
+    catch (e) {
+      if (k >= 8) throw new Error(`commit ${ex.digest} landed but its memory could not be recorded: ${(e as Error).message} — text: ${cm.text}`);
+      log(`#${i} recording ${ex.digest} failed (${(e as Error).message.slice(0, 80)}); retrying the same commit in ${15 * k}s`);
+      await new Promise((r) => setTimeout(r, 15_000 * k));
+    }
+  }
   log(`#${i} ${o.kind} ${o.label} · conf ${g.confidence} · ${c.predict.market.minutesLeft.toFixed(1)}m · commit ${ex.digest} → blob ${mem.blob_id}`);
   return ex.digest;
 }
