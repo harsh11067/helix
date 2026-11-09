@@ -24,6 +24,7 @@ export interface AskData {
 // ---------------------------------------------------------------- formatting
 const pct = (p: number | null | undefined) => (p == null || !Number.isFinite(p) ? 'n/a' : `${Math.round(p * 100)}%`);
 const b2 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? 'n/a' : x.toFixed(2));
+const calls = (n: number, word = 'calls') => `${n} ${n === 1 ? word.replace(/s$/, '') : word}`;
 const pts = (x: number) => `${Math.round(Math.abs(x) * 100)} points`;
 const DIR: Record<string, string> = { up: 'bullish', down: 'bearish', neutral: 'neutral' };
 const BAND: Record<string, string> = { high: 'high-confidence', mid: 'medium-confidence', low: 'low-confidence' };
@@ -134,7 +135,7 @@ export const TEMPLATES: Template[] = [
       if (!vs.length) return done('trust_voice', `No voice has ${MIN_N} scored calls ${where} yet (${st.n} settled), so I can't rank them honestly.`, cite(ofSettled(xs)), st.n);
       const top = vs[0];
       return done('trust_voice',
-        `${where[0].toUpperCase()}${where.slice(1)} (${st.n} settled calls), the most accurate voice was ${VOICE_LABEL[top.k]}: Brier ${b2(top.brier)} over ${top.n} calls (lower is better).`
+        `${where[0].toUpperCase()}${where.slice(1)} (${calls(st.n, 'settled calls')}), the most accurate voice was ${VOICE_LABEL[top.k]}: Brier ${b2(top.brier)} over ${calls(top.n)} (lower is better).`
         + (vs.length > 1 ? ` Then ${vs.slice(1).map((v) => `${VOICE_LABEL[v.k]} ${b2(v.brier)} (n=${v.n})`).join(', ')}.` : ''),
         cite(ofSettled(xs)), st.n);
     },
@@ -147,10 +148,10 @@ export const TEMPLATES: Template[] = [
       const week = c.S.filter((s) => s.row.ts >= cut), before = c.S.filter((s) => s.row.ts < cut);
       if (!week.length) return null;
       const w = stats(week);
-      if (!before.length) return done('trend_week', `All ${w.n} of your settled calls are from the last 7 days, so there's no earlier period to compare yet. This week: Brier ${b2(w.brier.you)}, stated ${pct(w.mean_p_you)} vs remembered win rate ${pct(w.posterior)}.`, cite(ofSettled(week)), w.n);
+      if (!before.length) return done('trend_week', `${w.n === 1 ? 'Your only settled call is' : `All ${w.n} of your settled calls are`} from the last 7 days, so there's no earlier period to compare yet. This week: Brier ${b2(w.brier.you)}, stated ${pct(w.mean_p_you)} vs remembered win rate ${pct(w.posterior)}.`, cite(ofSettled(week)), w.n);
       const p = stats(before), diff = (w.brier.you ?? 0) - (p.brier.you ?? 0);
       return done('trend_week',
-        `Last 7 days: Brier ${b2(w.brier.you)} over ${w.n} calls${noisy(w.n)}. Before that: Brier ${b2(p.brier.you)} over ${p.n}. Your calibration ${Math.abs(diff) < 0.005 ? 'held steady' : diff < 0 ? `improved by ${b2(-diff)}` : `got worse by ${b2(diff)}`} (lower Brier is better).`,
+        `Last 7 days: Brier ${b2(w.brier.you)} over ${calls(w.n)}${noisy(w.n)}. Before that: Brier ${b2(p.brier.you)} over ${p.n}. Your calibration ${Math.abs(diff) < 0.005 ? 'held steady' : diff < 0 ? `improved by ${b2(-diff)}` : `got worse by ${b2(diff)}`} (lower Brier is better).`,
         cite(ofSettled([...week, ...before])), w.n + p.n);
     },
   },
@@ -161,7 +162,7 @@ export const TEMPLATES: Template[] = [
       if (!c.S.length) return null;
       const st = stats(c.S);
       return done('record',
-        `You have ${st.n} settled calls and won ${st.wins} (${pct(st.realized)}); your remembered win rate is ${pct(st.posterior)}. Your Brier is ${b2(st.brier.you)} against the Predict market's ${b2(st.brier.market)} on the same calls (lower is better).`,
+        `You have ${calls(st.n, 'settled calls')} and won ${st.wins} (${pct(st.realized)}); your remembered win rate is ${pct(st.posterior)}. Your Brier is ${b2(st.brier.you)} against the Predict market's ${b2(st.brier.market)} on the same calls (lower is better).`,
         cite(ofSettled(c.S)), st.n);
     },
   },
@@ -174,7 +175,7 @@ export const TEMPLATES: Template[] = [
       const closer = c.S.filter((s) => (s.row.p_you - s.row.won) ** 2 < (s.row.p_mkt - s.row.won) ** 2).length;
       const beats = (st.brier.you ?? 1) < (st.brier.market ?? 0);
       return done('vs_market',
-        `${beats ? 'Yes' : 'Not yet'}: your Brier is ${b2(st.brier.you)} vs the Predict market's ${b2(st.brier.market)} over ${st.n} settled calls (lower is better). You were closer than the market on ${closer} of ${st.n} calls.`,
+        `${beats ? 'Yes' : 'Not yet'}: your Brier is ${b2(st.brier.you)} vs the Predict market's ${b2(st.brier.market)} over ${calls(st.n, 'settled calls')} (lower is better). You were closer than the market on ${closer} of ${st.n} calls.`,
         cite(ofSettled(c.S)), st.n);
     },
   },
@@ -216,7 +217,7 @@ export const TEMPLATES: Template[] = [
       const pool = (eligible.length ? eligible : agents).sort((a, b) => a.st.brier.you! - b.st.brier.you!);
       const top = pool[0];
       return done('council',
-        `${c.asset && c.asset !== 'BTC' ? `On ${c.asset}, the` : 'The'} most reliable Council agent so far is ${top.name}: Brier ${b2(top.st.brier.you)} over ${top.st.n} settled calls (won ${top.st.wins}).`
+        `${c.asset && c.asset !== 'BTC' ? `On ${c.asset}, the` : 'The'} most reliable Council agent so far is ${top.name}: Brier ${b2(top.st.brier.you)} over ${calls(top.st.n, 'settled calls')} (won ${top.st.wins}).`
         + (pool.length > 1 ? ` Then ${pool.slice(1).map((a) => `${a.name} ${b2(a.st.brier.you)} (n=${a.st.n})`).join(', ')}.` : '')
         + (eligible.length ? '' : ` No agent has ${MIN_N} settled calls yet, so this is noisy.`),
         cite(agents.flatMap((a) => ofSettled(a.S.slice(-2)))), agents.reduce((s, a) => s + a.st.n, 0));

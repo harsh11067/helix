@@ -25,6 +25,7 @@ import { crowdMarketFor } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
 import { paidRoutes } from '../agents/paid.ts';
 import { passportOnchainRoutes } from '../passport/onchain/routes.ts';
+import { askRoutes } from '../ask/routes.ts';
 import { boardFor } from '../memory/board.ts';
 import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts';
 import { councilRoutes } from '../council/routes.ts';
@@ -198,6 +199,7 @@ export function makeServer() {
     // F1 live proof ticker, from chain events
     'GET /proof/ticker': () => ticker(),
     ...passportOnchainRoutes(),
+    ...askRoutes(),
   });
 }
 
