@@ -61,12 +61,33 @@ function needAddr(a: unknown): string {
 let healthCache: { at: number; v: any } | null = null;
 // Render injects the deployed commit; exposing it makes a stale or rolled-back deploy visible.
 const RUNNING_COMMIT = (process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? '').slice(0, 7) || null;
+// G-06: gas for every signer HELIX runs (judge sponsor, Council agents, allocator, operator), low below 0.05 SUI
+let gasCache: { at: number; v: any } | null = null;
+async function gasHealth() {
+  if (gasCache && Date.now() - gasCache.at < 60_000) return gasCache.v;
+  const signers: Record<string, string | null> = { sponsor: sponsorAddress(), operator: process.env.DEMO_ADDRESS?.trim() ?? null };
+  for (const a of council.agents) signers[`agent:${a.name}`] = a.address;
+  const alloc = (await import('../council/allocator.ts').catch(() => null))?.allocatorKey()?.toSuiAddress();
+  if (alloc) signers.allocator = alloc;
+  const out: Record<string, number | null> = {};
+  for (const [k, a] of Object.entries(signers)) {
+    if (!a) continue;
+    const r: any = await gql('testnet', `query($a:SuiAddress!){ address(address:$a){ balance(coinType:"0x2::sui::SUI"){ totalBalance } } }`, { a }).catch(() => null);
+    const b = r?.data?.address?.balance?.totalBalance;
+    out[k] = b == null ? null : Number(b) / 1e9;
+  }
+  const v = { sui: out, low: Object.entries(out).filter(([, b]) => b != null && b < 0.05).map(([k]) => k), threshold_sui: 0.05 };
+  gasCache = { at: Date.now(), v };
+  return v;
+}
+
 async function health() {
   if (healthCache && Date.now() - healthCache.at < 15_000) return healthCache.v;
   const base: any = { ok: true, agent: 'compiler', commit: RUNNING_COMMIT, gas_sponsor: sponsorAddress(), mockTee: MOCK_TEE, offline: offline(),
     council: { enabled: council.enabled, agents: council.agents.length, last_error: council.lastError },
     council_last_commit_age_s: council.lastCommitAt ? Math.round((Date.now() - council.lastCommitAt) / 1000) : null,
     memory_writes: { last_hour: writesLastHour(), cap_per_hour: writeStats.maxPerHour, waited: writeStats.waited } };
+  if (!offline()) base.gas = await gasHealth().catch((e) => ({ error: (e as Error).message }));
   if (offline()) return { ...base, memwal: 'mock' };
   const [tn, mn, mw] = await Promise.all([
     latestCheckpoint('testnet').catch((e) => ({ error: (e as Error).message })),
