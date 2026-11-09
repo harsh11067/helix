@@ -18,8 +18,8 @@ export const COUNCIL_ADDRESSES = new Set([
   '0x97dd8db5d9e2c5a88fd64ec36e6bcebecc97a561f265156100b54eed9be2fa3f', // surface
   '0x392a02dbb7829a518da3522feb621a9c2706f8010b0c4822aa29ed9a4df1a746', // crowd
 ]);
-/** Brier for a forecaster with nothing settled: unknown is scored as the worst case, never as 0. */
-export const UNSCORED_BRIER_BPS = 10_000;
+/** Brier for a forecaster with nothing settled: 0.25, the score of a coin flip (as Lane A's endpoint), never 0. */
+export const UNSCORED_BRIER_BPS = 2_500;
 
 export interface PassportStats {
   n_settled: number; wins: number; brier_bps: number; gap_bps: number; gap_negative: boolean; hidden: number; badges: number;
@@ -40,7 +40,7 @@ export function statsFromTimeline(t: any, settledRows: (recs: MemRecord[]) => { 
   const recs: MemRecord[] = (t.timeline ?? []).map((e: any) => ({ type: e.type, version: 1, f: e.fields ?? {}, text: e.text ?? '', blob_id: e.blob_id, created_at: e.created_at }));
   const rows = settledRows(recs);
   const contrarian_wins = rows.filter((r) => r.won === 1 && r.p_mkt < 0.5).length;
-  const losses = Math.max(0, Number(c.settled ?? 0) - Number(c.wins ?? 0));
+  const losses = Math.max(0, o.n - o.wins);   // settled losses, as Lane A's passport summary counts them
   const hidden = c.missing_memory;
   return {
     n_settled: o.n, wins: o.wins, brier_bps, gap_bps: toBps(Math.abs(gap)), gap_negative: gap < 0, hidden,

@@ -125,7 +125,7 @@ test('passport mock: stats come from the memory timeline and the commit ledger',
   assert.equal(council.badges, BADGE.COUNCIL_MEMBER);
 });
 
-test('passport mock: unscored is the worst Brier, never 0; an unreadable ledger is an error, never hidden=0', () => {
+test('passport mock: unscored is a coin-flip Brier (2500 bps), never 0; an unreadable ledger is an error, never hidden=0', () => {
   const empty = { overall: { n: 0, wins: 0, brier: { you: null }, gap_you: null }, commits: { missing_memory: 0, settled: 0, wins: 0 }, timeline: [] };
   const s = statsFromTimeline(empty, settledRows);
   assert.equal(s.brier_bps, UNSCORED_BRIER_BPS);
@@ -150,6 +150,23 @@ test('passport mock: signed with the configured attestor, LANES.md §0 shape, sh
     await assert.rejects(checkAttestation(r, r.fields.ns, OWNER, null, now), /attestor key/);
     await checkAttestation(r, r.fields.ns, OWNER, r.pubkey_hex, now);
   } finally { __setAttestor(null); }
+});
+
+test('passport attestation: Lane A\'s endpoint encoder and signer produce the same bytes as this one', async () => {
+  const A = await import('../src/passport/offchain/attest.ts');
+  const kp = Ed25519Keypair.generate();
+  A.__setAttestationKey(kp);
+  try {
+    for (const f of [fields(), CASES.claim, CASES.bob, fields({ n_settled: 0, wins: 0, brier_bps: 2500, gap_bps: 0, badges: 0, ns: 'helix-v1-4d922636976d' })]) {
+      const theirs = await A.signAttestation(f);
+      const ours = await signAttestation(f, kp);
+      assert.equal(theirs.payload_b64, ours.payload_b64);
+      assert.equal(theirs.sig_b64, ours.sig_b64);
+      assert.equal(await attestationProblem(theirs as any, ours.pubkey_hex), null);
+    }
+    const inputs = { n: 25, brier: 0.19, losses: 15, hidden: 0, contrarianWins: 6, councilMember: true, assetsWith3: 2 };
+    assert.equal(A.badgeMask(inputs), badgesFor({ n: 25, brier_bps: 1900, losses: 15, hidden: 0, contrarian_wins: 6, council: true, assets_with_n3: 2 }));
+  } finally { A.__setAttestationKey(null); }
 });
 
 // ---------------------------------------------------------------- transactions + sponsor predicate
