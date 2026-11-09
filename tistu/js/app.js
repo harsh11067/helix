@@ -336,6 +336,7 @@ function mountCanvas(el) {
   async function doCompile() {
     const conv = readConv(s); state.conv = conv;
     const box = $('#compiled', el);
+    if (state.demoPending && !state.account) { box.innerHTML = `<div class="muted" style="padding:24px 0"><span class="sdot pending"></span> loading the demo trader's Walrus memory…</div>`; return; }
     if (!box.dataset.ready) box.innerHTML = `<div class="muted" style="padding:24px 0"><span class="sdot pending"></span> compiling against the live DeepBook Predict pricer${state.account ? ' and your Walrus memory' : ''}…</div>`;
     try {
       const r = await compileConviction(conv);
@@ -347,6 +348,8 @@ function mountCanvas(el) {
       const ph = $('#payoff', el); if (ph) ph.innerHTML = '';
       box.dataset.ready = '';
       box.innerHTML = compileError(e);
+      // between Predict windows (quarter-hour roll): the next one opens within a minute — retry by itself
+      if (/no open DeepBook Predict|runway/i.test(e.message || '')) setTimeout(() => { if (el.isConnected && !box.dataset.ready) doCompile(); }, 10000);
     }
   }
   Object.values(s).forEach(x => x.addEventListener('input', schedule));
@@ -1243,14 +1246,16 @@ function init() {
     if (remembered) { state.wallet = remembered; state.account = remembered.accounts[0]; refreshAccount().then(renderWalletChip); }
   }
   addEventListener('hashchange', render);
+  // Judge Mode: ?demo=1 → load the read-only demo trader first (the Canvas waits for it), then re-render
+  if (demoRequested(location.search)) state.demoPending = true;
   render();
-  // Judge Mode: ?demo=1 → load the read-only demo trader, then re-render with it
-  if (demoRequested(location.search)) {
+  if (state.demoPending) {
     const dl = $('#demo-link'); if (dl) { dl.textContent = 'Exit demo'; dl.href = 'app.html' + location.hash; }
     api('/demo').then(d => {
-      if (!d.address) { toast('Demo trader not configured', 'set DEMO_ADDRESS on the compiler', 'gold'); return; }
-      state.demo = d.address; render();
-    }).catch(err => toast('Demo unavailable', err.message || 'compiler unreachable', 'gold'));
+      if (!d.address) toast('Demo trader not configured', 'set DEMO_ADDRESS on the compiler', 'gold');
+      else state.demo = d.address;
+    }).catch(err => toast('Demo unavailable', err.message || 'compiler unreachable', 'gold'))
+      .finally(() => { state.demoPending = false; render(); });
   }
   const boot = $('#boot'); if (boot) setTimeout(() => boot.classList.add('done'), 520);
   document.body.classList.remove('booting');
