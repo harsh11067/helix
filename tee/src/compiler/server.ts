@@ -152,6 +152,11 @@ export function makeServer() {
       return { namespace: c.namespace, n: c.n, overall: { n: c.overall.n, wins: c.overall.wins, posterior: c.overall.posterior, brier: c.overall.brier }, memory_network: c.memory_network, detail: 'per-bucket detail and lessons: GET /paid/credibility/:address (402, pay-per-call)' };
     },
     'GET /board': () => boardFor(),
+    // Judge Mode: the read-only demo trader (an address is public on-chain; nothing here can sign)
+    'GET /demo': () => {
+      const a = addr(process.env.DEMO_ADDRESS?.trim());
+      return { address: a, readOnly: true, label: process.env.DEMO_LABEL ?? 'HELIX demo trader' };
+    },
     // W6 reasoning memory (opt-in): category + what memory says about it — the text is NOT stored here
     'POST /reason/check': (b) => reasonCheck(needAddr(b.address), String(b.text ?? '').slice(0, 2000)),
     'GET /reason/privacy': () => ({ copy: PRIVACY_COPY, default: 'off' }),

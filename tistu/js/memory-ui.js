@@ -4,6 +4,7 @@
    HELIX compiler. Empty states are honest: no placeholder numbers, ever.
    ============================================================ */
 import { api, apiBase } from './sui.js';
+import { walruscanBlobUrl, shareCardSVG, xIntentUrl } from './share.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (p) => (p == null || !Number.isFinite(p) ? '—' : Math.round(p * 100) + '%');
@@ -93,13 +94,13 @@ function dividendSVG(rows) {
 /* ---------------- the Memory page ---------------- */
 export function viewMemory(ctx) {
   const { state, $, connectPrompt, explorer } = ctx;
+  const addr = ctx.address ?? state.account?.address ?? null;
   const el = document.createElement('div'); el.className = 'view view-enter';
-  if (!state.account) { el.innerHTML = connectPrompt('Your trading memory', 'Connect a wallet to read your convictions, outcomes and calibration from Walrus Memory (mainnet).'); return { el }; }
+  if (!addr) { el.innerHTML = connectPrompt('Your trading memory', 'Connect a wallet to read your convictions, outcomes and calibration from Walrus Memory (mainnet) — or <a href="app.html?demo=1#/memory" style="color:var(--accent-deep)">view the demo trader</a>.'); return { el }; }
   el.innerHTML = `<div id="mem"><div class="muted"><span class="sdot pending"></span> recalling your memory from Walrus (mainnet)…</div></div>`;
   (async () => {
     const host = $('#mem', el);
     try {
-      const addr = state.account.address;
       const [t, div, board] = await Promise.all([
         api(`/memory/${addr}`), api(`/memory/${addr}/dividend`).catch(() => null), api('/board').catch(() => null),
       ]);
@@ -108,9 +109,28 @@ export function viewMemory(ctx) {
       const header = `<div class="row spread reveal" style="flex-wrap:wrap;gap:12px;margin-bottom:16px">
           <div><div style="font-family:var(--serif);font-size:1.9rem;letter-spacing:-.02em">${t.count} memor${t.count === 1 ? 'y' : 'ies'} on Walrus</div>
           <div class="muted mono" style="font-size:11.5px">namespace ${esc(t.namespace)} · ${esc(t.memory_network)} · address never stored in the namespace</div></div>
-          <span class="badge">${o.n || 0} settled · ${o.wins || 0} won</span></div>`;
+          <div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge">${o.n || 0} settled · ${o.wins || 0} won</span>
+          <button class="btn-soft" id="share-btn" data-cursor>${ctx.readOnly ? 'Share this record' : 'Share my record'}</button></div></div>
+          <div id="share-out"></div>`;
+      const banner = ctx.readOnly && ctx.banner ? ctx.banner : '';
+      host.addEventListener('click', (e) => {
+        if (!e.target.closest('#share-btn')) return;
+        const lessons = (t.timeline || []).filter(r => r.type === 'LESSON');
+        const anchor = [...(t.timeline || [])].reverse().find(r => r.type === 'CALIBRATION' || r.type === 'LESSON') || (t.timeline || [])[(t.timeline || []).length - 1];
+        const rec = { namespace: t.namespace, n: o.n || 0, wins: o.wins || 0, nCrowd: o.n_crowd || 0, brier: o.brier || {},
+          lesson: lessons.length ? lessons[lessons.length - 1].fields?.text : null, blobId: anchor?.blob_id, date: new Date().toISOString().slice(0, 10) };
+        const svg = shareCardSVG(rec);
+        const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+        $('#share-out', host).innerHTML = `<div class="panel" style="margin:0 0 18px">
+          <div style="border-radius:12px;overflow:hidden;border:1px solid var(--line)">${svg.replace('width="1200" height="630"', 'width="100%" style="display:block;height:auto"')}</div>
+          <div class="row" style="gap:10px;margin-top:12px;flex-wrap:wrap">
+            <a class="btn-soft" href="${url}" download="helix-record-${esc(t.namespace)}.svg" data-cursor>Download SVG</a>
+            <a class="btn-solid" href="${xIntentUrl(rec, location.origin + location.pathname)}" target="_blank" rel="noopener" data-cursor>Post on X</a>
+            ${rec.blobId ? `<a class="btn-soft" href="${walruscanBlobUrl(rec.blobId)}" target="_blank" rel="noopener" data-cursor>Blob on Walruscan ↗</a>` : ''}</div>
+          <div class="muted mono" style="font-size:10.5px;margin-top:8px">generated in your browser from the recalled memory above · tags @Tatum_io and @WalrusFoundation</div></div>`;
+      });
       if (!t.count) {
-        host.innerHTML = header + `<div class="empty"><h3>No memories yet</h3><p>Mint a conviction on the Canvas. HELIX writes it to Walrus Memory on mainnet, then records the outcome when the market settles — a few minutes later.</p><a class="btn-solid" href="#/canvas" data-cursor>Open the Canvas</a></div>`;
+        host.innerHTML = banner + header + `<div class="empty"><h3>No memories yet</h3><p>Mint a conviction on the Canvas. HELIX writes it to Walrus Memory on mainnet, then records the outcome when the market settles — a few minutes later.</p><a class="btn-solid" href="#/canvas" data-cursor>Open the Canvas</a></div>`;
         return;
       }
       const voices = ['you', 'market', 'helix', 'crowd'].map(k => {
@@ -142,11 +162,11 @@ export function viewMemory(ctx) {
           <div><span class="badge" style="color:${TYPE_COLOR[r.type] || 'var(--ink-2)'}">${r.type}</span><div class="muted mono" style="font-size:10px;margin-top:6px">${f.ts ? new Date(Number(f.ts) * 1000).toISOString().slice(5, 16).replace('T', ' ') : ''}</div></div>
           <div style="min-width:0"><div style="font-size:13.5px;line-height:1.5;overflow-wrap:anywhere">${summary}</div>
             <div class="row" style="gap:12px;margin-top:6px;flex-wrap:wrap;font-size:11px">${tx}
-              <a class="mono" href="https://walruscan.com/mainnet/blob/${encodeURIComponent(r.blob_id)}" target="_blank" rel="noopener" style="color:var(--accent-deep)" title="Walruscan (mainnet)">blob ${shortB(r.blob_id)} ↗</a>
+              <a class="mono" href="${walruscanBlobUrl(r.blob_id)}" target="_blank" rel="noopener" style="color:var(--accent-deep)" title="Walruscan (mainnet)">blob ${shortB(r.blob_id)} ↗</a>
               <button class="mono" data-proof="${esc(r.blob_id)}" style="font-size:11px;color:var(--accent-deep);background:none;border:0;padding:0;cursor:pointer" data-cursor>verify on mainnet ↗</button></div>
             <div class="proof-out" data-for="${esc(r.blob_id)}"></div></div></div>`;
       }).join('');
-      host.innerHTML = header + `
+      host.innerHTML = banner + header + `
         <div class="grid-2 reveal" style="align-items:start;gap:18px">
           <div class="panel"><div class="section-title">who has been right · Brier per voice</div>${voices}
             <div class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.5">${o.n >= 3 && bestK ? `Across ${o.n} settled convictions, <b>${VOICE[bestK]}</b> has been the best-calibrated voice.` : `Scores firm up after 3 settled convictions (n=${o.n || 0}). Lower Brier = better calibrated.`}</div></div>

@@ -17,6 +17,16 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
       - run: cd tee && npm ci && OFFLINE=1 npm test
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Unit tests (share card, Walruscan links, Judge Mode)
+        run: node --test tistu/test/*.test.mjs
+      - name: ES-module syntax check
+        run: for f in tistu/js/*.js; do cp "$f" "/tmp/$(basename "${f%.js}").mjs"; node --check "/tmp/$(basename "${f%.js}").mjs"; done
   indexer:
     runs-on: ubuntu-latest
     steps:

@@ -31,6 +31,8 @@ services:
         value: "1"
       - key: FEATURE_WITNESS
         value: "1"
+      - key: DEMO_ADDRESS
+        value: "0x16a384bb220c70d4590425b14563118b7a05b5fa00dfe55757dba315663c8884"
       - key: KEEPALIVE_URL
         value: https://helix-compiler.onrender.com/healthz
       # secrets — set in the Render dashboard / API, never committed

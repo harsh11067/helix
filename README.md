@@ -17,6 +17,18 @@
 
 ---
 
+## ⚖️ Judges: try in 60 seconds
+
+No wallet needed. (The free-tier compiler may take ~50 s to wake on the first request.)
+
+1. **Open the demo trader:** [helix-app-fovn.onrender.com/app.html?demo=1#/memory](https://helix-app-fovn.onrender.com/app.html?demo=1#/memory) — a real trader's convictions, outcomes, calibration and lessons, recalled live from **Walrus Memory (mainnet)**, read-only.
+2. **Check any memory:** click a blob id → **Walruscan mainnet**; click *verify on mainnet* → the MemWal account read through **Tatum's mainnet gateway** plus the blob from the Walrus mainnet aggregator.
+3. **See memory change the product:** open the **Canvas** (still in demo mode), move the sliders — the compile uses the demo trader's memory: *you set X · memory suggests Y*, the four voices, and the **Memory** line in the risk guardian.
+4. **See Tatum is the chokepoint:** [`/health`](https://helix-compiler.onrender.com/health) shows live testnet + mainnet checkpoints read through Tatum.
+5. **Trade as yourself:** connect a wallet (or Google/zkLogin) — the demo is read-only, so minting unlocks only for your own address.
+
+---
+
 ## 🧠 Total Recall — new during 20 Oct – 10 Nov 2026
 
 HELIX existed before this hackathon (Move package, DeepBook Predict integration, Seal theses, zkLogin). **Everything below was built in the build window** — the commits on branch `total-recall` are the record.

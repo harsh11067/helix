@@ -28,6 +28,7 @@ import {
   uploadToWalrus, fetchFromWalrus, decodeBlobId,
 } from './seal.js';
 import { voicesHTML, memoryBlockHTML, viewMemory } from './memory-ui.js';
+import { demoRequested, viewingAddress, isReadOnly, demoHref, DEMO_BANNER } from './demo.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
@@ -61,8 +62,17 @@ const state = {
   compile: null,         // last compile result (incl. predict / voices / memory / guardian)
   conv: null,            // last conviction
   chosen: { commit: null, useMemoryStructure: false },  // explicit memory acceptances (never silent)
+  demo: null,            // Judge Mode: read-only demo trader address (?demo=1 → GET /demo)
   busy: false,
 };
+// The demo trader is shown read-only; a connected wallet always takes precedence.
+function demoBannerHTML() {
+  if (!isReadOnly(state)) return '';
+  return `<div class="panel" style="margin-bottom:18px;padding:14px 18px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--accent-soft)">
+    <div class="row spread" style="gap:10px;flex-wrap:wrap"><div><b>${DEMO_BANNER}</b> <span class="mono muted" style="font-size:11.5px">${short(state.demo)}</span>
+    <div class="muted" style="font-size:12.5px;margin-top:4px">Compiles and the Memory page use this trader's Walrus memory. Nothing can be signed for it — connect a wallet to trade as yourself.</div></div>
+    <button class="btn-soft" id="demo-connect" data-cursor>Connect a wallet</button></div></div>`;
+}
 
 /* ============================================================ live data */
 async function refreshAccount() {
@@ -149,7 +159,7 @@ async function pickFeeCoin(min) {
 /* ============================================================ compile (real, no fallback) */
 async function compileConviction(conv) {
   // 55s tolerates a free-tier Render cold start (~50s) on the first compile after idle.
-  return api('/compile', { ...conv, address: state.account?.address, currentEpoch: 0 }, { timeoutMs: 55000 });
+  return api('/compile', { ...conv, address: viewingAddress(state), currentEpoch: 0 }, { timeoutMs: 55000 });
 }
 
 /* ============================================================ predict-native vocabulary */
@@ -302,6 +312,7 @@ const HOR = ['~3 min', '~6 min', '~12 min', '~20 min'];
 function viewCanvas() {
   const el = document.createElement('div'); el.className = 'view view-enter';
   el.innerHTML = `
+    <div id="demo-banner">${demoBannerHTML()}</div>
     <div class="grid-2" style="align-items:start">
       <div class="panel ink reveal">
         <div class="section-title">your conviction</div>
@@ -377,11 +388,11 @@ function mountCanvas(el) {
   });
   el.addEventListener('change', (e) => { if (e.target.closest('#reason-optin')) el.dispatchEvent(new Event('input', { bubbles: true })); });
   schedule();
-  window.addEventListener('helix:wallet', () => { if (el.isConnected) doCompile(); });
+  window.addEventListener('helix:wallet', () => { if (!el.isConnected) return; const b = $('#demo-banner', el); if (b) b.innerHTML = demoBannerHTML(); doCompile(); });
   el.addEventListener('click', (e) => {
     if (e.target.closest('#deploy')) onDeploy(el);
     if (e.target.closest('#fund')) onFund(el);
-    if (e.target.closest('#wallet-inline')) openWalletPicker();
+    if (e.target.closest('#wallet-inline') || e.target.closest('#demo-connect')) openWalletPicker();
     if (e.target.closest('#retry')) doCompile();
     if (e.target.closest('#mem-accept-commit')) {
       const m = state.compile?.memory; if (!m) return;
@@ -457,6 +468,9 @@ function renderCompiled(el, r, conv) {
   if (!reduce) { box.style.animation = 'none'; void box.offsetWidth; box.style.animation = ''; } // replay cFade
 }
 function deployControl(commit) {
+  if (!state.account && isReadOnly(state))
+    return `<button class="btn-solid" id="deploy" disabled aria-disabled="true" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed">Bring it to life — read-only demo</button>
+      <button class="btn-soft" id="wallet-inline" data-cursor style="margin-top:10px">Connect a wallet to trade as yourself ${arrow()}</button>`;
   if (!state.account)
     return `<button class="btn-solid" id="wallet-inline" data-cursor>Connect a wallet to bring it to life ${arrow()}</button>`;
   const a = state.acct;
@@ -516,6 +530,7 @@ async function onFund(el) {
   } finally { state.busy = false; }
 }
 async function onDeploy(el) {
+  if (!state.account || isReadOnly(state)) return;   // the demo trader is read-only
   if (state.busy) return; state.busy = true;
   const out = $('#deploy-out', el); const btn = $('#deploy', el);
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
@@ -1057,7 +1072,7 @@ const routes = [
   { id: 'canvas', match: /^#\/(canvas)?$/, title: 'Conviction Canvas', sub: 'express a belief', view: viewCanvas },
   { id: 'strategies', match: /^#\/strategies$/, title: 'My Strategies', sub: 'your living portfolio', view: viewStrategies },
   { id: 'strategies', match: /^#\/strategy\/(.+)$/, title: 'Strategy', sub: 'a living object', view: (m) => viewDetail(m[1]) },
-  { id: 'memory', match: /^#\/memory$/, title: 'Memory', sub: 'who was right · walrus mainnet', view: () => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER }) },
+  { id: 'memory', match: /^#\/memory$/, title: 'Memory', sub: 'who was right · walrus mainnet', view: () => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER, address: viewingAddress(state), readOnly: isReadOnly(state), banner: demoBannerHTML() }) },
   { id: 'risk', match: /^#\/risk$/, title: 'Risk Compass', sub: 'one unified picture', view: viewRisk },
   { id: 'market', match: /^#\/market$/, title: 'Marketplace', sub: 'copy · breed · compete', view: viewMarket },
   { id: 'lineage', match: /^#\/lineage$/, title: 'Lineage', sub: 'genetic ancestry', view: viewLineage },
@@ -1174,6 +1189,7 @@ function build() {
             <button role="radio" data-theme-val="light" aria-label="Light" data-cursor><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
             <button role="radio" data-theme-val="dark" aria-label="Dark" data-cursor><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
           </div>
+          <a class="btn-soft" id="demo-link" href="${demoHref()}" data-cursor title="Explore a real trader's Walrus memory read-only — no wallet needed">View demo trader</a>
           <button class="btn-soft" id="wallet" data-cursor>Connect wallet</button>
         </div>
       </div>
@@ -1210,6 +1226,14 @@ function init() {
   }
   addEventListener('hashchange', render);
   render();
+  // Judge Mode: ?demo=1 → load the read-only demo trader, then re-render with it
+  if (demoRequested(location.search)) {
+    const dl = $('#demo-link'); if (dl) { dl.textContent = 'Exit demo'; dl.href = 'app.html' + location.hash; }
+    api('/demo').then(d => {
+      if (!d.address) { toast('Demo trader not configured', 'set DEMO_ADDRESS on the compiler', 'gold'); return; }
+      state.demo = d.address; render();
+    }).catch(err => toast('Demo unavailable', err.message || 'compiler unreachable', 'gold'));
+  }
   const boot = $('#boot'); if (boot) setTimeout(() => boot.classList.add('done'), 520);
   document.body.classList.remove('booting');
 }
