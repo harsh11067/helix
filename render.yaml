@@ -35,6 +35,8 @@ services:
         value: "0x16a384bb220c70d4590425b14563118b7a05b5fa00dfe55757dba315663c8884"
       - key: KEEPALIVE_URL
         value: https://helix-compiler.onrender.com/healthz
+      - key: HELIX_JOURNAL_PACKAGE
+        value: "0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f"
       # secrets — set in the Render dashboard / API, never committed
       - key: TATUM_API_KEY
         sync: false

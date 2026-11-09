@@ -43,7 +43,7 @@ secondary DeepBook Predict.
 | **Source (GitHub)** | https://github.com/harsh11067/helix |
 | **App (frontend)** | https://helix-app-fovn.onrender.com/ |
 | **Compiler (TEE) health** | https://helix-compiler.onrender.com/health |
-| **Latest package on explorer** | https://suiscan.xyz/testnet/object/0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0 |
+| **Latest package on explorer** | https://suiscan.xyz/testnet/object/0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f |
 | **Original package on explorer** | https://suiscan.xyz/testnet/object/0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3 |
 | **DeepBook Predict (source)** | https://github.com/MystenLabs/deepbookv3/tree/predict-testnet-4-16/packages/predict |
 
@@ -52,7 +52,7 @@ secondary DeepBook Predict.
 ## 📦 PACKAGE ID (use this)
 
 ```
-LATEST (published-at, v4) : 0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0
+LATEST (published-at, v5) : 0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f
 ORIGINAL (original-id, v1): 0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3
 ```
 
@@ -65,7 +65,7 @@ ORIGINAL (original-id, v1): 0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285
 
 ## 🧬 HELIX Move package — upgrade lineage
 
-Published once, upgraded three times (every upgrade is **compatible** — additive
+Published once, upgraded four times (every upgrade is **compatible** — additive
 only — so the original ID and all prior proofs remain valid).
 
 | Ver | `published-at` (package ID) | Change | Upgrade / publish tx digest |
@@ -73,7 +73,8 @@ only — so the original ID and all prior proofs remain valid).
 | v1 | `0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3` | Initial publish (16 modules, real Predict linkage) | `Ch1pgaKi8Cy3tTwmzCUGsn2mGeLdvKond7Xx522Ws9oG` |
 | v2 | `0x96b36ef86f445b525eccaa5410a2c6cebe6c6dff85c86fbfee9914581b0ad391` | Add `helix::seal_policy` (Seal access policy + `attach_thesis`) | `9H4PxNX2SNYH1LpV86uXw1ygSyDk5FbLoTcNG7sGWxcY` |
 | v3 | `0x360d7b40481dee15e97209e8bbd2e82884a94582059ea230c00eb5ea745f581d` | Add `marketplace::copy_for_thesis` (cross-wallet pay-to-unlock) | `BMmj4MRZRWQwewcrbxbtSZxDk3xmxQMxCPLTU55meZ7b` |
-| **v4** | **`0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0`** | Fix `seal_approve_copier` (drop owner's owned object so a copier can decrypt) | `BfLv838F5Ru64DnHcY4rvYWQrPt5FXMyeoEVtBMbYDBC` |
+| v4 | `0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0` | Fix `seal_approve_copier` (drop owner's owned object so a copier can decrypt) | `BfLv838F5Ru64DnHcY4rvYWQrPt5FXMyeoEVtBMbYDBC` |
+| **v5** | **`0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f`** | Add `helix::journal` (commit–reveal for Commit mode: `commit(hash, market, expiry_ms, &Clock)` emits `ConvictionCommitted`; past expiry aborts). Upgraded via the TS SDK, executed through Tatum (`tee/scripts/upgrade-helix.ts`) | `AWpCudoL97WSbAqeYxAepDGVodVdjoWmUYFKK3RTtLsw` |
 
 **Supporting objects**
 
@@ -83,9 +84,11 @@ only — so the original ID and all prior proofs remain valid).
 | `AdminCap` | `0xf523ce5c7d14d1dc222e75fa3ddaa13c46db53847206ff45b0b718b8a2542238` | init-minted to deployer |
 | Deployer address | `0x16a384bb220c70d4590425b14563118b7a05b5fa00dfe55757dba315663c8884` | publisher / upgrader |
 
-**16 modules:** `access_control, breeding, compiler_bridge, compose_adapter,
-conviction_tree, dna, events, hedger_bridge, leg_factory, marketplace,
+**17 modules:** `access_control, breeding, compiler_bridge, compose_adapter,
+conviction_tree, dna, events, hedger_bridge, journal, leg_factory, marketplace,
 portfolio_risk, predict_adapter, seal_policy, signed, strategy, walrus_adapter`.
+
+> `journal` (and its `ConvictionCommitted` event) is first defined in **v5**, so v5 is both its call target and its event type identity.
 
 ---
 

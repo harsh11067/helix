@@ -22,3 +22,4 @@ contracts/traces/
 # hackathon secret drop (Tatum / MemWal) — never commit
 toss.env
 *.secret.env
+tee/data/
