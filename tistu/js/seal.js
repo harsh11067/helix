@@ -15,10 +15,10 @@
      • The seal_policy module was added in the compatible upgrade, so every
        seal_policy call AND the ThesisAttached event use the LATEST package id.
    ============================================================ */
-import { SealClient, SessionKey, getAllowlistedKeyServers }
-  from 'https://esm.sh/@mysten/seal@0.4.18?deps=@mysten/sui@1.30.0';
-import { Transaction } from 'https://esm.sh/@mysten/sui@1.30.0/transactions';
-import { fromHex } from 'https://esm.sh/@mysten/sui@1.30.0/utils';
+import { SealClient, SessionKey }
+  from 'https://esm.sh/@mysten/seal@1.5.4?deps=@mysten/sui@2.39.1';
+import { Transaction } from 'https://esm.sh/@mysten/sui@2.39.1/transactions';
+import { fromHex } from 'https://esm.sh/@mysten/sui@2.39.1/utils';
 
 // Three distinct package ids — do NOT collapse them (Sui upgrade semantics):
 //   PKG_ORIGINAL  (v1) — Seal encryption identity namespace + SessionKey packageId.
@@ -47,10 +47,16 @@ export const SEAL_EVENT_TYPES = [
   `${PKG_LATEST}::seal_policy::ThesisAttached`,
 ];
 
+// Mysten's two open-mode testnet key servers (Seal 1.x takes ids explicitly; both
+// verified on-chain as `key_server::KeyServer` objects).
+const KEY_SERVERS = [
+  '0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75',
+  '0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8',
+];
 function makeClient(suiClient) {
   return new SealClient({
     suiClient,
-    serverConfigs: getAllowlistedKeyServers('testnet').map(id => ({ objectId: id, weight: 1 })),
+    serverConfigs: KEY_SERVERS.map(id => ({ objectId: id, weight: 1 })),
     verifyKeyServers: false,
   });
 }
@@ -95,9 +101,9 @@ export function addAttachThesis(tx, strategyId, blobId) {
 // wallet; `copyRelationshipId` (optional) uses the copier access path.
 export async function decryptThesis(suiClient, address, signPersonalMessage, ciphertext, strategyId, copyRelationshipId) {
   const client = makeClient(suiClient);
-  const sk = new SessionKey({ address, packageId: PKG_ORIGINAL, ttlMin: 10, suiClient });
+  const sk = await SessionKey.create({ address, packageId: PKG_ORIGINAL, ttlMin: 10, suiClient });
   const { signature } = await signPersonalMessage(sk.getPersonalMessage());
-  sk.setPersonalMessageSignature(signature);
+  await sk.setPersonalMessageSignature(signature);
 
   const tx = new Transaction();
   const idArg = tx.pure.vector('u8', Array.from(fromHex(idHex(strategyId))));

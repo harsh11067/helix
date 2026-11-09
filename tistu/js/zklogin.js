@@ -33,8 +33,9 @@
    public API key → add Google as an auth provider with the SAME client id above →
    add your app origin(s) to the allow-list.
    ============================================================ */
-import { Ed25519Keypair } from 'https://esm.sh/@mysten/sui@1.30.0/keypairs/ed25519';
-import { getZkLoginSignature } from 'https://esm.sh/@mysten/sui@1.30.0/zklogin';
+import { Ed25519Keypair } from 'https://esm.sh/@mysten/sui@2.39.1/keypairs/ed25519';
+import { getZkLoginSignature } from 'https://esm.sh/@mysten/sui@2.39.1/zklogin';
+import { fromBase64 } from 'https://esm.sh/@mysten/sui@2.39.1/utils';
 
 const ENOKI_URL = 'https://api.enoki.mystenlabs.com/v1';
 const NETWORK = (typeof window !== 'undefined' && window.HELIX_ENOKI_NETWORK) || 'testnet';
@@ -89,7 +90,7 @@ function decodeJwt(jwt) { return b64urlToJson(jwt.split('.')[1]); }
 
 /* (1) begin: fresh ephemeral key, ask Enoki for a nonce (it pins maxEpoch +
    randomness), stash across the redirect, go to Google. */
-export async function beginGoogleLogin(suiClient, redirectUri) {
+export async function beginGoogleLogin(_unused, redirectUri) {
   if (!zkConfigured()) throw new Error('zkLogin not configured (HELIX_GOOGLE_CLIENT_ID)');
   const eph = Ed25519Keypair.generate();
   const ephemeralPublicKey = eph.getPublicKey().toSuiPublicKey();
@@ -112,7 +113,7 @@ export async function beginGoogleLogin(suiClient, redirectUri) {
 
 /* (2) complete: call on load. If Google redirected back with a JWT in the URL
    fragment, finish: Enoki gives salt+address and the ZK proof; persist session. */
-export async function completeGoogleLoginIfPresent(suiClient) {
+export async function completeGoogleLoginIfPresent() {
   const h = window.location.hash || '';
   if (!h.includes('id_token=')) return null;
   const frag = new URLSearchParams(h.replace(/^#/, ''));
@@ -165,34 +166,28 @@ export function loadSession() {
 }
 export function clearSession() { try { store.removeItem(SS); } catch (e) {} }
 
-/* (3) sign + execute a Transaction with the assembled zkLogin signature.
-   Returns the same shape the wallet path returns (digest / effects / objectChanges
-   / events) so every downstream flow (mint, breed, list) works unchanged. */
-export async function zkSignAndExecute(suiClient, session, tx) {
+/* (3) sign pre-built transaction bytes with the assembled zkLogin signature.
+   The bytes are built through the HELIX compiler (→ Tatum) and the signed result is
+   executed there too, so zkLogin and wallet users take the same chokepoint.
+   `epochNow()` reads the current epoch through the same proxy. */
+export async function zkSignBytes(session, bytesB64, epochNow) {
   // maxEpoch guard: a zkLogin proof is only valid while currentEpoch <= maxEpoch.
   // An expired proof produces the SAME "Groth16 proof verify failed" surface as a
   // bad input, so fail with a clear, actionable error (re-login) instead.
   try {
-    const { epoch } = await suiClient.getLatestSuiSystemState();
+    const epoch = await epochNow();
     if (Number(epoch) > Number(session.maxEpoch)) {
       throw new Error(`zkLogin session expired (epoch ${epoch} > maxEpoch ${session.maxEpoch}). Sign in with Google again.`);
     }
     if (ZK_DEBUG) console.log('[zkLogin] sign — epoch', Number(epoch), 'maxEpoch', session.maxEpoch, '| sender', session.address);
   } catch (e) {
-    if (/session expired/.test(e.message)) throw e; // re-throw our guard; ignore RPC hiccups
+    if (/session expired/.test(e.message)) throw e; // re-throw our guard; ignore read hiccups
   }
-  tx.setSender(session.address);
   const eph = Ed25519Keypair.fromSecretKey(session.secret);
-  const { bytes, signature: userSignature } = await tx.sign({ client: suiClient, signer: eph });
-  const zkSignature = getZkLoginSignature({
+  const { signature: userSignature } = await eph.signTransaction(fromBase64(bytesB64));
+  return getZkLoginSignature({
     inputs: { ...session.proof, addressSeed: session.addressSeed },
     maxEpoch: session.maxEpoch,
     userSignature,
   });
-  const res = await suiClient.executeTransactionBlock({
-    transactionBlock: bytes, signature: zkSignature,
-    options: { showEffects: true, showObjectChanges: true, showEvents: true },
-  });
-  await suiClient.waitForTransaction({ digest: res.digest });
-  return res;
 }

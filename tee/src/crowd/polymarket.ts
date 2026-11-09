@@ -26,8 +26,9 @@ const cache = new Map<string, { at: number; v: CrowdMarket | null }>();
 async function fetchSlug(slug: string, attempt = 0): Promise<CrowdMarket | null> {
   const hit = cache.get(slug);
   if (hit && Date.now() - hit.at < 15_000) return hit.v;
+  // some networks reset connections to Polymarket's CDN intermittently: retry with backoff
   try { return await fetchSlugOnce(slug); }
-  catch (e) { if (attempt < 1) { await new Promise((r) => setTimeout(r, 400)); return fetchSlug(slug, attempt + 1); } throw e; }
+  catch (e) { if (attempt < 2) { await new Promise((r) => setTimeout(r, 300 + attempt * 500)); return fetchSlug(slug, attempt + 1); } throw e; }
 }
 
 async function fetchSlugOnce(slug: string): Promise<CrowdMarket | null> {
@@ -66,7 +67,10 @@ export async function crowdVoice(m: LiveMarket, order: PredictOrder, pv: PricerV
   if (!enabled()) return { status: 'disabled', reason: 'FEATURE_CROWD off' };
   let cm: CrowdMarket | null;
   try { cm = await crowdMarketFor(m.expiryMs); }
-  catch (e) { return { status: 'unavailable', reason: `Polymarket unreachable (${(e as Error).message.slice(0, 60)})` }; }
+  catch (e) {
+    console.warn('[crowd] polymarket fetch', (e as Error).message, (e as any).cause?.code ?? '', (e as any).cause?.message ?? '');
+    return { status: 'unavailable', reason: `Polymarket unreachable (${(e as Error).message.slice(0, 60)})` };
+  }
   if (!cm) return { status: 'unavailable', reason: 'no Polymarket BTC Up/Down market for this window' };
   const base = { slug: cm.slug, url: cm.source_url, p_up: cm.p_up };
   if (Math.abs(cm.end_ts * 1000 - m.expiryMs) > 60_000) return { status: 'not_comparable', reason: 'horizons differ — not compared', ...base };

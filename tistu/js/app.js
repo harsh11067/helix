@@ -2,55 +2,54 @@
    HELIX — dApp shell (vanilla ES module, inherits tistu design language)
    See tistu/DESIGN.md for the design contract this obeys.
 
-   Real chain integration (no mocks, no offline fallback):
-     • wallet  : Wallet Standard (@mysten/wallet-standard) — Sui Wallet / Suiet / Slush
-     • compile : POST /compile on the running TEE Compiler (no offline fallback;
-                 failure shows a real error state)
-     • mint    : ONE PTB — predict_manager::deposit<DUSDC> → market_key::new →
-                 predict::mint<DUSDC> → helix::strategy::create_strategy, signed
-                 in-browser. (First-time users get a prior create_manager tx,
-                 because a shared object created in a PTB can't be used in it.)
-     Proven on testnet: digest 5KNFJevSdLkazHg1yz2eFBkHpDmhEt6nm4KjixkrjcBj
+   Real chain integration (no mocks, no offline fallback) — Total Recall edition:
+     • chain   : every Sui read goes to the HELIX compiler's /graphql proxy, which is
+                 the single chokepoint to Tatum's Sui gateway (Sui retired public
+                 JSON-RPC in 2026). The Tatum key never reaches the browser.
+     • compile : POST /compile (live DeepBook Predict v4 pricer + your Walrus Memory)
+     • mint    : the compiler builds ONE PTB — a queued Predict v4 order (filled by
+                 the keeper at Pyth's price) + helix::strategy::create_strategy —
+                 your wallet (or zkLogin key) signs, the compiler executes it through
+                 Tatum and writes a CONVICTION memory to Walrus Memory (mainnet).
+     • memory  : outcomes, calibration and lessons are recalled from Walrus Memory and
+                 visibly change the next compile (Memory page + Canvas memory block).
    ============================================================ */
-import { SuiClient, getFullnodeUrl } from 'https://esm.sh/@mysten/sui@1.30.0/client';
-import { Transaction } from 'https://esm.sh/@mysten/sui@1.30.0/transactions';
-import { getWallets } from 'https://esm.sh/@mysten/wallet-standard@0.14.0';
+import { getWallets } from 'https://esm.sh/@wallet-standard/app@1.1.0';
+import {
+  initChain, client, api, apiBase, Transaction, ownedOfType, objectOf, eventsOfType, coinsOf,
+  currentEpoch, buildBytes, walletSign, executeSigned,
+} from './sui.js';
 import {
   zkConfigured, beginGoogleLogin, completeGoogleLoginIfPresent,
-  loadSession as loadZkSession, clearSession as clearZkSession, zkSignAndExecute,
+  loadSession as loadZkSession, clearSession as clearZkSession, zkSignBytes,
 } from './zklogin.js';
 import {
   SEAL_EVENT_TYPE, SEAL_EVENT_TYPES, encryptThesis, addAttachThesis, decryptThesis,
   uploadToWalrus, fetchFromWalrus, decodeBlobId,
 } from './seal.js';
+import { voicesHTML, memoryBlockHTML, viewMemory } from './memory-ui.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
   HELIX:        '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3', // original id — types/events/queries
-  HELIX_LATEST: '0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0', // v4 upgraded id — all moveCalls (copy_for_thesis, seal_approve* with the fixed copier sig)
-  PREDICT_PKG:  '0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138',
-  PREDICT_OBJ:  '0xc8736204d12f0a7277c86388a68bf8a194b0a14c5538ad13f22cbd8e2a38028a',
-  DUSDC:        '0xe95040085976bfd54a1a07225cd46c8a2b4e8e2b6732f140a0fc49850ba73e1a::dusdc::DUSDC',
-  CLOCK:        '0x6',
-  RPC:          'https://fullnode.testnet.sui.io:443',
-  PREDICT_SERVER: 'https://predict-server.testnet.mystenlabs.com',
-  // Prod wiring: set `window.HELIX_COMPILER_URL = 'https://<service>.onrender.com'`
-  // in app.html once the Render service is live. Falls back to local dev, then a
-  // same-origin /compiler reverse-proxy.
+  HELIX_LATEST: '0xbcd36b706472927ab7865a2ba31e343bfdc3c24312f39a9cb79cde88faaa45e0', // v4 upgraded id — moveCalls (copy_for_thesis, seal_approve*)
+  // HELIX marketplace/breeding fees are generic over the coin; listings default to 0 fees.
+  FEE_COIN:     '0xe95040085976bfd54a1a07225cd46c8a2b4e8e2b6732f140a0fc49850ba73e1a::dusdc::DUSDC',
+  // Prod wiring: set `window.HELIX_COMPILER_URL = 'https://<service>.onrender.com'` in app.html.
   COMPILER_URL: (typeof window !== 'undefined' && window.HELIX_COMPILER_URL)
     || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1')
       ? 'http://localhost:8081' : '/compiler'),
   EXPLORER: (d) => `https://suiscan.xyz/testnet/tx/${d}`,
   EXPLORER_OBJ: (o) => `https://suiscan.xyz/testnet/object/${o}`,
-  DUSDC_DECIMALS: 6,
-  STRIKE_SCALE: 1e9,
+  QUOTE_DECIMALS: 6,
+  FAUCET_FORM: 'https://tally.so/r/Xx102L',
 };
+initChain(CFG.COMPILER_URL);
 
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = (s, r) => (r || document).querySelector(s);
 const fmt = (n, d) => Number(n).toLocaleString('en-US', { maximumFractionDigits: d == null ? 0 : d });
 const short = (a) => a ? a.slice(0, 6) + '…' + a.slice(-4) : '';
-const client = new SuiClient({ url: CFG.RPC });
 
 /* ---------------- shared app state ---------------- */
 const state = {
@@ -58,47 +57,31 @@ const state = {
   wallet: null,          // wallet-standard wallet
   zk: null,              // zkLogin session { address, secret, proof, ... }
   account: null,         // { address, ... }
-  dusdc: 0n,             // DUSDC balance (base units)
-  oracle: null,          // live BTC oracle record (predict server)
-  oracleState: null,     // latest_price + latest_svi
-  compile: null,         // last CompileResult
+  acct: null,            // Predict v4 account { wrapperId, exists, balance, walletQuoteBalance, quoteCoinType }
+  compile: null,         // last compile result (incl. predict / voices / memory / guardian)
   conv: null,            // last conviction
+  chosen: { commit: null, useMemoryStructure: false },  // explicit memory acceptances (never silent)
   busy: false,
 };
 
 /* ============================================================ live data */
-async function loadOracle() {
-  // pick the live BTC oracle furthest from expiry (most trading headroom)
-  const r = await fetch(`${CFG.PREDICT_SERVER}/predicts/${CFG.PREDICT_OBJ}/oracles`);
-  if (!r.ok) throw new Error(`oracle list ${r.status}`);
-  const list = await r.json();
-  const now = Date.now();
-  const live = list.filter(o => o.underlying_asset === 'BTC' && o.status === 'active' && o.expiry > now + 120000)
-                   .sort((a, b) => b.expiry - a.expiry);
-  if (!live.length) throw new Error('no live BTC oracle');
-  state.oracle = live[0];
-  const s = await fetch(`${CFG.PREDICT_SERVER}/oracles/${state.oracle.oracle_id}/state`);
-  state.oracleState = s.ok ? await s.json() : null;
-  return state.oracle;
-}
-
-async function refreshDusdc() {
-  if (!state.account) { state.dusdc = 0n; return 0n; }
-  const b = await client.getBalance({ owner: state.account.address, coinType: CFG.DUSDC });
-  state.dusdc = BigInt(b.totalBalance);
-  return state.dusdc;
+async function refreshAccount() {
+  if (!state.account) { state.acct = null; return null; }
+  try { state.acct = await api(`/predict/account/${state.account.address}`); }
+  catch (e) { state.acct = { error: e.message }; }
+  return state.acct;
 }
 
 /* ============================================================ wallet */
 function discoverWallets() {
-  return getWallets().get().filter(w => w.chains?.some(c => c.startsWith('sui:')) || w.features['sui:signAndExecuteTransaction']);
+  return getWallets().get().filter(w => w.chains?.some(c => c.startsWith('sui:')) || w.features['sui:signTransaction'] || w.features['sui:signAndExecuteTransaction']);
 }
 async function connectWallet(w) {
   const res = await w.features['standard:connect'].connect();
   const acct = (res.accounts && res.accounts[0]) || (w.accounts && w.accounts[0]);
   if (!acct) throw new Error('wallet returned no account');
   state.mode = 'wallet'; state.zk = null; state.wallet = w; state.account = acct;
-  await refreshDusdc();
+  await refreshAccount();
   renderWalletChip();
   window.dispatchEvent(new Event('helix:wallet'));
 }
@@ -106,39 +89,37 @@ async function connectWallet(w) {
 // and resumes in completeGoogleLoginIfPresent() on the way back.
 async function connectGoogle() {
   const redirectUri = location.origin + location.pathname; // must be registered in Google
-  await beginGoogleLogin(client, redirectUri);
+  await beginGoogleLogin(null, redirectUri);
 }
 // Adopt a finished zkLogin session as the active signer.
 async function activateZkSession(session) {
   state.mode = 'zk'; state.wallet = null; state.zk = session;
   state.account = { address: session.address };
-  await refreshDusdc();
+  await refreshAccount();
   renderWalletChip();
   window.dispatchEvent(new Event('helix:wallet'));
 }
 function disconnectWallet() {
   if (state.mode === 'zk') { clearZkSession(); }
   else { try { state.wallet?.features['standard:disconnect']?.disconnect(); } catch (e) {} }
-  state.mode = 'wallet'; state.wallet = null; state.zk = null; state.account = null; state.dusdc = 0n;
+  state.mode = 'wallet'; state.wallet = null; state.zk = null; state.account = null; state.acct = null;
   renderWalletChip(); window.dispatchEvent(new Event('helix:wallet'));
 }
-async function signAndExecute(tx) {
-  // zkLogin path: same PTB, signed with the assembled zkLogin signature
+// Sign pre-built bytes (wallet or zkLogin), then execute through the compiler → Tatum.
+async function signAndExecuteBytes(b64, extra = {}) {
   if (state.mode === 'zk') {
-    const res = await zkSignAndExecute(client, state.zk, tx);
-    const digest = res.digest;
-    if (!digest) throw new Error('no digest returned');
-    return client.getTransactionBlock({ digest, options: { showEffects: true, showObjectChanges: true, showEvents: true } });
+    const sig = await zkSignBytes(state.zk, b64, currentEpoch);
+    return executeSigned(b64, sig, extra);
   }
-  const feat = state.wallet.features['sui:signAndExecuteTransaction'];
-  const out = await feat.signAndExecuteTransaction({
-    transaction: tx, account: state.account, chain: 'sui:testnet',
-  });
-  // wallet-standard returns { digest, ... }; normalize
-  const digest = out.digest || out?.Transaction?.digest;
-  if (!digest) throw new Error('no digest returned');
-  await client.waitForTransaction({ digest, options: { showEffects: true, showObjectChanges: true } });
-  return client.getTransactionBlock({ digest, options: { showEffects: true, showObjectChanges: true, showEvents: true } });
+  const { bytes, signature } = await walletSign(state.wallet, state.account, b64);
+  return executeSigned(bytes, signature, extra);
+}
+// Client-composed PTBs (list / breed / copy / thesis): built through the same proxy.
+async function signAndExecute(tx) {
+  const b64 = await buildBytes(tx, state.account.address);
+  const res = await signAndExecuteBytes(b64);
+  if (!res.success) throw new Error(res.error || 'transaction failed');
+  return res;
 }
 
 // sign a personal message (for Seal SessionKey). Wallet path only for now; zk
@@ -153,130 +134,30 @@ async function signPersonalMessage(message) {
 // Find the encrypted-thesis Walrus blob id recorded on-chain for a strategy.
 async function getThesisBlobId(strategyId) {
   try {
-    // query each candidate event-type id (defining version + latest) and take the
-    // most recent attach for this strategy across all of them.
-    const results = await Promise.all((SEAL_EVENT_TYPES || [SEAL_EVENT_TYPE]).map(t =>
-      client.queryEvents({ query: { MoveEventType: t }, limit: 50, order: 'descending' })
-        .then(r => r.data).catch(() => [])));
-    const all = results.flat().sort((a, b) => Number(b.timestampMs || 0) - Number(a.timestampMs || 0));
-    const hit = all.find(e => e.parsedJson?.strategy_id === strategyId);
-    return hit ? decodeBlobId(hit.parsedJson) : null;
+    const results = await Promise.all((SEAL_EVENT_TYPES || [SEAL_EVENT_TYPE]).map(t => eventsOfType(t, 50).catch(() => [])));
+    const all = results.flat().sort((a, b) => b.ts - a.ts);
+    const hit = all.find(e => e.json?.strategy_id === strategyId);
+    return hit ? decodeBlobId(hit.json) : null;
   } catch (e) { return null; }
 }
-
-/* ============================================================ PTB build */
-function gridStrike(spot, oracle) {
-  const min = Number(oracle.min_strike), tick = Number(oracle.tick_size);
-  const k = Math.max(0, Math.round((spot - min) / tick));
-  return BigInt(min + k * tick);
+async function pickFeeCoin(min) {
+  const coins = await coinsOf(state.account.address, CFG.FEE_COIN);
+  if (!coins.length || coins[0].balance < min) throw new Error('INSUFFICIENT_FEE_COIN');
+  return coins[0].id;
 }
-function dnaArgs(tx, d) {
-  // helix::dna::new — exact arg order/types from contracts/sources/dna.move
-  return tx.moveCall({
-    target: `${CFG.HELIX}::dna::new`,
-    arguments: [
-      tx.pure.bool(!!d.dirNegative), tx.pure.u8(d.dirMagnitude | 0), tx.pure.u8(d.confidence | 0),
-      tx.pure.u16(d.horizonDays | 0), tx.pure.u8(d.volView | 0), tx.pure.u8(d.legCount | 0),
-      tx.pure.u8(d.assetPairCode | 0), tx.pure.bool(!!d.usesOptions), tx.pure.bool(!!d.usesSpot),
-      tx.pure.bool(!!d.usesMargin), tx.pure.u16(d.leverageX100 | 0),
-      tx.pure.u8(d.entrySignalType | 0), tx.pure.u8(d.entryThreshold | 0),
-      tx.pure.u8(d.exitSignalType | 0), tx.pure.u8(d.exitThreshold | 0),
-      tx.pure.u8(d.regimeSensitivity | 0), tx.pure.u16(d.maxDrawdownBps | 0),
-      tx.pure.bool(!!d.hedgeNeg), tx.pure.u16(d.hedgeDeltaMag | 0), tx.pure.u8(d.mutationCount | 0),
-      tx.pure.vector('u8', (d.crossoverPoints || []).map(x => x & 0xff)),
-    ],
-  });
-}
-// Find the connected wallet's existing PredictManager (shared) via its creation event.
-async function findManager() {
-  if (!state.account) return null;
-  try {
-    const ev = await client.queryEvents({
-      query: { MoveEventType: `${CFG.PREDICT_PKG}::predict_manager::PredictManagerCreated` },
-      limit: 50, order: 'descending',
-    });
-    const mine = ev.data.find(e => (e.parsedJson?.owner) === state.account.address);
-    return mine?.parsedJson?.manager_id || null;
-  } catch (e) { return null; }
-}
-async function ensureManager() {
-  let id = await findManager();
-  if (id) return id;
-  const tx = new Transaction();
-  tx.moveCall({ target: `${CFG.PREDICT_PKG}::predict::create_manager`, arguments: [] });
-  const res = await signAndExecute(tx);
-  const created = (res.objectChanges || []).find(o => o.type === 'created' && /::predict_manager::PredictManager$/.test(o.objectType || ''));
-  if (!created) throw new Error('manager not created');
-  return created.objectId;
-}
-async function bringToLife() {
-  const { compile, conv, oracle, oracleState } = state;
-  const spot = Number(oracleState?.latest_price?.spot ?? oracle.min_strike);
-  const strike = gridStrike(spot, oracle);
-  const isUp = conv.direction >= 0;
-  const capBase = BigInt(Math.max(1, Math.round(conv.capital)) * 10 ** CFG.DUSDC_DECIMALS);
-  if (state.dusdc < capBase) throw new Error('INSUFFICIENT_DUSDC');
-  const qty = capBase; // cost = ask(≤1)·qty ≤ deposit — always covered
-
-  const managerId = await ensureManager();           // (1) separate tx if first time
-
-  const tx = new Transaction();
-  // (2) split DUSDC + deposit into the manager
-  const dusdcCoin = await pickDusdcCoin(capBase);
-  const [dep] = tx.splitCoins(tx.object(dusdcCoin), [tx.pure.u64(capBase)]);
-  tx.moveCall({ target: `${CFG.PREDICT_PKG}::predict_manager::deposit`, typeArguments: [CFG.DUSDC], arguments: [tx.object(managerId), dep] });
-  // (3) market key
-  const mk = tx.moveCall({
-    target: `${CFG.PREDICT_PKG}::market_key::new`,
-    arguments: [tx.pure.id(oracle.oracle_id), tx.pure.u64(BigInt(oracle.expiry)), tx.pure.u64(strike), tx.pure.bool(isUp)],
-  });
-  // (4) mint the real Predict position
-  tx.moveCall({
-    target: `${CFG.PREDICT_PKG}::predict::mint`, typeArguments: [CFG.DUSDC],
-    arguments: [tx.object(CFG.PREDICT_OBJ), tx.object(managerId), tx.object(oracle.oracle_id), mk, tx.pure.u64(qty), tx.object(CFG.CLOCK)],
-  });
-  // (5) mint the HELIX conviction object
-  const dna = dnaArgs(tx, compile.dna);
-  const att = Array.from(hexToBytes(compile.attestation.signature || '00'));
-  tx.moveCall({
-    target: `${CFG.HELIX}::strategy::create_strategy`,
-    arguments: [dna, tx.pure.u64(BigInt(Math.round(conv.capital))), tx.pure.vector('u8', att.length ? att : [0])],
-  });
-  return signAndExecute(tx);
-}
-async function pickDusdcCoin(min) {
-  const coins = await client.getCoins({ owner: state.account.address, coinType: CFG.DUSDC });
-  const sorted = coins.data.sort((a, b) => Number(BigInt(b.balance) - BigInt(a.balance)));
-  if (!sorted.length) throw new Error('INSUFFICIENT_DUSDC');
-  // single biggest coin must cover; (merge omitted — wallet typically holds one DUSDC coin)
-  return sorted[0].coinObjectId;
-}
-function hexToBytes(h) { h = h.replace(/^0x/, ''); if (h.length % 2) h = '0' + h; const a = new Uint8Array(h.length / 2); for (let i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16); return a; }
 
 /* ============================================================ compile (real, no fallback) */
 async function compileConviction(conv) {
-  const body = { ...conv, currentEpoch: 0 };
-  // 55s tolerates a free-tier Render cold start (~50s) on the first compile after
-  // idle; warm compiles return in well under a second.
-  const c = new AbortController(); const t = setTimeout(() => c.abort(), 55000);
-  let res;
-  try {
-    res = await fetch(`${CFG.COMPILER_URL}/compile`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body), signal: c.signal,
-    });
-  } finally { clearTimeout(t); }
-  if (!res.ok) throw new Error(`compile ${res.status}`);
-  return res.json();
+  // 55s tolerates a free-tier Render cold start (~50s) on the first compile after idle.
+  return api('/compile', { ...conv, address: state.account?.address, currentEpoch: 0 }, { timeoutMs: 55000 });
 }
 
 /* ============================================================ predict-native vocabulary */
-function plainStructure(cand, dna) {
-  const up = !dna.dirNegative; const mc = cand.marketCode;
-  if (mc === 1) return { title: 'Range bet', sub: 'wins if BTC settles inside a band' };
-  if (mc === 4) return { title: 'Bracketed range', sub: `bounded ${up ? 'upside' : 'downside'} bet` };
-  if (mc === 0) return { title: `Directional bet · ${up ? 'up' : 'down'}`, sub: 'binary, pinned to the BTC oracle' };
-  return { title: `Directional bet · ${up ? 'bullish' : 'bearish'}`, sub: 'minted via predict::mint' };
+function plainStructure(o) {
+  if (!o) return { title: 'Directional bet', sub: 'DeepBook Predict' };
+  if (o.kind === 'range') return { title: 'Range bet', sub: 'wins if BTC settles inside a band' };
+  if (o.kind === 'bracketed_range') return { title: `Bracketed range · ${o.lower != null && o.upper != null && o.label.includes('upside') ? 'upside' : 'downside'}`, sub: 'bounded directional bet' };
+  return { title: `Directional bet · ${o.side === 'down' ? 'down' : 'up'}`, sub: 'binary, settles on Pyth at expiry' };
 }
 const dirWord = d => d < -55 ? 'Strong bear' : d < -18 ? 'Bearish' : d <= 18 ? 'Neutral' : d < 55 ? 'Bullish' : 'Strong bull';
 const volWord = v => v < 30 ? 'Calm' : v < 60 ? 'Choppy' : v < 85 ? 'Volatile' : 'Explosive';
@@ -349,23 +230,41 @@ function updatePayoff(el, legs, spot) {
   if (!host.querySelector('svg')) host.innerHTML = payoffSkeleton();
   tweenPayoff(host, payoffGeometry(legs, spot));
 }
+// Payoff of the REAL Predict order at expiry: pays $1 per contract inside its range.
+const FEE_APPROX = 1.12; // indicative fee-inclusive price multiple; exact fees come from the plan at signing
+function orderWins(o, s) { return o.side === 'up' ? s > o.strike : o.side === 'down' ? s <= o.strike : (s > o.lower && s <= o.upper); }
+function predictGeometry(o, forward, commit) {
+  const { W, H, pad, steps } = PF;
+  const ref = o.side === 'range' ? (o.lower + o.upper) / 2 : o.strike;
+  const w = o.side === 'range' ? Math.max(o.upper - o.lower, forward * 0.002) * 1.6 : Math.max(forward * 0.004, Math.abs(o.strike - forward) * 3);
+  const lo = Math.min(forward, ref) - w, hi = Math.max(forward, ref) + w;
+  const ppc = Math.min(0.97, Math.max(0.03, o.pMkt * FEE_APPROX));
+  const contracts = commit / ppc;
+  const raw = [];
+  for (let i = 0; i <= steps; i++) { const s = lo + (hi - lo) * i / steps; raw.push({ s, y: (orderWins(o, s) ? contracts : 0) - commit }); }
+  let loY = -commit, hiY = contracts - commit; const yr = (hiY - loY) || 1; loY -= yr * 0.14; hiY += yr * 0.14;
+  const X = x => pad + (x - lo) / (hi - lo) * (W - 2 * pad);
+  const Y = y => pad + (1 - (y - loY) / (hiY - loY)) * (H - 2 * pad);
+  return { pts: raw.map(p => ({ x: X(p.s), y: Y(p.y) })), spotX: X(forward), zeroY: Y(0), x0: X(lo), x1: X(hi), contracts, ppc };
+}
+function updatePredictPayoff(host, o, forward, commit) {
+  if (!host) return;
+  if (!host.querySelector('svg')) host.innerHTML = payoffSkeleton();
+  tweenPayoff(host, predictGeometry(o, forward, commit));
+}
 
-/* honest risk compass — Net Exposure · Directional Bias · Time-to-Resolution · Concentration · Liquidity Headroom */
-function riskAxes(compile, conv, oracle, oracleState) {
-  const now = Date.now();
-  const sviTs = (oracleState?.latest_svi?.onchain_timestamp) || 0;
-  const sviAgeSec = sviTs ? Math.max(0, (now - sviTs * (sviTs < 1e12 ? 1000 : 1)) / 1000) : 999;
-  const ttrMin = oracle ? Math.max(0, (oracle.expiry - now) / 60000) : 0;
-  const plpPct = (compile.plpUtilizationBps || 0) / 100;
-  const dirBias = Math.abs(conv.direction) / 100;          // 0..1
-  const conc = Math.min(1, (compile.selected.legs?.length || 1) <= 1 ? 0.7 : 0.4); // single-leg = concentrated
-  const liqHead = Math.max(0, 1 - plpPct / 100);
+/* honest risk compass — Net Exposure · Directional Bias · Time-to-Resolution · Concentration · Entry headroom */
+function riskAxes(r, conv) {
+  const dirBias = Math.abs(conv.direction) / 100;
+  const mins = r.predict?.market?.minutesLeft ?? 15;
+  const o = r.predict?.order, band = r.predict?.band;
+  const headroom = o && band ? Math.max(0, Math.min(1, Math.min(o.pMkt - band.minEntry, band.maxEntry - o.pMkt) / 0.25)) : 0.5;
   return [
     ['Net Exposure', Math.min(1, dirBias * 0.9 + 0.1)],
     ['Directional Bias', dirBias],
-    ['Time-to-Resolution', Math.min(1, 1 - Math.min(ttrMin, 240) / 240)],
-    ['Concentration', conc],
-    ['Liquidity Headroom', liqHead],
+    ['Time-to-Resolution', Math.min(1, 1 - Math.min(mins, 15) / 15)],
+    ['Concentration', 0.7],
+    ['Entry Headroom', headroom],
   ].map(([k, v]) => ({ k, v }));
 }
 function radarSVG(axes) {
@@ -376,31 +275,6 @@ function radarSVG(axes) {
   axes.forEach((a, i) => { const [x, y] = pt(i, R); spokes += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)"/>`; const [lx, ly] = pt(i, R + 22); labels += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="var(--ink-3)" font-size="10.5" font-family="var(--mono)" text-anchor="middle" dominant-baseline="middle">${a.k.split(' ')[0]}</text>`; });
   const poly = axes.map((a, i) => pt(i, Math.max(0.05, a.v) * R).map(v => v.toFixed(1)).join(',')).join(' ');
   return `<svg viewBox="0 0 300 300" style="width:100%;max-width:320px">${rings}${spokes}<polygon points="${poly}" fill="var(--accent-soft)" stroke="var(--accent-bright)" stroke-width="2"/>${labels}</svg>`;
-}
-// ≥2 plain-language risk classes (SVI staleness is always surfaced)
-function guardianFlags(compile, oracle, oracleState) {
-  const flags = [];
-  const now = Date.now();
-  const sviTs = oracleState?.latest_svi?.onchain_timestamp;
-  if (sviTs) {
-    const age = Math.round(now / 1000 - (sviTs < 1e12 ? sviTs : sviTs / 1000));
-    flags.push(age > 60
-      ? { bad: true, t: `Volatility surface is ${age}s old — stale, pricing may drift.` }
-      : { bad: false, t: `Volatility surface is ${age}s old — fresh.` });
-  } else {
-    flags.push({ bad: true, t: 'Volatility surface age unknown — treat pricing as stale.' });
-  }
-  const plp = (compile.plpUtilizationBps || 0) / 100;
-  flags.push(plp > 75
-    ? { bad: true, t: `Liquidity pool is ${plp.toFixed(0)}% utilized — thin headroom for exits.` }
-    : { bad: false, t: `Liquidity pool is ${plp.toFixed(0)}% utilized — healthy headroom.` });
-  if (oracle) {
-    const mins = Math.round((oracle.expiry - now) / 60000);
-    flags.push(mins < 30
-      ? { bad: true, t: `Resolves in ${mins} min — exit liquidity thins near resolution.` }
-      : { bad: false, t: `Resolves in ${mins} min — comfortable runway.` });
-  }
-  return flags;
 }
 
 /* ============================================================ toast */
@@ -421,8 +295,10 @@ const icons = {
 };
 const wrapIcon = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${p}</svg>`;
 const railLink = (route, href, label) => `<a class="rail-link" data-route="${route}" href="${href}" data-cursor>${wrapIcon(icons[route])}<span class="tip">${label}</span></a>`;
+icons.memory = '<path d="M12 3a6 6 0 0 0-6 6c0 2.2 1.2 3.7 2.5 4.8.8.7 1.5 1.6 1.5 2.7V18h4v-1.5c0-1.1.7-2 1.5-2.7C16.8 12.7 18 11.2 18 9a6 6 0 0 0-6-6z"/><path d="M10 21h4" stroke-linecap="round"/>';
 
 /* ============================================================ CONVICTION CANVAS */
+const HOR = ['~3 min', '~6 min', '~12 min', '~20 min'];
 function viewCanvas() {
   const el = document.createElement('div'); el.className = 'view view-enter';
   el.innerHTML = `
@@ -434,9 +310,9 @@ function viewCanvas() {
         ${ctrl('Confidence', 's-conf', 0, 100, 60, 'v-conf')}
         ${ctrlSteps('Time horizon', 's-hor', 'v-hor')}
         ${ctrl('Volatility view', 's-vol', 0, 100, 45, 'v-vol')}
-        ${ctrl('Commit (dUSDC)', 's-cap', 1, 100, 5, 'v-cap')}
+        ${ctrl('Commit (dUSDC)', 's-cap', 2, 50, 5, 'v-cap')}
         <div class="chart-wrap" style="margin-top:8px"><div id="payoff"></div></div>
-        <div class="legend"><span><i style="border-color:var(--accent-bright)"></i>payoff at resolution</span><span><i style="border-color:var(--ink-3)"></i>spot</span></div>
+        <div class="legend"><span><i style="border-color:var(--accent-bright)"></i>P&amp;L at expiry</span><span><i style="border-color:var(--ink-3)"></i>BTC now</span></div>
       </div>
       <div class="panel reveal d1">
         <div class="row spread"><div class="section-title" style="margin:0">compiled structure</div><span class="badge" id="tee-badge">compiler · …</span></div>
@@ -454,10 +330,8 @@ function ctrlSteps(lab, id, out) {
     <input class="hx-range" type="range" id="${id}" min="0" max="3" step="1" value="0" data-cursor></div>`;
 }
 function mountCanvas(el) {
-  const HOR = ['~1 hour', '~4 hours', '~12 hours', '~1 day'];
   const s = { dir: $('#s-dir', el), conf: $('#s-conf', el), hor: $('#s-hor', el), vol: $('#s-vol', el), cap: $('#s-cap', el) };
   pingTEE(el);
-  loadOracle().catch(() => {});
   let timer = null;
   function labels() {
     const conv = readConv(s);
@@ -468,17 +342,16 @@ function mountCanvas(el) {
     $('#v-cap', el).textContent = conv.capital + ' dUSDC';
     return conv;
   }
-  function schedule() { labels(); clearTimeout(timer); timer = setTimeout(doCompile, 150); }
+  function schedule() { labels(); clearTimeout(timer); timer = setTimeout(doCompile, 180); }
   async function doCompile() {
     const conv = readConv(s); state.conv = conv;
     const box = $('#compiled', el);
-    // only show the loading state on the very first compile — afterwards keep the
-    // current readout up and morph to the new one (no flash on every nudge)
-    if (!box.dataset.ready) box.innerHTML = `<div class="muted" style="padding:24px 0"><span class="sdot pending"></span> compiling against live SVI…</div>`;
+    if (!box.dataset.ready) box.innerHTML = `<div class="muted" style="padding:24px 0"><span class="sdot pending"></span> compiling against the live DeepBook Predict pricer${state.account ? ' and your Walrus memory' : ''}…</div>`;
     try {
-      const r = await compileConviction(conv); state.compile = r;
-      updatePayoff(el, r.selected.legs, r.spot);
+      const r = await compileConviction(conv);
+      state.compile = r; state.chosen = { commit: conv.capital, useMemoryStructure: false };
       box.dataset.ready = '1';
+      $('#v-hor', el).textContent = `${HOR[conv.horizonCode]} → ${Math.max(1, Math.round(r.predict.market.minutesLeft))} min window`;
       renderCompiled(el, r, conv);
     } catch (e) {
       const ph = $('#payoff', el); if (ph) ph.innerHTML = '';
@@ -488,106 +361,186 @@ function mountCanvas(el) {
   }
   Object.values(s).forEach(x => x.addEventListener('input', schedule));
   schedule();
-  window.addEventListener('helix:wallet', () => { if (state.compile) renderCompiled(el, state.compile, state.conv); });
+  window.addEventListener('helix:wallet', () => { if (el.isConnected) doCompile(); });
   el.addEventListener('click', (e) => {
     if (e.target.closest('#deploy')) onDeploy(el);
+    if (e.target.closest('#fund')) onFund(el);
     if (e.target.closest('#wallet-inline')) openWalletPicker();
     if (e.target.closest('#retry')) doCompile();
+    if (e.target.closest('#mem-accept-commit')) {
+      const m = state.compile?.memory; if (!m) return;
+      state.chosen.commit = Math.abs((state.chosen.commit ?? m.commit) - m.suggested_commit) < 0.005 ? m.commit : m.suggested_commit;
+      renderCompiled(el, state.compile, state.conv);
+    }
+    if (e.target.closest('#mem-accept-struct')) {
+      state.chosen.useMemoryStructure = !state.chosen.useMemoryStructure;
+      renderCompiled(el, state.compile, state.conv);
+    }
   });
 }
 function readConv(s) {
   return { direction: (+s.dir.value) * 2 - 100, confidence: +s.conf.value, horizonCode: +s.hor.value, volView: +s.vol.value, capital: +s.cap.value };
 }
 function compileError(e) {
+  const msg = e.message || 'error';
+  const closing = /no open DeepBook Predict|runway/i.test(msg);
   return `<div class="empty" style="padding:36px 16px">
     <svg class="em-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01" stroke-linecap="round"/></svg>
-    <h3 style="font-size:1.4rem">Compiler unreachable</h3>
-    <p>The Compiler service didn't answer (<span class="mono">${(e.message || 'error')}</span>). HELIX never shows fabricated structures — start the Compiler service and retry.</p>
+    <h3 style="font-size:1.4rem">${closing ? 'Between market windows' : 'Compiler unreachable'}</h3>
+    <p>${closing ? 'DeepBook Predict windows all roll on the quarter-hour; the next one opens in seconds.' : 'The Compiler service didn\'t answer.'} (<span class="mono">${msg}</span>) HELIX never shows fabricated structures.</p>
     <button class="btn-soft" id="retry" data-cursor>Retry compile</button></div>`;
 }
+function activeOrder(r) {
+  return state.chosen.useMemoryStructure && r.memory?.structure_suggestion ? r.memory.structure_suggestion.order : r.predict.order;
+}
 function renderCompiled(el, r, conv) {
-  const m = r.selected.metrics, ps = plainStructure(r.selected, r.dna);
-  const axes = riskAxes(r, conv, state.oracle, state.oracleState);
-  const flags = guardianFlags(r, state.oracle, state.oracleState);
-  const connected = !!state.account;
-  const capBase = BigInt(Math.max(1, Math.round(conv.capital)) * 10 ** CFG.DUSDC_DECIMALS);
-  const funded = state.dusdc >= capBase;
+  const o = activeOrder(r), P = r.predict;
+  const commit = state.chosen.commit ?? conv.capital;
+  const ps = plainStructure(o);
+  const g = predictGeometry(o, P.forward, commit);
+  updatePredictPayoff($('#payoff', el), o, P.forward, commit);
+  const axes = riskAxes(r, conv);
+  const flags = r.guardian || [];
   const box = $('#compiled', el);
   box.innerHTML = `
-    <div class="row spread" style="margin:14px 0 16px">
+    <div class="row spread" style="margin:14px 0 6px">
       <div><div class="muted mono" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase">${ps.sub}</div>
       <div style="font-family:var(--sans);font-weight:600;font-size:1.4rem">${ps.title}</div></div>
-      <span class="badge" style="color:var(--alive);border-color:color-mix(in srgb,var(--alive) 40%,transparent);background:var(--alive-soft)">win ${Math.round((m.winProb || 0) * 100)}%</span>
+      <span class="badge" title="the market's implied probability for this exact order" style="color:var(--alive);border-color:color-mix(in srgb,var(--alive) 40%,transparent);background:var(--alive-soft)">market ${Math.round(o.pMkt * 100)}%</span>
     </div>
+    <div class="muted" style="margin-bottom:14px;line-height:1.5">${o.label} · resolves in ${P.market.minutesLeft.toFixed(1)} min${o.note ? ` · <i>${o.note}</i>` : ''}</div>
     <div class="grid-2" style="gap:12px">
-      <div class="stat"><div class="k">max profit</div><div class="v gain">+${fmt(Math.abs(m.maxProfit), 0)} <span style="font-size:.7rem">dUSDC</span></div></div>
-      <div class="stat"><div class="k">max loss</div><div class="v loss">−${fmt(Math.abs(m.maxLoss), 0)} <span style="font-size:.7rem">dUSDC</span></div></div>
+      <div class="stat"><div class="k">you commit</div><div class="v loss">${fmt(commit, 2)} <span style="font-size:.7rem">dUSDC</span></div></div>
+      <div class="stat"><div class="k">pays if right ≈</div><div class="v gain">${fmt(g.contracts, 2)} <span style="font-size:.7rem">dUSDC</span></div></div>
     </div>
     <div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">
-      <span class="badge">spot ${fmt(r.spot)}</span><span class="badge">ATM IV ${(r.ivAtm * 100).toFixed(0)}%</span>
-      <span class="badge">PLP ${(r.plpUtilizationBps / 100).toFixed(0)}% used</span>
-      <span class="badge" title="Compiler output is signed for integrity; hardware enclave attestation is the documented next step (see SUBMISSION.md).">${r.attestation.mock ? 'compiler-signed · attestation: dev' : 'enclave-attested'}</span>
+      <span class="badge">BTC fwd ${fmt(P.forward)}</span><span class="badge">ATM IV ${(r.ivAtm * 100).toFixed(0)}%</span>
+      <span class="badge" title="${r.regime?.label || ''}">regime ${(r.regime?.word || '').replace('_', ' ')}</span>
+      <span class="badge" title="Compiler output is signed for integrity; hardware enclave attestation is the documented next step.">${r.attestation.mock ? 'compiler-signed · attestation: dev' : 'enclave-attested'}</span>
     </div>
+    <div class="muted mono" style="font-size:10.5px;margin-top:6px">payout ≈ indicative at ${(g.ppc * 100).toFixed(0)}¢/contract incl. est. fees · exact cost &amp; fees are quoted by Predict when you sign</div>
 
-    <div class="section-title" style="margin:22px 0 10px">portfolio risk compass</div>
+    <div class="section-title" style="margin:22px 0 10px">four voices on this outcome</div>
+    ${voicesHTML(r)}
+
+    <div class="section-title" style="margin:22px 0 10px">memory · walrus mainnet</div>
+    ${memoryBlockHTML(r.memory, state.chosen)}
+
+    <div class="section-title" style="margin:22px 0 10px">risk guardian</div>
     <div class="grid-2" style="gap:16px;align-items:center">
       <div style="display:grid;place-items:center">${radarSVG(axes)}</div>
       <div>${flags.map(f => `<div class="row" style="gap:9px;margin-bottom:10px;align-items:flex-start">
         <span class="sdot ${f.bad ? 'dead' : 'active'}" style="margin-top:5px;flex:0 0 auto"></span>
-        <span style="font-size:13.5px;line-height:1.45;color:${f.bad ? 'var(--coral)' : 'var(--ink-2)'}">${f.t}</span></div>`).join('')}
+        <span style="font-size:13.5px;line-height:1.45;color:${f.bad ? 'var(--coral)' : 'var(--ink-2)'}">${f.cls === 'memory' ? '<b>Memory:</b> ' + f.t.replace(/^Memory:\s*/, '') : f.t}</span></div>`).join('')}
         <div class="muted mono" style="font-size:11px;margin-top:6px">${flags.length} risk classes surfaced</div>
       </div>
     </div>
 
-    <div style="margin-top:22px">${deployControl(connected, funded, conv)}</div>
+    <div style="margin-top:22px">${deployControl(commit)}</div>
     <div id="deploy-out" style="margin-top:14px"></div>`;
   if (!reduce) { box.style.animation = 'none'; void box.offsetWidth; box.style.animation = ''; } // replay cFade
 }
-function deployControl(connected, funded, conv) {
-  if (!connected)
+function deployControl(commit) {
+  if (!state.account)
     return `<button class="btn-solid" id="wallet-inline" data-cursor>Connect a wallet to bring it to life ${arrow()}</button>`;
-  if (!funded)
-    return `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 40%,transparent)">
-      <div class="row spread"><b style="color:var(--coral)">No dUSDC to commit</b><span class="mono muted">balance ${fmt(Number(state.dusdc) / 10 ** CFG.DUSDC_DECIMALS, 2)}</span></div>
-      <div class="muted" style="margin-top:8px">You need at least ${conv.capital} dUSDC. Fund this wallet with testnet dUSDC (<a class="mono" style="color:var(--accent-deep)" href="https://tally.so/r/Xx102L" target="_blank" rel="noopener">faucet form</a>) and reconnect.</div></div>`;
-  return `<div class="thesis-compose">
+  const a = state.acct;
+  if (!a) return `<div class="muted"><span class="sdot pending"></span> checking your DeepBook Predict account…</div>`;
+  if (a.error) return `<div class="muted" style="color:var(--coral)">Couldn't read your Predict account (${a.error}).</div>`;
+  const need = commit + 0.05;
+  if (a.balance >= need)
+    return `<div class="muted mono" style="font-size:11px;margin-bottom:8px">Predict account balance ${fmt(a.balance, 2)} dUSDC</div>
+    <div class="thesis-compose">
       <label class="ctrl-head" for="thesis" style="margin-bottom:6px"><span class="lab">private thesis <span class="muted" style="font-weight:400">— optional, Seal-encrypted</span></span></label>
       <textarea id="thesis" class="hx-textarea" rows="2" placeholder="Why you believe this. Encrypted with Seal, stored on Walrus — only you (and paying copiers) can read it." data-cursor></textarea>
       <div class="muted mono" style="font-size:10.5px;margin-top:4px">structure &amp; performance stay public · reasoning stays private</div>
     </div>
-    <button class="btn-solid" id="deploy" data-cursor style="margin-top:12px">Bring it to life — mint on Sui ${arrow()}</button>`;
+    <button class="btn-solid" id="deploy" data-cursor style="margin-top:12px">Bring it to life — commit ${fmt(commit, 2)} on Sui ${arrow()}</button>`;
+  const wallet = a.walletQuoteBalance ?? 0;
+  if (wallet >= 1) {
+    const sugg = Math.max(1, Math.min(Math.floor(wallet), Math.max(Math.ceil(need * 4), 10)));
+    return `<div class="panel" style="border-color:color-mix(in srgb,var(--accent) 40%,transparent)">
+      <div class="row spread"><b>Fund your DeepBook Predict account</b><span class="mono muted">wallet ${fmt(wallet, 2)} · account ${fmt(a.balance, 2)}</span></div>
+      <div class="muted" style="margin-top:8px;line-height:1.55">Predict v4 trades from an on-chain account${a.exists ? '' : ' (created in this same transaction)'}. Move some test dUSDC in once; every conviction then draws from it.</div>
+      <div class="row" style="gap:10px;margin-top:12px;align-items:center"><input id="fund-amt" class="hx-textarea mono" style="width:110px;padding:8px 10px" type="number" min="1" max="${Math.floor(wallet)}" value="${sugg}"/>
+      <button class="btn-solid" id="fund" data-cursor>Fund account ${arrow()}</button></div></div>`;
+  }
+  return `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 40%,transparent)">
+      <div class="row spread"><b style="color:var(--coral)">No test dUSDC for DeepBook Predict v4</b><span class="mono muted">wallet ${fmt(wallet, 2)}</span></div>
+      <div class="muted" style="margin-top:8px;line-height:1.55">Predict was redeployed on 2026-09-12 with a new test quote coin (<span class="mono" style="font-size:11px">${short((a.quoteCoinType || '').split('::')[0])}::usdc::USDC</span>). Request it for this address with Mysten's <a class="mono" style="color:var(--accent-deep)" href="${CFG.FAUCET_FORM}" target="_blank" rel="noopener">DeepBook Predict token form</a>, then reconnect.</div></div>`;
 }
 const arrow = () => `<span style="width:30px;height:30px;border-radius:50%;background:var(--bg);color:var(--ink);display:grid;place-items:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>`;
 
+const REFUSAL = {
+  fee: 'Your Predict account balance doesn\'t cover this order plus its fee — fund the account.',
+  'entry-band': 'The price moved and this strike left Predict\'s entry band — recompile.',
+  'min-premium': 'Order too small for Predict\'s 1 dUSDC minimum premium (fees near expiry are high) — commit more or pick a longer window.',
+  'past-cutoff': 'This window is about to close — recompile for the next window.',
+  'market-cash': 'This market can\'t back that much payout right now — commit less.',
+  paused: 'Minting is paused on this market right now.', stuck: 'Predict pricing is delayed right now — retry shortly.',
+};
+async function onFund(el) {
+  if (state.busy) return; state.busy = true;
+  const out = $('#deploy-out', el);
+  const amount = Number($('#fund-amt', el)?.value || 0);
+  out.innerHTML = `<div class="muted"><span class="sdot pending"></span> building the deposit through Tatum — confirm in your wallet…</div>`;
+  try {
+    const f = await api('/tx/fund', { address: state.account.address, amount });
+    const res = await signAndExecuteBytes(f.txBytes);
+    if (!res.success) throw new Error(res.error || 'deposit failed');
+    await refreshAccount(); renderWalletChip();
+    toast('Predict account funded', `${fmt(amount, 2)} dUSDC · executed via Tatum`, 'alive');
+    renderCompiled(el, state.compile, state.conv);
+    $('#deploy-out', el).innerHTML = `<div class="muted">Funded · <a class="mono" style="color:var(--accent-deep)" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener">tx ${short(res.digest)} ↗</a></div>`;
+  } catch (e) {
+    out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)"><b style="color:var(--coral)">Not funded</b><div class="muted" style="margin-top:6px">${e.message || 'rejected'}</div></div>`;
+  } finally { state.busy = false; }
+}
 async function onDeploy(el) {
   if (state.busy) return; state.busy = true;
   const out = $('#deploy-out', el); const btn = $('#deploy', el);
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
-  out.innerHTML = `<div class="muted"><span class="sdot pending"></span> awaiting wallet signature…</div>`;
+  const r = state.compile, conv = state.conv;
+  const commit = state.chosen.commit ?? conv.capital;
+  out.innerHTML = `<div class="muted"><span class="sdot pending"></span> planning the order with DeepBook Predict…</div>`;
   try {
-    const res = await bringToLife();
-    const digest = res.digest;
-    const ok = res.effects?.status?.status === 'success';
-    if (!ok) throw new Error(res.effects?.status?.error || 'transaction failed');
-    await refreshDusdc(); renderWalletChip();
+    const m = await api('/tx/mint', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure }, { timeoutMs: 60000 });
+    out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: pay <b class="mono">${fmt(m.plan.totalDebit, 2)}</b> dUSDC (incl. ${fmt(m.plan.orderFee, 2)} order fee) → <b class="mono">${fmt(m.plan.potentialPayout, 2)}</b> dUSDC if ${m.order.label.replace(/^BTC /, 'BTC is ')}. Filled ~1s after landing at Pyth's price (or refunded).</div></div>`;
+    const res = await signAndExecuteBytes(m.txBytes, { mintId: m.mintId });
+    if (!res.success) throw new Error(res.error || 'transaction failed');
+    await refreshAccount(); renderWalletChip();
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--alive) 45%,transparent);background:var(--alive-soft)">
       <div class="row spread"><b style="color:var(--alive)">Live on Sui testnet</b><span class="sdot active"></span></div>
-      <div class="muted" style="margin-top:8px">Your conviction is a real on-chain object and a real <span class="mono">predict::mint</span> position.</div>
-      <a class="btn-soft" style="margin-top:12px" href="${CFG.EXPLORER(digest)}" target="_blank" rel="noopener" data-cursor>View on Suiscan ${arrow()}</a>
-      <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${digest}</div>
+      <div class="muted" style="margin-top:8px;line-height:1.55">A real DeepBook Predict order (record ${res.recordId ?? '—'}) and your HELIX strategy object, in one transaction — executed through <span class="mono">${res.executedVia}</span>.</div>
+      <a class="btn-soft" style="margin-top:12px" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener" data-cursor>View on Suiscan ${arrow()}</a>
+      <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${res.digest}</div>
+      <div id="mem-out" class="muted" style="margin-top:12px"><span class="sdot pending"></span> waiting for the keeper's fill, then writing a CONVICTION memory to Walrus (mainnet)…</div>
       <div id="thesis-out" style="margin-top:12px"></div></div>`;
-    toast('Strategy is live', 'predict::mint landed on Sui testnet', 'alive');
-    // optional: encrypt + store the private thesis and record it on-chain
+    toast('Conviction is live', 'Predict order queued · executed via Tatum', 'alive');
+    pollConvictionMemory($('#mem-out', el), res.digest);
     const thesis = ($('#thesis', el)?.value || '').trim();
     const created = (res.objectChanges || []).find(o => o.type === 'created' && /::strategy::StrategyObject$/.test(o.objectType || ''));
     if (thesis && created) await attachThesisFlow($('#thesis-out', el), created.objectId, thesis);
   } catch (e) {
-    const msg = (e.message || '').includes('INSUFFICIENT_DUSDC') ? 'Wallet has no dUSDC to commit.' : (e.message || 'rejected');
+    const msg = REFUSAL[e.code] || e.message || 'rejected';
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)">
-      <b style="color:var(--coral)">Not minted</b><div class="muted" style="margin-top:6px">${msg}</div></div>`;
+      <b style="color:var(--coral)">Not placed</b><div class="muted" style="margin-top:6px">${msg}</div></div>`;
   } finally {
     state.busy = false; if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
   }
+}
+async function pollConvictionMemory(node, digest) {
+  for (let i = 0; i < 24 && node?.isConnected; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const t = await api(`/memory/${state.account.address}`);
+      const hit = (t.timeline || []).find(x => x.type === 'CONVICTION' && x.fields?.tx === digest);
+      if (hit) {
+        node.innerHTML = `<span class="sdot active"></span> CONVICTION remembered on Walrus mainnet · blob <span class="mono">${short(hit.blob_id)}</span> · fill ${hit.fields.fill} · <a href="#/memory" style="color:var(--accent-deep)">open Memory →</a> · the outcome is written automatically when the window settles.`;
+        return;
+      }
+    } catch (e) {}
+  }
+  if (node?.isConnected) node.innerHTML = `Memory write still in progress — it will appear on the <a href="#/memory" style="color:var(--accent-deep)">Memory</a> page.`;
 }
 // encrypt the thesis (Seal) → store on Walrus → record it on-chain (attach_thesis)
 async function attachThesisFlow(out, strategyId, text) {
@@ -608,49 +561,43 @@ async function attachThesisFlow(out, strategyId, text) {
 }
 async function pingTEE(el) {
   try {
-    const c = new AbortController(); setTimeout(() => c.abort(), 1500);
+    const c = new AbortController(); setTimeout(() => c.abort(), 20000);
     const res = await fetch(`${CFG.COMPILER_URL}/health`, { signal: c.signal });
     const b = $('#tee-badge', el);
-    if (res.ok) { const j = await res.json(); if (b) b.textContent = j.mockTee ? 'compiler · ready (dev-signed)' : 'compiler · enclave'; }
-    else if (b) b.textContent = 'compiler · down';
-  } catch (e) { const b = $('#tee-badge', el); if (b) { b.textContent = 'compiler · offline'; } }
+    if (res.ok) {
+      const j = await res.json();
+      if (b) { b.textContent = `compiler · tatum ✓ · memory ${j.memwal === 'ok' ? '✓' : j.memwal}`; b.title = `Tatum testnet checkpoint ${j.tatum_testnet_checkpoint} · mainnet ${j.tatum_mainnet_checkpoint} · ${j.memory_network}`; }
+    } else if (b) b.textContent = 'compiler · down';
+  } catch (e) { const b = $('#tee-badge', el); if (b) { b.textContent = 'compiler · waking…'; } }
 }
 
-/* ============================================================ STEP 4 — supporting pages (real on-chain reads)
-   All data here is read from chain (owned StrategyObjects, StrategyCreated /
-   BreedingExecuted events) or the live Predict server. No fabricated strategies. */
+/* ============================================================ supporting pages (real on-chain reads via Tatum) */
 const STATUS = ['pending', 'active', 'closed', 'dead'];
 async function getMyStrategies() {
   if (!state.account) return [];
-  const res = await client.getOwnedObjects({
-    owner: state.account.address,
-    filter: { StructType: `${CFG.HELIX}::strategy::StrategyObject` },
-    options: { showContent: true }, limit: 50,
-  });
-  return res.data.map(o => parseStrategy(o.data)).filter(Boolean);
+  const objs = await ownedOfType(state.account.address, `${CFG.HELIX}::strategy::StrategyObject`);
+  return objs.map(o => parseStrategy(o.id, o.json)).filter(Boolean);
 }
 async function getStrategy(id) {
-  const o = await client.getObject({ id, options: { showContent: true } });
-  return parseStrategy(o.data);
+  const o = await objectOf(id);
+  return o ? parseStrategy(o.id, o.json) : null;
 }
 async function getAllStrategies() {
   // every StrategyObject ever minted, via its creation event (cross-user leaderboard)
-  const ev = await client.queryEvents({ query: { MoveEventType: `${CFG.HELIX}::events::StrategyCreated` }, limit: 50, order: 'descending' });
-  const ids = [...new Set(ev.data.map(e => e.parsedJson?.strategy_id).filter(Boolean))];
+  const ev = await eventsOfType(`${CFG.HELIX}::events::StrategyCreated`, 50);
+  const ids = [...new Set(ev.map(e => e.json?.strategy_id).filter(Boolean))];
   const objs = await Promise.all(ids.map(id => getStrategy(id).catch(() => null)));
   return objs.filter(Boolean);
 }
 async function getBreedings() {
-  try {
-    const ev = await client.queryEvents({ query: { MoveEventType: `${CFG.HELIX}::events::BreedingExecuted` }, limit: 50, order: 'descending' });
-    return ev.data.map(e => e.parsedJson).filter(Boolean);
-  } catch (e) { return []; }
+  try { return (await eventsOfType(`${CFG.HELIX}::events::BreedingExecuted`, 50)).map(e => e.json).filter(Boolean); }
+  catch (e) { return []; }
 }
-function parseStrategy(data) {
-  const f = data?.content?.fields; if (!f) return null;
-  const d = f.dna?.fields || {};
+function parseStrategy(id, f) {
+  if (!f) return null;
+  const d = f.dna?.fields || f.dna || {};
   return {
-    id: data.objectId, owner: f.owner, creator: f.creator,
+    id, owner: f.owner, creator: f.creator,
     generation: Number(f.generation || 0), parents: f.parents || [],
     status: STATUS[Number(f.status || 0)] || 'pending',
     capital: Number(f.current_capital || f.initial_capital || 0),
@@ -673,8 +620,7 @@ function dnaToConv(d, capital) {
     horizonCode: d.horizonDays >= 1 ? 3 : 0, volView: d.volView, capital: Math.max(1, capital || 5) };
 }
 async function preview(conv) {
-  const res = await fetch(`${CFG.COMPILER_URL}/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...conv, currentEpoch: 0 }) });
-  if (!res.ok) throw new Error(`preview ${res.status}`); return res.json();
+  return api('/preview', { ...conv, currentEpoch: 0 });
 }
 function dnaChips(d) {
   const dir = (d.dirNegative ? -1 : 1) * d.dirMagnitude;
@@ -693,17 +639,17 @@ function structFromDna(d) {
 /* -------- My Strategies -------- */
 function viewStrategies() {
   const el = document.createElement('div'); el.className = 'view view-enter';
-  if (!state.account) { el.innerHTML = connectPrompt('See your living portfolio', 'Connect a wallet to read your HELIX strategy objects and Predict positions from chain.'); return { el }; }
-  el.innerHTML = `<div id="strat-list"><div class="muted"><span class="sdot pending"></span> reading your strategies from chain…</div></div>`;
+  if (!state.account) { el.innerHTML = connectPrompt('See your living portfolio', 'Connect a wallet to read your HELIX strategy objects and DeepBook Predict account from chain.'); return { el }; }
+  el.innerHTML = `<div id="strat-list"><div class="muted"><span class="sdot pending"></span> reading your strategies from chain (via Tatum)…</div></div>`;
   (async () => {
     const host = $('#strat-list', el);
     try {
-      const [strats, mid] = await Promise.all([getMyStrategies(), findManager()]);
-      if (!strats.length) { host.innerHTML = emptyState(); return; }
-      host.innerHTML = `<div class="grid-3">${strats.map(cardHTML).join('')}</div>
-        ${mid ? `<div class="panel" style="margin-top:18px"><div class="row spread"><div class="section-title" style="margin:0">predict manager</div>
-          <a class="badge" href="${CFG.EXPLORER_OBJ(mid)}" target="_blank" rel="noopener">${short(mid)} ↗</a></div>
-          <div class="muted" style="margin-top:8px">Your minted Predict positions live in this shared manager object.</div></div>` : ''}`;
+      const [strats, acct] = await Promise.all([getMyStrategies(), refreshAccount()]);
+      const acctPanel = acct && !acct.error ? `<div class="panel" style="margin-top:18px"><div class="row spread"><div class="section-title" style="margin:0">deepbook predict account</div>
+          <a class="badge" href="${CFG.EXPLORER_OBJ(acct.wrapperId)}" target="_blank" rel="noopener">${short(acct.wrapperId)} ↗</a></div>
+          <div class="muted" style="margin-top:8px">${acct.exists ? `Balance ${fmt(acct.balance, 2)} dUSDC. Filled orders live as Open records in each market's queue and pay into this account at settlement.` : 'Not created yet — your first funding creates it.'}</div></div>` : '';
+      if (!strats.length) { host.innerHTML = emptyState() + acctPanel; return; }
+      host.innerHTML = `<div class="grid-3">${strats.map(cardHTML).join('')}</div>${acctPanel}`;
       host.addEventListener('click', e => { const c = e.target.closest('[data-id]'); if (c) location.hash = '#/strategy/' + c.dataset.id; });
       revealObserve(host);
     } catch (e) { host.innerHTML = `<div class="empty"><h3>Couldn't load strategies</h3><p class="mono">${e.message}</p></div>`; }
@@ -742,8 +688,8 @@ function viewDetail(id) {
     try {
       const s = await getStrategy(id);
       if (!s) { host.innerHTML = `<div class="empty"><h3>Strategy not found</h3><a class="btn-soft" href="#/strategies">Back</a></div>`; return; }
-      let legs = [], m = null, spot = 60000;
-      try { const r = await preview(dnaToConv(s.dna, s.capital)); legs = r.selected.legs; m = r.selected.metrics; spot = r.spot; } catch (e) {}
+      let pr = null;
+      try { pr = await preview(dnaToConv(s.dna, s.capital)); } catch (e) {}
       const mine = state.account && s.owner === state.account.address;
       host.innerHTML = `
         <div class="row spread reveal" style="margin-bottom:20px;flex-wrap:wrap;gap:14px">
@@ -758,13 +704,14 @@ function viewDetail(id) {
         <div class="grid-4 reveal d1" style="margin-bottom:18px">
           <div class="stat"><div class="k">capital</div><div class="v">${fmt(s.capital)} <span style="font-size:.7rem" class="muted">dUSDC</span></div></div>
           <div class="stat"><div class="k">fitness</div><div class="v gold">${fmt(s.fitness)}</div></div>
-          <div class="stat"><div class="k">win prob</div><div class="v">${m ? Math.round(m.winProb * 100) + '%' : '—'}</div></div>
+          <div class="stat"><div class="k">market win now</div><div class="v">${pr?.predict ? Math.round(pr.predict.order.pMkt * 100) + '%' : '—'}</div></div>
           <div class="stat"><div class="k">status</div><div class="v" style="text-transform:capitalize">${s.status}</div></div>
         </div>
         <div class="grid-2 reveal d1" style="align-items:start">
-          <div class="panel"><div class="section-title">payoff at resolution</div><div class="chart-wrap" id="d-payoff">${legs.length ? '' : '<div class="muted" style="padding:30px">compiler offline — payoff unavailable</div>'}</div></div>
+          <div class="panel"><div class="section-title">this DNA, re-compiled on today's market</div><div class="chart-wrap" id="d-payoff">${pr?.predict ? '' : '<div class="muted" style="padding:30px">compiler offline — payoff unavailable</div>'}</div>
+            ${pr?.predict ? `<div class="muted" style="font-size:12.5px;margin-top:8px">${pr.predict.order.label}</div>` : ''}</div>
           <div class="panel"><div class="section-title">performance</div>
-            <div class="muted" style="line-height:1.7">This conviction has settled no positions yet, so there is no equity history to chart — HELIX never draws a fabricated curve. Realized P&L and fitness update on-chain as positions resolve.</div>
+            <div class="muted" style="line-height:1.7">Outcomes of your convictions are recorded in Walrus Memory and shown on the <a href="#/memory" style="color:var(--accent-deep)">Memory</a> page. HELIX never draws a fabricated equity curve.</div>
             <div class="grid-2" style="margin-top:14px"><div class="stat"><div class="k">copies</div><div class="v">${s.copies}</div></div><div class="stat"><div class="k">offspring</div><div class="v">${s.offspring}</div></div></div></div>
         </div>
         <div class="panel reveal d2" style="margin-top:18px"><div class="section-title">strategy DNA</div><div class="dna-grid">${dnaGrid(s.dna)}</div></div>
@@ -772,7 +719,7 @@ function viewDetail(id) {
           <div class="muted"><span class="sdot pending"></span> checking for an encrypted thesis…</div></div>
         <div class="panel reveal d2" style="margin-top:18px"><div class="section-title">lineage</div>${lineageBlurb(s)}</div>
         <div id="act-out" style="margin-top:14px"></div>`;
-      if (legs.length) $('#d-payoff', host).innerHTML = payoffSkeleton(), updatePayoffNode($('#d-payoff', host), legs, spot);
+      if (pr?.predict) updatePredictPayoff($('#d-payoff', host), pr.predict.order, pr.predict.forward, Math.max(2, s.capital || 5));
       revealObserve(host);
       renderThesisPanel(host, s);
       host.addEventListener('click', e => {
@@ -790,10 +737,6 @@ function viewDetail(id) {
     } catch (e) { host.innerHTML = `<div class="empty"><h3>Couldn't load strategy</h3><p class="mono">${e.message}</p></div>`; }
   })();
   return { el };
-}
-function updatePayoffNode(host, legs, spot) {
-  if (!host.querySelector('svg')) host.innerHTML = payoffSkeleton();
-  tweenPayoff(host, payoffGeometry(legs, spot));
 }
 function dnaGrid(d) {
   const dir = (d.dirNegative ? -1 : 1) * d.dirMagnitude;
@@ -864,13 +807,13 @@ async function breedStrategies(host, parentA, parentBId) {
     const tx = new Transaction();
     let fee;
     if (required > 0) {
-      const dusdcCoin = await pickDusdcCoin(BigInt(required));
-      [fee] = tx.splitCoins(tx.object(dusdcCoin), [tx.pure.u64(BigInt(required))]);
+      const coin = await pickFeeCoin(BigInt(required));
+      [fee] = tx.splitCoins(tx.object(coin), [tx.pure.u64(BigInt(required))]);
     } else {
-      fee = tx.moveCall({ target: '0x2::coin::zero', typeArguments: [CFG.DUSDC], arguments: [] });
+      fee = tx.moveCall({ target: '0x2::coin::zero', typeArguments: [CFG.FEE_COIN], arguments: [] });
     }
     const [child, cap] = tx.moveCall({
-      target: `${CFG.HELIX}::breeding::breed`, typeArguments: [CFG.DUSDC],
+      target: `${CFG.HELIX}::breeding::breed`, typeArguments: [CFG.FEE_COIN],
       arguments: [tx.object(parentA.id), tx.object(parentBId), fee, tx.pure.u64(BigInt(childCapital)), tx.pure.u64(seed), tx.pure.vector('u8', [1])],
     });
     tx.transferObjects([child, cap], tx.pure.address(state.account.address));
@@ -885,7 +828,7 @@ async function breedStrategies(host, parentA, parentBId) {
         <a class="btn-soft" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener" data-cursor>View tx ↗</a></div></div>`;
     toast('Bred a child strategy', 'crossover minted on Sui testnet', 'alive');
   } catch (e) {
-    const msg = (e.message || '').includes('INSUFFICIENT_DUSDC') ? 'Need dUSDC for the breed fee — relist both parents with a 0 fee, or fund the wallet.' : (e.message || 'rejected');
+    const msg = (e.message || '').includes('INSUFFICIENT_FEE_COIN') ? 'Need fee coins for the breed fee — relist both parents with a 0 fee.' : (e.message || 'rejected');
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)"><b style="color:var(--coral)">Not bred</b><div class="muted" style="margin-top:6px">${msg}</div></div>`;
   }
 }
@@ -895,13 +838,9 @@ function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp
 async function findCopyRelationship(originalId) {
   if (!state.account) return null;
   try {
-    const res = await client.getOwnedObjects({
-      owner: state.account.address,
-      filter: { StructType: `${CFG.HELIX}::marketplace::CopyRelationship` },
-      options: { showContent: true }, limit: 50,
-    });
-    const hit = res.data.find(o => o.data?.content?.fields?.original_strategy_id === originalId);
-    return hit ? hit.data.objectId : null;
+    const rels = await ownedOfType(state.account.address, `${CFG.HELIX}::marketplace::CopyRelationship`);
+    const hit = rels.find(o => o.json?.original_strategy_id === originalId);
+    return hit ? hit.id : null;
   } catch (e) { return null; }
 }
 async function renderThesisPanel(host, s) {
@@ -910,8 +849,7 @@ async function renderThesisPanel(host, s) {
   const mine = state.account && s.owner === state.account.address;
   const relId = (!mine && state.account && blobId) ? await findCopyRelationship(s.id) : null;
   // Seal decryption needs a personal-message signature (SessionKey), which only a
-  // browser wallet provides — zkLogin/Google sessions can't decrypt yet. Guard the
-  // UI so a Google user never hits a dead end (or pays to copy then can't read).
+  // browser wallet provides — zkLogin/Google sessions can't decrypt yet.
   const canDecrypt = state.mode === 'wallet' && !!state.wallet?.features?.['sui:signPersonalMessage'];
   const zkNote = `<div class="row" style="gap:10px;align-items:flex-start;margin-top:12px"><span class="sdot pending" style="margin-top:5px;flex:0 0 auto"></span>
     <span class="muted" style="line-height:1.6">Reading a Seal thesis needs a browser wallet signature (Seal session key). You're signed in with Google (zkLogin) — reconnect with a wallet to unlock theses.</span></div>`;
@@ -920,9 +858,7 @@ async function renderThesisPanel(host, s) {
     if (mine || relId) {
       panel.innerHTML = `<div class="section-title">private thesis</div>
         <div class="muted" style="line-height:1.6">A Seal-encrypted thesis is attached to this strategy. ${mine ? 'You own it.' : 'You copied it — so you can read it.'} Decrypt with your wallet (a quick signature, no transaction).</div>
-        ${canDecrypt
-          ? `<button class="btn-soft" id="thesis-unlock" data-cursor style="margin-top:12px">Unlock thesis ${arrow()}</button>`
-          : zkNote}
+        ${canDecrypt ? `<button class="btn-soft" id="thesis-unlock" data-cursor style="margin-top:12px">Unlock thesis ${arrow()}</button>` : zkNote}
         <div id="thesis-plain" style="margin-top:12px"></div>`;
     } else {
       const feeUnits = Math.floor((s.capital || 0) * (s.copyFeeBps || 0) / 10000);
@@ -932,8 +868,7 @@ async function renderThesisPanel(host, s) {
         <span class="muted" style="line-height:1.6">This strategy carries a Seal-encrypted thesis. Structure and performance are public on-chain, but the owner's reasoning unlocks only for paying copiers.</span></div>
         ${!state.account
           ? `<div class="muted" style="margin-top:12px">Connect a wallet to copy this strategy and unlock its thesis.</div>`
-          : !canDecrypt
-            ? zkNote
+          : !canDecrypt ? zkNote
             : `<button class="btn-soft" id="thesis-copy" data-cursor style="margin-top:14px">Copy strategy${payLbl} ${arrow()}</button>
                <div class="muted mono" style="font-size:10.5px;margin-top:6px">paying to copy records an on-chain CopyRelationship → Seal then grants you the thesis</div>
                <div id="thesis-copy-out" style="margin-top:12px"></div>`}`;
@@ -964,10 +899,8 @@ async function unlockThesis(host, s) {
   }
 }
 // The copier path: a non-owner pays to copy → gets an on-chain CopyRelationship →
-// Seal's seal_approve_copier then grants them the thesis. Uses copy_for_thesis
-// (which doesn't reference the owner's OWNED StrategyObject — a stranger can't pass
-// another wallet's owned object into their transaction). On success, re-render the
-// panel (now finds the relationship) and auto-unlock.
+// Seal's seal_approve_copier then grants them the thesis (copy_for_thesis never
+// references the owner's OWNED StrategyObject).
 async function copyStrategyFlow(host, s) {
   const out = $('#thesis-copy-out', host);
   if (!state.account) { if (out) out.innerHTML = `<div class="muted">Connect a wallet to copy.</div>`; return; }
@@ -976,36 +909,31 @@ async function copyStrategyFlow(host, s) {
   if (out) out.innerHTML = `<div class="muted"><span class="sdot pending"></span> paying the creator &amp; recording your copy on-chain…</div>`;
   try {
     const feeUnits = Math.floor((s.capital || 0) * (s.copyFeeBps || 0) / 10000);
-    const feeBase = BigInt(feeUnits) * BigInt(10 ** CFG.DUSDC_DECIMALS);
+    const feeBase = BigInt(feeUnits) * BigInt(10 ** CFG.QUOTE_DECIMALS);
     const tx = new Transaction();
     let fee;
     if (feeBase > 0n) {
-      if (state.dusdc < feeBase) throw new Error('INSUFFICIENT_DUSDC');
-      const coinId = await pickDusdcCoin(feeBase);
+      const coinId = await pickFeeCoin(feeBase);
       [fee] = tx.splitCoins(tx.object(coinId), [tx.pure.u64(feeBase)]);
     } else {
-      fee = tx.moveCall({ target: '0x2::coin::zero', typeArguments: [CFG.DUSDC], arguments: [] });
+      fee = tx.moveCall({ target: '0x2::coin::zero', typeArguments: [CFG.FEE_COIN], arguments: [] });
     }
     const rel = tx.moveCall({
       target: `${CFG.HELIX_LATEST}::marketplace::copy_for_thesis`,
-      typeArguments: [CFG.DUSDC],
+      typeArguments: [CFG.FEE_COIN],
       arguments: [tx.pure.id(s.id), tx.pure.address(s.creator), fee],
     });
     tx.transferObjects([rel], tx.pure.address(state.account.address));
     const res = await signAndExecute(tx);
-    if (res.effects?.status?.status !== 'success') throw new Error(res.effects?.status?.error || 'copy failed');
-    await refreshDusdc(); renderWalletChip();
-    // grab the new CopyRelationship id straight from the tx result, so we don't race
-    // an event/owned-object index that may lag right after creation.
     const createdRel = (res.objectChanges || []).find(o => o.type === 'created' && /::marketplace::CopyRelationship$/.test(o.objectType || ''));
     toast('Strategy copied', 'on-chain CopyRelationship recorded — unlocking thesis', 'alive');
     const panel = $('#thesis-panel', host);
-    if (panel && createdRel) panel.dataset.rel = createdRel.objectId; // pin it for unlockThesis
-    await renderThesisPanel(host, s);   // re-render to the "you copied it → unlock" state
-    if (panel && createdRel) panel.dataset.rel = createdRel.objectId; // renderThesisPanel may have cleared it (index lag)
-    await unlockThesis(host, s);        // decrypt via the copier path (decryptThesis retries on FN lag)
+    if (panel && createdRel) panel.dataset.rel = createdRel.objectId;
+    await renderThesisPanel(host, s);
+    if (panel && createdRel) panel.dataset.rel = createdRel.objectId;
+    await unlockThesis(host, s);
   } catch (e) {
-    const msg = (e.message || '').includes('INSUFFICIENT_DUSDC') ? 'Not enough dUSDC to pay the copy fee.' : (e.message || 'rejected');
+    const msg = (e.message || '').includes('INSUFFICIENT_FEE_COIN') ? 'Not enough fee coins to pay the copy fee.' : (e.message || 'rejected');
     if (out) out.innerHTML = `<div class="muted" style="color:var(--coral)">Copy failed: ${msg}</div>`;
   } finally {
     state.busy = false; const b = $('#thesis-copy', host); if (b) { b.disabled = false; b.style.opacity = '1'; }
@@ -1029,20 +957,20 @@ function viewRisk() {
     try {
       const strats = (await getMyStrategies()).filter(s => s.status === 'active' || s.status === 'pending');
       if (!strats.length) { host.innerHTML = `<div class="empty"><h3>No live convictions</h3><p>Bring a conviction to life on the Canvas; your portfolio compass appears here.</p><a class="btn-solid" href="#/canvas">Open the Canvas</a></div>`; return; }
-      await loadOracle().catch(() => {});
-      // aggregate honest axes across the portfolio
       let bias = 0, cap = 0, conc = 0;
       strats.forEach(s => { bias += (s.dna.dirNegative ? -1 : 1) * s.dna.dirMagnitude / 100 * s.capital; cap += s.capital; conc += s.dna.legCount <= 1 ? 1 : 0.5; });
       const netBias = cap ? Math.abs(bias) / cap : 0;
+      const mins = state.compile?.predict?.market?.minutesLeft;
       const axes = [{ k: 'Net Exposure', v: Math.min(1, netBias * 0.9 + 0.1) }, { k: 'Directional Bias', v: netBias },
-        { k: 'Time-to-Resolution', v: 0.5 }, { k: 'Concentration', v: Math.min(1, conc / strats.length) },
-        { k: 'Liquidity Headroom', v: 0.7 }];
-      const flags = guardianFlags({ plpUtilizationBps: 4200, selected: { legs: [] } }, state.oracle, state.oracleState);
+        { k: 'Time-to-Resolution', v: mins == null ? 0.5 : Math.min(1, 1 - Math.min(mins, 15) / 15) }, { k: 'Concentration', v: Math.min(1, conc / strats.length) },
+        { k: 'Entry Headroom', v: 0.6 }];
+      const flags = state.compile?.guardian || [];
       host.innerHTML = `<div class="grid-2 reveal" style="align-items:start">
         <div class="panel ink"><div class="section-title">portfolio risk compass</div><div style="display:grid;place-items:center">${radarSVG(axes)}</div>
-          <div class="muted mono" style="text-align:center;font-size:11px;margin-top:8px">${strats.length} live conviction${strats.length > 1 ? 's' : ''} · ${fmt(cap)} dUSDC committed</div></div>
-        <div class="panel"><div class="row spread"><div class="section-title" style="margin:0">guardian</div><span class="badge tee">live SVI</span></div>
-          <div style="margin-top:14px">${flags.map(f => `<div class="row" style="gap:9px;margin-bottom:12px;align-items:flex-start"><span class="sdot ${f.bad ? 'dead' : 'active'}" style="margin-top:5px;flex:0 0 auto"></span><span style="font-size:14px;line-height:1.5;color:${f.bad ? 'var(--coral)' : 'var(--ink-2)'}">${f.t}</span></div>`).join('')}</div></div>
+          <div class="muted mono" style="text-align:center;font-size:11px;margin-top:8px">${strats.length} conviction object${strats.length > 1 ? 's' : ''} · ${fmt(cap)} dUSDC committed</div></div>
+        <div class="panel"><div class="row spread"><div class="section-title" style="margin:0">guardian</div><span class="badge tee">live Predict pricer</span></div>
+          <div style="margin-top:14px">${flags.length ? flags.map(f => `<div class="row" style="gap:9px;margin-bottom:12px;align-items:flex-start"><span class="sdot ${f.bad ? 'dead' : 'active'}" style="margin-top:5px;flex:0 0 auto"></span><span style="font-size:14px;line-height:1.5;color:${f.bad ? 'var(--coral)' : 'var(--ink-2)'}">${f.t}</span></div>`).join('')
+            : `<div class="muted">Compile a conviction on the <a href="#/canvas" style="color:var(--accent-deep)">Canvas</a> to see live guardian lines for the current market window.</div>`}</div></div>
       </div>`;
       revealObserve(host);
     } catch (e) { host.innerHTML = `<div class="empty"><h3>Couldn't build compass</h3><p class="mono">${e.message}</p></div>`; }
@@ -1107,6 +1035,7 @@ const routes = [
   { id: 'canvas', match: /^#\/(canvas)?$/, title: 'Conviction Canvas', sub: 'express a belief', view: viewCanvas },
   { id: 'strategies', match: /^#\/strategies$/, title: 'My Strategies', sub: 'your living portfolio', view: viewStrategies },
   { id: 'strategies', match: /^#\/strategy\/(.+)$/, title: 'Strategy', sub: 'a living object', view: (m) => viewDetail(m[1]) },
+  { id: 'memory', match: /^#\/memory$/, title: 'Memory', sub: 'who was right · walrus mainnet', view: () => viewMemory({ state, $, connectPrompt, explorer: CFG.EXPLORER }) },
   { id: 'risk', match: /^#\/risk$/, title: 'Risk Compass', sub: 'one unified picture', view: viewRisk },
   { id: 'market', match: /^#\/market$/, title: 'Marketplace', sub: 'copy · breed · compete', view: viewMarket },
   { id: 'lineage', match: /^#\/lineage$/, title: 'Lineage', sub: 'genetic ancestry', view: viewLineage },
@@ -1148,13 +1077,13 @@ function themeToggle() {
 function renderWalletChip() {
   const b = $('#wallet'); if (!b) return;
   if (state.account) {
-    const bal = fmt(Number(state.dusdc) / 10 ** CFG.DUSDC_DECIMALS, 2);
-    const via = state.mode === 'zk'
-      ? `<span class="mono" style="font-size:10px;color:var(--accent-deep)">G</span> ` : '';
-    b.innerHTML = `<span class="sdot active"></span> ${via}${short(state.account.address)} · ${bal} dUSDC`;
-    b.title = state.mode === 'zk'
+    const a = state.acct;
+    const bal = a && !a.error ? `${fmt((a.walletQuoteBalance ?? 0) + (a.balance ?? 0), 2)} dUSDC` : '…';
+    const via = state.mode === 'zk' ? `<span class="mono" style="font-size:10px;color:var(--accent-deep)">G</span> ` : '';
+    b.innerHTML = `<span class="sdot active"></span> ${via}${short(state.account.address)} · ${bal}`;
+    b.title = (state.mode === 'zk'
       ? `zkLogin via Google${state.zk?.email ? ' (' + state.zk.email + ')' : ''} — click to sign out`
-      : 'Click to disconnect';
+      : 'Click to disconnect') + (a && !a.error ? ` · wallet ${fmt(a.walletQuoteBalance ?? 0, 2)} + Predict account ${fmt(a.balance ?? 0, 2)}` : '');
   } else { b.innerHTML = 'Connect'; b.title = ''; }
 }
 function walletButton() {
@@ -1207,6 +1136,7 @@ function build() {
       <a class="brand-mark" href="index.html" title="Home"><svg viewBox="0 0 32 32" fill="none"><circle cx="15" cy="17" r="11" stroke="currentColor" stroke-width="2.6"/><circle cx="25" cy="7" r="4.2" fill="currentColor"/></svg></a>
       ${railLink('canvas', '#/canvas', 'Canvas')}
       ${railLink('strategies', '#/strategies', 'Strategies')}
+      ${railLink('memory', '#/memory', 'Memory')}
       ${railLink('risk', '#/risk', 'Risk Compass')}
       ${railLink('market', '#/market', 'Marketplace')}
       ${railLink('lineage', '#/lineage', 'Lineage')}
@@ -1216,7 +1146,7 @@ function build() {
       <div class="topbar">
         <div class="page-h"><span class="eyebrow" id="page-sub">express a belief</span><h1 id="page-title">Conviction Canvas</h1></div>
         <div class="right">
-          <span class="chip"><span class="live"></span> sui testnet</span>
+          <span class="chip" title="Sui reads + execution via Tatum · memory on Walrus mainnet"><span class="live"></span> sui testnet · tatum</span>
           <div class="theme-toggle" role="radiogroup" aria-label="Theme" id="theme-toggle">
             <span class="tt-pill" id="tt-pill"></span>
             <button role="radio" data-theme-val="light" aria-label="Light" data-cursor><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
@@ -1233,14 +1163,10 @@ function build() {
 function init() {
   build(); cursor(); themeToggle(); walletButton();
   // (a0) arrived from the landing-page "Continue with Google" CTA (app.html?login=google)?
-  // kick straight into the Google → zkLogin redirect (the OAuth flow must complete
-  // here in app.html, which is why the landing button routes through this page).
   const qp = new URLSearchParams(location.search);
   if (qp.get('login') === 'google' && zkConfigured() && !loadZkSession() && !location.hash.includes('id_token=')) {
     history.replaceState(null, '', location.pathname); // drop the ?login flag
     connectGoogle().catch(err => {
-      // the redirect to Google did NOT happen (e.g. Enoki key missing) — surface the
-      // reason and still render the app so the page isn't left blank/stuck.
       toast('Google sign-in failed', err.message || 'error', 'gold');
       addEventListener('hashchange', render); render();
       const boot = $('#boot'); if (boot) setTimeout(() => boot.classList.add('done'), 520);
@@ -1249,16 +1175,16 @@ function init() {
     return; // on success the page navigates away to Google; nothing else to do
   }
   // (a) returning from a Google OAuth redirect? finish zkLogin (proof + address).
-  completeGoogleLoginIfPresent(client).then(s => {
+  completeGoogleLoginIfPresent().then(s => {
     if (s) { activateZkSession(s).then(() => { toast('Signed in with Google', 'zkLogin address ' + short(s.address), 'alive'); render(); }); }
   }).catch(err => toast('zkLogin failed', err.message || 'prover error', 'gold'));
   // (b) restore a still-valid zkLogin session from this tab, else a wallet.
   const zk = loadZkSession();
-  if (zk) { state.mode = 'zk'; state.zk = zk; state.account = { address: zk.address }; refreshDusdc().then(renderWalletChip); }
+  if (zk) { state.mode = 'zk'; state.zk = zk; state.account = { address: zk.address }; refreshAccount().then(renderWalletChip); }
   else {
     const ws = discoverWallets();
     const remembered = ws.find(w => (w.accounts && w.accounts.length));
-    if (remembered) { state.wallet = remembered; state.account = remembered.accounts[0]; refreshDusdc().then(renderWalletChip); }
+    if (remembered) { state.wallet = remembered; state.account = remembered.accounts[0]; refreshAccount().then(renderWalletChip); }
   }
   addEventListener('hashchange', render);
   render();

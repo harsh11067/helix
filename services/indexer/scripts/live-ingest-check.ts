@@ -4,7 +4,7 @@ import { strict as assert } from 'node:assert';
 import { SuiEventSource } from '../src/eventSource.ts';
 import { Store } from '../src/store.ts';
 
-const RPC = process.env.SUI_RPC_URL ?? 'https://fullnode.testnet.sui.io:443';
+const RPC = process.env.TATUM_SUI_TESTNET ?? 'https://sui-testnet.gateway.tatum.io';   // Tatum Sui GraphQL
 const HELIX = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
 
 const store = new Store();

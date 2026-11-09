@@ -201,7 +201,10 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
   const order = P.buildOrder(k.kind, k.side, conv.confidence, pv, market, band, k.note);
   const alt = altFamilyOrder(order.kind, conv, pv, market, band);
 
-  const crowd: CrowdView = await crowdVoice(market, order, pv).catch((e) => ({ status: 'unavailable', reason: (e as Error).message } as CrowdView));
+  const crowd: CrowdView = await crowdVoice(market, order, pv).catch((e) => {
+    console.warn('[crowd]', (e as Error).message, (e as any).cause?.code ?? '');
+    return { status: 'unavailable', reason: (e as Error).message } as CrowdView;
+  });
   const voices = {
     you: pYou(conv.confidence),
     market: order.pMkt,

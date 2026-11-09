@@ -13,9 +13,11 @@ import { MockEventSource, SuiEventSource, type EventSource } from './eventSource
 // indexer tests stay green; otherwise the live SuiEventSource filtered on the
 // HELIX + Predict package IDs.
 const OFFLINE = process.env.OFFLINE === '1';
-const RPC = process.env.SUI_RPC_URL ?? 'https://fullnode.testnet.sui.io:443';
+// Tatum's Sui GraphQL gateway — the same chokepoint the compiler uses.
+const RPC = process.env.TATUM_SUI_TESTNET ?? 'https://sui-testnet.gateway.tatum.io';
 const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
-const PREDICT_PKG = process.env.PREDICT_PACKAGE_ID ?? '0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138';
+// DeepBook Predict v4 (2026-09-12 redeployment) — ORIGINAL id, which event type tags use.
+const PREDICT_PKG = process.env.PREDICT_V4_ORIGINAL_ID ?? '0x59d71119e990573a738dd3ff9c4c7d28d6893af69c87c1a7f3a2e90e280ce2f4';
 
 export interface Indexer {
   server: http.Server;
@@ -63,8 +65,7 @@ export function createIndexer(): Indexer {
     ? new MockEventSource()
     : new SuiEventSource(RPC, [
         { package: HELIX_PKG, module: 'events' },     // StrategyCreated / Breeding / Copied / Closed / Died
-        { package: PREDICT_PKG, module: 'predict' },  // Predict mints/redeems (mapped as they gain mappers)
-        { package: PREDICT_PKG, module: 'oracle' },   // oracle lifecycle
+        { package: PREDICT_PKG, module: 'predict' },  // Predict v4 order/settlement events (mapped as they gain mappers)
       ]);
 
   function ingest(e: HelixEvent) {

@@ -1,8 +1,8 @@
 // eventSource — abstracts where HELIX events come from.
 //
 //   * MockEventSource: dev/test feed — push events directly.
-//   * SuiEventSource:  production — subscribes to the package's events over the
-//     Sui RPC `suix_subscribeEvent` websocket and maps them to HelixEvents.
+//   * SuiEventSource:  production — polls the package's events over Sui GraphQL
+//     through Tatum's gateway and maps them to HelixEvents.
 //
 // The real source is guarded behind a dynamic import of @mysten/sui so the
 // indexer runs offline in dev (plan.md: mockable interfaces).
@@ -49,48 +49,50 @@ export function mapSuiEvent(suiType: string, parsed: Record<string, any>): Helix
 
 export interface ModuleFilter { package: string; module: string }
 
-// Production source — polls `suix_queryEvents` over the JSON-RPC fullnode via
-// plain fetch (no SDK dependency; fullnode event websockets are deprecated).
-// Filtered on the given package/module pairs (HELIX events + Predict modules),
-// de-duplicated by (txDigest, eventSeq), and backfilled once on start.
+// Production source — polls Sui GraphQL `events` through Tatum's Sui gateway (Sui
+// retired JSON-RPC on public fullnodes in 2026; Tatum is HELIX's single chokepoint).
+// Filtered by DEFINING module type prefix (`pkg::events`, `pkg::predict`, …) — the
+// emitting module differs (helix::strategy emits helix::events::StrategyCreated) —
+// de-duplicated by (txDigest, sequenceNumber), and backfilled once on start.
 export class SuiEventSource implements EventSource {
-  private rpcUrl: string;
+  private url: string;
   private filters: ModuleFilter[];
   private pollMs: number;
   private seen = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(rpcUrl: string, filters: ModuleFilter[], pollMs = 4000) {
-    this.rpcUrl = rpcUrl;
+  constructor(graphqlUrl: string, filters: ModuleFilter[], pollMs = 6000) {
+    this.url = graphqlUrl.endsWith('/graphql') ? graphqlUrl : graphqlUrl.replace(/\/+$/, '') + '/graphql';
     this.filters = filters;
     this.pollMs = pollMs;
   }
 
   private async queryModule(f: ModuleFilter): Promise<any[]> {
-    const r = await fetch(this.rpcUrl, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (process.env.TATUM_API_KEY) headers['x-api-key'] = process.env.TATUM_API_KEY.trim();
+    const r = await fetch(this.url, {
+      method: 'POST', headers,
       body: JSON.stringify({
-        jsonrpc: '2.0', id: 1, method: 'suix_queryEvents',
-        // MoveEventModule = the module that DEFINES the event struct (helix::events,
-        // predict::predict/oracle) — not the emitting/entry module.
-        params: [{ MoveEventModule: { package: f.package, module: f.module } }, null, 50, true],
+        query: `query($t: String!) { events(last: 50, filter: { type: $t }) {
+          nodes { sequenceNumber contents { type { repr } json } transaction { digest } } } }`,
+        variables: { t: `${f.package}::${f.module}` },
       }),
     });
-    if (!r.ok) throw new Error(`rpc ${r.status}`);
+    if (!r.ok) throw new Error(`graphql ${r.status}`);
     const j: any = await r.json();
-    if (j.error) throw new Error(j.error.message ?? 'rpc error');
-    return j.result?.data ?? [];
+    if (j.errors?.length) throw new Error(j.errors[0].message ?? 'graphql error');
+    return j.data?.events?.nodes ?? [];
   }
 
   private async poll(onEvent: (e: HelixEvent) => void): Promise<void> {
     for (const f of this.filters) {
       let rows: any[];
       try { rows = await this.queryModule(f); } catch { continue; } // transient → skip round
-      for (const ev of rows.reverse()) { // RPC returns newest-first → emit oldest-first
-        const key = `${ev.id?.txDigest}:${ev.id?.eventSeq}`;
+      for (const ev of rows) {                                      // `last:` returns oldest-first
+        const key = `${ev.transaction?.digest}:${ev.sequenceNumber}`;
         if (this.seen.has(key)) continue;
         this.seen.add(key);
-        const m = mapSuiEvent(ev.type, ev.parsedJson ?? {});
+        const m = mapSuiEvent(ev.contents?.type?.repr ?? '', ev.contents?.json ?? {});
         if (m) onEvent(m);
       }
     }
