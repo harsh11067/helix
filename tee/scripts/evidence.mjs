@@ -31,6 +31,15 @@ const after = ADDR ? pick(await post('/preview', { ...conv, address: ADDR })) : 
 const timeline = ADDR ? await get(`/memory/${ADDR}`) : null;
 
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+// Commit mode (RECOVERY.md R3/R4): every CONVICTION ↔ its on-chain commit ↔ its OUTCOME, from the live service
+const tl = timeline?.timeline ?? [];
+const commitConv = tl.filter((r) => r.type === 'CONVICTION' && r.fields?.mode === 'commit');
+const outByTx = new Map(tl.filter((r) => r.type === 'OUTCOME').map((r) => [r.fields?.tx, r]));
+const commitOut = commitConv.filter((c) => outByTx.has(c.fields?.tx));
+const commitRows = commitConv.map((c, i) => {
+  const o = outByTx.get(c.fields.tx), f = c.fields;
+  return `| ${i + 1} | ${f.ts ? new Date(Number(f.ts) * 1000).toISOString().slice(0, 16).replace('T', ' ') : '—'} | ${esc(f.dir)}/${esc(f.conf)}/${esc(f.vol)} · ${esc(f.structure)} | [\`${f.tx.slice(0, 10)}…\`](https://suiscan.xyz/testnet/tx/${f.tx}) | \`${f.hash?.slice(0, 12)}…\` | \`${c.blob_id}\` | ${o ? `${o.fields.result} · ${o.fields.payoff} · reveal_ok=${o.fields.reveal_ok}` : 'pending'} | ${o ? '`' + o.blob_id + '`' : '—'} | ${esc(f.origin)} |`;
+}).join('\n');
 const rows = trading.map((e, i) => `| ${i + 1} | ${e.type} | \`${e.blob_id}\` | ${e.job_id ? '`' + e.job_id + '`' : '—'} | ${e.ts ? new Date(e.ts * 1000).toISOString().replace('.000Z', 'Z') : '—'} | ${e.tx ? `[\`${e.tx.slice(0, 10)}…\`](https://suiscan.xyz/testnet/tx/${e.tx})` : '—'} | ${e.origin ?? '—'} |`).join('\n');
 
 const md = `# TOTAL_RECALL_EVIDENCE
@@ -57,6 +66,14 @@ Every row was written with \`rememberAndWait\` to the Walrus Memory mainnet rela
 | # | type | blob id | job id | written | tx | origin |
 |---|---|---|---|---|---|---|
 ${rows || '| — | — | — | — | — | — | — |'}
+
+## 2b. Commit mode — on-chain commit–reveal (${commitConv.length} CONVICTION · ${commitOut.length} OUTCOME; target ≥30 / ≥20)
+
+${timeline?.commits ? `On-chain ledger (\`ConvictionCommitted\` events by this address via Tatum, matched to memory by hash): \`${JSON.stringify(timeline.commits)}\`` : ''}
+
+| # | committed (UTC) | conviction | commit tx | sha256 | CONVICTION blob | outcome | OUTCOME blob | origin |
+|---|---|---|---|---|---|---|---|---|
+${commitRows || '| — | — | — | — | — | — | — | — | — |'}
 
 ## 3. Memory visibly changes the product (L-01 vs L-02)
 
