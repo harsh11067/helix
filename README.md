@@ -106,6 +106,7 @@ HELIX existed before this hackathon (Move package, DeepBook Predict integration,
 | **On-chain Forecaster Passport** — `helix_passport`: a **soulbound** object (no `store`) minted from HELIX's BCS attestation and checked with `ed25519::ed25519_verify` on-chain, anti-rollback refresh, one per address, Display for wallets, and `gate_example::assert_calibrated` so any protocol can gate on reputation | `contracts-passport/`, `tee/src/passport/onchain/` |
 | **Credibility API, paid per call** — the Passport's per-setup detail behind HTTP **402** with the Machine Payments Protocol on Sui (`@suimpp/mpp` + `mppx`): pay → sign the proof → retry → 200 + receipt. Verification re-reads the payment **through Tatum**; replay-proof across restarts. The Council's **allocator** agent pays to read a human forecaster's record and decides whether to admit them (Brier ≤ 0.22, n ≥ 8) — memory buys memory | `tee/src/payments/`, `#/api`, `/api/v1/credibility/:id` |
 | **Ask your memory** — Walrus Memory's own `ask` (called from Node with HELIX's delegate key), with a deterministic stats fallback; every number in an answer must appear in the memories it cites, which are linked to Walruscan | `tee/src/ask/`, header button |
+| **More than BTC** — SUI convictions in commit mode, resolved by **Pyth's** signed on-chain price updates read through Tatum (first update at or after expiry; VOID past 300 s). Voices that don't exist for an asset show *n/a*; buckets are asset-scoped so BTC history is untouched. DeepBook Predict v4 lists only BTC (checked on-chain) | `tee/src/assets/`, Canvas asset switcher |
 | **Fun layer, all from data** — live proof ticker, settlement countdown + hash-verified reveal, humility meter (confidence vs record, n ≥ 3), Beat the Market (today, shared windows only) | `tistu/js/fun.js`, `/proof/ticker` |
 | **W1 Crowd voice** (Polymarket BTC 15-min Up/Down, compared only when windows and strikes match) · **W2 Price witness** (Tatum exchange-rate API) · **W3 Memory dividend** · **W5 MCP server + agent skill** · **W6 opt-in reasoning memory** · **W7 who-to-trust board** | see [WIN_FEATURES.md](./WIN_FEATURES.md) |
 
@@ -135,6 +136,7 @@ Evidence (health output, every memory with its blob id and source tx, before/aft
 - Gas for `journal::commit` is sponsored from a dedicated low-value testnet key when the committer has no SUI. The sponsor co-signs only a lone `journal::commit` with a capped budget, and only a limited number per address per day.
 - The paid Credibility API charges in **testnet SUI** today (we hold no Circle testnet USDC); `PAYMENT_CURRENCY=USDC_TESTNET` switches it to Circle USDC with no code change.
 - *Ask your memory* sends the question and the matching memories (decrypted by the relayer) to the relayer's model; HELIX checks every number in the answer against the cited memories and falls back to stats otherwise.
+- ETH is built but hidden: Pyth's Hermes API now needs an API key and ETH/USD isn't pushed on-chain on testnet; it turns on with `PYTH_API_KEY`. The Council commits on BTC only.
 - Hardware TEE attestation remains a labeled dev stub (unchanged).
 
 ---
