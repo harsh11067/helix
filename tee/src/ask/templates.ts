@@ -94,8 +94,10 @@ function setupRanking(c: Ctx, pick: 'best' | 'worst'): StatsAnswer | null {
     cite([lesson, latest(c.d.recs, 'CALIBRATION', g.b), ...ofSettled(g.xs)]), g.st.n);
 }
 
-function voices(st: BucketStats): { k: string; brier: number; n: number }[] {
-  const nFor: Record<string, number> = { you: st.n, market: st.n, helix: st.n, crowd: st.n_crowd, council: (st as any).n_council ?? 0 };
+function voices(st: BucketStats, xs: Settled[] = []): { k: string; brier: number; n: number }[] {
+  const nMkt = xs.length ? xs.filter((s) => s.row.p_mkt != null).length : st.n;         // ETH/SUI calls have no market voice
+  const nHlx = xs.length ? xs.filter((s) => s.row.p_hlx != null).length : st.n;
+  const nFor: Record<string, number> = { you: st.n, market: nMkt, helix: nHlx, crowd: st.n_crowd, council: (st as any).n_council ?? 0 };
   return Object.entries(st.brier)
     .filter(([k, v]) => v != null && Number.isFinite(v) && (nFor[k] ?? 0) >= MIN_N)
     .map(([k, v]) => ({ k, brier: v as number, n: nFor[k] }))
@@ -130,7 +132,7 @@ export const TEMPLATES: Template[] = [
       const vol = /chopp/.test(c.q) ? 'choppy' : /\bcalm|quiet/.test(c.q) ? 'calm' : null;
       const xs = vol ? c.S.filter((s) => str(s.conv, 'vol') === vol) : c.S;
       if (!xs.length) return null;
-      const st = stats(xs), vs = voices(st);
+      const st = stats(xs), vs = voices(st, xs);
       const where = vol ? `in ${vol} markets` : 'across all your settled calls';
       if (!vs.length) return done('trust_voice', `No voice has ${MIN_N} scored calls ${where} yet (${st.n} settled), so I can't rank them honestly.`, cite(ofSettled(xs)), st.n);
       const top = vs[0];
@@ -162,7 +164,10 @@ export const TEMPLATES: Template[] = [
       if (!c.S.length) return null;
       const st = stats(c.S);
       return done('record',
-        `You have ${calls(st.n, 'settled calls')} and won ${st.wins} (${pct(st.realized)}); your remembered win rate is ${pct(st.posterior)}. Your Brier is ${b2(st.brier.you)} against the Predict market's ${b2(st.brier.market)} on the same calls (lower is better).`,
+        `You have ${calls(st.n, 'settled calls')} and won ${st.wins} (${pct(st.realized)}); your remembered win rate is ${pct(st.posterior)}. Your Brier is ${b2(st.brier.you)}`
+        + (st.brier.market == null ? ' (no Predict market priced these calls).'
+          : c.S.every((s) => s.row.p_mkt != null) ? ` against the Predict market's ${b2(st.brier.market)} on the same calls (lower is better).`
+          : `; the Predict market's is ${b2(st.brier.market)} on the ${c.S.filter((s) => s.row.p_mkt != null).length} calls it priced (lower is better).`),
         cite(ofSettled(c.S)), st.n);
     },
   },
@@ -170,13 +175,14 @@ export const TEMPLATES: Template[] = [
     id: 'vs_market', question: 'Do I beat the market?',
     keywords: ['beat the market', 'market', 'versus', 'vs', 'better than', 'outperform'],
     answer: (c) => {
-      if (!c.S.length) return null;
-      const st = stats(c.S);
-      const closer = c.S.filter((s) => (s.row.p_you - s.row.won) ** 2 < (s.row.p_mkt - s.row.won) ** 2).length;
+      const S = c.S.filter((s) => s.row.p_mkt != null);       // only calls a Predict market priced (BTC)
+      if (!S.length) return null;
+      const st = stats(S);
+      const closer = S.filter((s) => (s.row.p_you - s.row.won) ** 2 < ((s.row.p_mkt as number) - s.row.won) ** 2).length;
       const beats = (st.brier.you ?? 1) < (st.brier.market ?? 0);
       return done('vs_market',
         `${beats ? 'Yes' : 'Not yet'}: your Brier is ${b2(st.brier.you)} vs the Predict market's ${b2(st.brier.market)} over ${calls(st.n, 'settled calls')} (lower is better). You were closer than the market on ${closer} of ${st.n} calls.`,
-        cite(ofSettled(c.S)), st.n);
+        cite(ofSettled(S)), st.n);
     },
   },
   {
