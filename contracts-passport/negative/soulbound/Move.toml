@@ -1,0 +1,9 @@
+# NEGATIVE fixture: this package MUST FAIL to build. It proves ForecasterPassport is soulbound:
+# another package cannot public_transfer it, nor wrap it in its own object (both need `store`).
+# Checked by tee/test/passport-onchain.test.ts (skipped when the sui CLI is not installed).
+[package]
+name = "soulbound_negative"
+edition = "2024"
+
+[dependencies]
+helix_passport = { local = "../.." }
