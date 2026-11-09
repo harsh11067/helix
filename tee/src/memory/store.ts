@@ -91,10 +91,28 @@ function appendLedger(e: LedgerEntry): void {
  * (namespace, text) writes resolve to the existing blob, so two watchers (or a retry)
  * can never mint a duplicate memory for the same fact.
  */
+// Budget guard (NEXT_BIG.md §1.5): at most MEMORY_WRITES_PER_HOUR relayer writes per rolling hour.
+// A write over budget WAITS for a slot (logged) — it is never dropped.
+const writesAt: number[] = [];
+export const writeStats = { waited: 0, maxPerHour: Number(process.env.MEMORY_WRITES_PER_HOUR ?? 150) };
+export async function writeBudget(now = () => Date.now()): Promise<void> {
+  for (;;) {
+    const t = now();
+    while (writesAt.length && t - writesAt[0] > 3_600_000) writesAt.shift();
+    if (writesAt.length < writeStats.maxPerHour) { writesAt.push(t); return; }
+    writeStats.waited++;
+    const wait = Math.min(60_000, 3_600_000 - (t - writesAt[0]) + 50);
+    console.warn(`[memory] write budget ${writeStats.maxPerHour}/h reached — waiting ${Math.round(wait / 1000)}s`);
+    await new Promise((r) => setTimeout(r, wait));
+  }
+}
+export const writesLastHour = () => { const t = Date.now(); return writesAt.filter((x) => t - x <= 3_600_000).length; };
+
 export async function remember(namespace: string, text: string, meta: { tx?: string | null; origin?: string | null } = {}):
   Promise<{ blob_id: string; job_id: string | null }> {
   const rec = parseRecord(text);
   if (!rec) throw new Error('refusing to write a non-HELIX record');
+  await writeBudget();
   const r = await memwal().rememberAndWait(text, namespace, { timeoutMs: 120_000, dedupe: true });
   const out = { blob_id: String(r.blob_id), job_id: r.job_id ? String(r.job_id) : (r.id ? String(r.id) : null) };
   appendLedger({

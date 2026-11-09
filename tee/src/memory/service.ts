@@ -22,6 +22,8 @@ import { classifyReason } from './reasons.ts';
 import { memwal } from './store.ts';
 import { commitBody, commitMemoryText, commitTx, commitEventsOf, checkCommit, commitsBy, sha256hex, verifyReveal, JOURNAL_PKG, sponsorAddress, SPONSOR_GAS_BUDGET } from './commit.ts';
 import { suiClient, gql } from '../shared/tatum.ts';
+import { council, councilLive, resolvedHooks } from '../council/state.ts';
+import { councilProbability } from '../council/ensemble.ts';
 
 export const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
 
@@ -38,7 +40,7 @@ export function settledRows(recs: MemRecord[]): SettledRow[] {
     const pyou = num(c, 'p_you'), pm = num(c, 'p_mkt'), ph = num(c, 'p_hlx');
     if (pyou == null || pm == null || ph == null) continue;
     rows.push({
-      tx: tx!, won: res === 'WIN' ? 1 : 0, p_you: pyou, p_mkt: pm, p_hlx: ph, p_crowd: num(c, 'p_crowd'),
+      tx: tx!, won: res === 'WIN' ? 1 : 0, p_you: pyou, p_mkt: pm, p_hlx: ph, p_crowd: num(c, 'p_crowd'), p_council: num(c, 'p_council'),
       structure: str(c, 'structure') ?? 'directional', regime: str(c, 'regime'),
       commit: num(c, 'commit') ?? 0, payoff: num(o, 'payoff'), ts: num(c, 'ts') ?? 0,
     });
@@ -77,7 +79,7 @@ export interface MemoryBlock {
 interface CompileCtx {
   id: string; at: number; conv: Conviction; address: string | null;
   market: P.LiveMarket; order: P.PredictOrder; alt: P.PredictOrder | null; legacy: CompileResult;
-  regime: RegimeView; voices: { you: number; market: number; helix: number; crowd: number | null; crowd_slug: string | null };
+  regime: RegimeView; voices: { you: number; market: number; helix: number; crowd: number | null; crowd_slug: string | null; council: number | null };
   memory: MemoryBlock;
 }
 const compiles = new Map<string, CompileCtx>();
@@ -104,7 +106,7 @@ function altFamilyOrder(kind: P.StructKind, conv: Conviction, pv: P.PricerView, 
 }
 
 export async function memoryBlockFor(
-  address: string | null, conv: Conviction, order: P.PredictOrder, voicesNow: { you: number; market: number; helix: number; crowd: number | null },
+  address: string | null, conv: Conviction, order: P.PredictOrder, voicesNow: { you: number; market: number; helix: number; crowd: number | null; council?: number | null },
   regimeWord: string, legacy: CompileResult, altOrder: P.PredictOrder | null,
 ): Promise<MemoryBlock> {
   const conf01 = conv.confidence / 100;
@@ -122,7 +124,7 @@ export async function memoryBlockFor(
   const stats: BucketStats = bucketStats(bRows);
   const regimeRows = rows.filter((r) => r.regime === regimeWord);
   const bias = structureBias(regimeRows);
-  const blended = blendedProbability({ you: voicesNow.you, market: voicesNow.market, helix: voicesNow.helix, crowd: voicesNow.crowd }, stats);
+  const blended = blendedProbability({ you: voicesNow.you, market: voicesNow.market, helix: voicesNow.helix, crowd: voicesNow.crowd, council: voicesNow.council ?? null }, stats);
   const b = oddsFromPrice(order.ppcEst);
   const sugg = suggestCommit(conv.capital, voicesNow.you, stats, b);
 
@@ -174,6 +176,7 @@ export async function memoryBlockFor(
     voices: {
       you: { p: voicesNow.you, brier: stats.brier.you }, market: { p: voicesNow.market, brier: stats.brier.market },
       helix: { p: voicesNow.helix, brier: stats.brier.helix }, crowd: { p: voicesNow.crowd, brier: stats.brier.crowd },
+      council: { p: voicesNow.council ?? null, brier: stats.brier.council },
     },
     blended_p: blended.p, blend_basis: blended.basis, gap_you: stats.gap_you, posterior: stats.posterior,
     commit: conv.capital, suggested_commit: sugg.suggested, kelly: { f_you: sugg.f_you, f_memory: sugg.f_memory },
@@ -185,9 +188,9 @@ export async function memoryBlockFor(
 
 export interface GuardianLine { cls: string; bad: boolean; t: string }
 
-export async function liveCompile(conv: Conviction, opts: { address?: string | null; currentEpoch?: number } = {}) {
+export async function liveCompile(conv: Conviction, opts: { address?: string | null; currentEpoch?: number; market?: P.LiveMarket; forceOrder?: P.PredictOrder; skipCouncil?: boolean } = {}) {
   const now = Date.now();
-  const market = await P.pickMarket(conv.horizonCode, now);
+  const market = opts.market ?? await P.pickMarket(conv.horizonCode, now);
   let pv: P.PricerView;
   try { pv = await P.pricerFor(market, now); }
   catch (e) {
@@ -201,7 +204,7 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
   const snap = P.toSnapshot(pv, market, conv.horizonCode, now);
   const legacy = compile(conv, opts.currentEpoch ?? 0, snap);
   const k = P.kindFor(legacy.selected.name, conv.direction);
-  const order = P.buildOrder(k.kind, k.side, conv.confidence, pv, market, band, k.note);
+  const order = opts.forceOrder ?? P.buildOrder(k.kind, k.side, conv.confidence, pv, market, band, k.note);
   const alt = altFamilyOrder(order.kind, conv, pv, market, band);
 
   const crowd: CrowdView = await crowdVoice(market, order, pv).catch((e) => {
@@ -214,6 +217,8 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
     helix: helixProbability(order.pMkt, order.kind, order.side, regime),
     crowd: crowd.status === 'ok' ? crowd.p : null,
     crowd_slug: crowd.status === 'ok' ? crowd.slug : null,
+    // the Council: this market's own surface re-centred on the agents' memory-weighted lean
+    council: !opts.skipCouncil && councilLive(now) ? councilProbability(pv.bp, pv.forward, order, council.edge) : null,
   };
   const memory = await memoryBlockFor(opts.address ?? null, conv, order, voices, regime.word, legacy, alt);
 
@@ -258,7 +263,7 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
       forward: pv.forward, band, order, alt, quoteCoinType: P.quoteCoinType(),
     },
     regime: { name: regime.regime, word: regime.word, confidence: regime.confidence, features: regime.features, label: 'HELIX regime model (heuristic)' },
-    voices: { ...voices, crowd_detail: crowd },
+    voices: { ...voices, crowd_detail: crowd, council_detail: voices.council == null ? { status: council.enabled ? 'quiet' : 'off' } : { status: 'live', p_up: council.pUp, edge: council.edge, weights: council.weights, calls: council.calls.map((c) => ({ agent: c.agent, p_up: c.pUp, side: c.side })), window_expiry_ms: council.window?.expiryMs ?? null } },
     witness,
     memory,
     guardian,
@@ -315,7 +320,7 @@ export function convictionCommitBody(c: CompileCtx, o: { order: P.PredictOrder; 
     ['commit', p2(o.commit)], ['sugg_commit', p2(c.memory.suggested_commit)], ['followed_memory', o.followed],
     ['mem_n', c.memory.n],
     ['p_you', p3(c.voices.you)], ['p_mkt', p3(ord.pMkt)], ['p_hlx', p3(pHlx)],
-    ['p_crowd', c.voices.crowd == null ? 'na' : p3(c.voices.crowd)], ['crowd_slug', c.voices.crowd_slug ?? 'na'],
+    ['p_crowd', c.voices.crowd == null ? 'na' : p3(c.voices.crowd)], ['crowd_slug', c.voices.crowd_slug ?? 'na'], ['p_council', c.voices.council == null ? 'na' : p3(c.voices.council)],
     ['market', c.market.id], ['expiry', Math.floor(c.market.expiryMs / 1000)], ['expiry_ms', c.market.expiryMs],
     ['fill', 'paper'], ['price', p3(price)], ['qty', p2(o.commit / price)], ['cost', p2(o.commit)],
     ['alt_struct', alt?.kind ?? 'na'], ['alt_cost', alt ? p3(alt.ppcEst) : 'na'], ['alt_rule', alt?.rule ?? 'na'],
@@ -339,7 +344,7 @@ function friendlyGasError(e: unknown, sponsored: boolean): Error {
     : `This address has no testnet SUI for gas (a commit needs about 0.002 SUI). Get some at ${FAUCET} and commit again.`);
 }
 
-export async function buildCommit(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean } }) {
+export async function buildCommit(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean }; noSponsor?: boolean }) {
   const c = compiles.get(body.compileId);
   if (!c) throw new Error('compile expired — recompile and try again');
   if (!/^0x[0-9a-f]{64}$/i.test(body.address || '')) throw new Error('invalid address');
@@ -356,7 +361,7 @@ export async function buildCommit(body: { address: string; compileId: string; co
   // gas: the user's own SUI if they have some; otherwise HELIX sponsors this one journal::commit (if configured)
   const sp = sponsorAddress();
   let sponsored = false;
-  if (sp && (await suiBalance(body.address).catch(() => 0n)) < 10_000_000n) {
+  if (sp && !body.noSponsor && (await suiBalance(body.address).catch(() => 0n)) < 10_000_000n) {
     tx.setGasOwner(sp); tx.setGasBudget(SPONSOR_GAS_BUDGET); sponsored = true;
   }
   let txBytes: string;
@@ -435,7 +440,7 @@ async function writeConviction(mc: MintCtx, c: CompileCtx | undefined, digest: s
     ['commit', p2(mc.commit)], ['sugg_commit', p2(c!.memory.suggested_commit)], ['followed_memory', mc.followed_memory],
     ['mem_n', c!.memory.n],
     ['p_you', p3(c!.voices.you)], ['p_mkt', p3(o.pMkt)], ['p_hlx', p3(pHlx)],
-    ['p_crowd', c!.voices.crowd == null ? 'na' : p3(c!.voices.crowd)], ['crowd_slug', c!.voices.crowd_slug ?? 'na'],
+    ['p_crowd', c!.voices.crowd == null ? 'na' : p3(c!.voices.crowd)], ['crowd_slug', c!.voices.crowd_slug ?? 'na'], ['p_council', c!.voices.council == null ? 'na' : p3(c!.voices.council)],
     ['market', mc.market.id], ['expiry', Math.floor(mc.market.expiryMs / 1000)], ['record', recordId ?? 'na'],
     ['fill', fillWord], ['order_id', fill.orderId ?? 'na'], ['qty', fill.quantity ?? mc.plan.potentialPayout],
     ['cost', p2(mc.plan.totalDebit)],
@@ -533,6 +538,7 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
   ]);
   await remember(ns, text, { tx, origin: 'watcher' });
   pending.delete(tx);
+  for (const h of resolvedHooks) { try { h(str(conv, 'origin'), tx); } catch (e) { console.error('[watcher] hook', (e as Error).message); } }
 
   // recompute the bucket's calibration from memory (plus the record just written)
   const after = [...recs, parseRecord(text)!];

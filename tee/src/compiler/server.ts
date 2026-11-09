@@ -19,13 +19,16 @@ import {
   resolveByDigest, startWatcher, pendingCount, reasonCheck,
 } from '../memory/service.ts';
 import { PRIVACY_COPY } from '../memory/reasons.ts';
-import { memwalHealth, mode as memMode } from '../memory/store.ts';
+import { memwalHealth, mode as memMode, writesLastHour, writeStats } from '../memory/store.ts';
 import { memoryProof } from '../memory/proof.ts';
 import { crowdMarketFor } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
 import { paidRoutes } from '../agents/paid.ts';
 import { boardFor } from '../memory/board.ts';
 import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts';
+import { councilRoutes } from '../council/routes.ts';
+import { startCouncil } from '../council/runner.ts';
+import { council } from '../council/state.ts';
 
 const offline = () => process.env.OFFLINE === '1';
 
@@ -55,7 +58,10 @@ let healthCache: { at: number; v: any } | null = null;
 const RUNNING_COMMIT = (process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? '').slice(0, 7) || null;
 async function health() {
   if (healthCache && Date.now() - healthCache.at < 15_000) return healthCache.v;
-  const base: any = { ok: true, agent: 'compiler', commit: RUNNING_COMMIT, gas_sponsor: sponsorAddress(), mockTee: MOCK_TEE, offline: offline() };
+  const base: any = { ok: true, agent: 'compiler', commit: RUNNING_COMMIT, gas_sponsor: sponsorAddress(), mockTee: MOCK_TEE, offline: offline(),
+    council: { enabled: council.enabled, agents: council.agents.length, last_error: council.lastError },
+    council_last_commit_age_s: council.lastCommitAt ? Math.round((Date.now() - council.lastCommitAt) / 1000) : null,
+    memory_writes: { last_hour: writesLastHour(), cap_per_hour: writeStats.maxPerHour, waited: writeStats.waited } };
   if (offline()) return { ...base, memwal: 'mock' };
   const [tn, mn, mw] = await Promise.all([
     latestCheckpoint('testnet').catch((e) => ({ error: (e as Error).message })),
@@ -184,6 +190,7 @@ export function makeServer() {
       return witnessBtc(pv?.forward ?? null);
     },
     ...paidRoutes(),
+    ...councilRoutes(),
   });
 }
 
@@ -192,6 +199,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? process.env.COMPILER_PORT ?? 8081);
   makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE}, memory=${memMode()}, tatum=${tatumConfigured() ? 'keyed' : 'anonymous'})`));
   startWatcher();
+  startCouncil();
   // free-tier hosts sleep when idle, which would pause the settlement watcher
   const ka = process.env.KEEPALIVE_URL;
   if (ka && !offline()) setInterval(() => { fetch(ka).catch(() => {}); }, 10 * 60_000).unref?.();

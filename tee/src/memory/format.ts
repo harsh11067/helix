@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 
-export const RECORD_TYPES = ['CONVICTION', 'OUTCOME', 'CALIBRATION', 'LESSON', 'REASON', 'VETTING', 'USER'] as const;
+export const RECORD_TYPES = ['CONVICTION', 'OUTCOME', 'CALIBRATION', 'LESSON', 'REASON', 'VETTING', 'USER', 'COUNCIL'] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 
 export interface MemRecord {

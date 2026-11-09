@@ -153,6 +153,16 @@ export function kindFor(selectedName: string, direction: number): { kind: Struct
   }
 }
 
+/** A directional order at an exact (already snapped) strike — the Council asks "above the window's open?". */
+export function directionalAt(side: 'up' | 'down', strike: number, pv: PricerView, note?: string): PredictOrder {
+  const p = pv.bp.probability(strike, side);
+  return {
+    kind: 'directional', side, strike, pMkt: p, note, ppcEst: indicativePrice(p, [pv.bp.up(strike)]),
+    label: `BTC ${side === 'up' ? 'above' : 'at or below'} ${fmtUsd(strike)} at expiry`,
+    rule: `binary,${side},${strike},1`,
+  };
+}
+
 /** Build a concrete Predict order for a structure kind, inside the market's entry band. */
 export function buildOrder(
   kind: StructKind, side: 'up' | 'down' | 'range', confidence: number,

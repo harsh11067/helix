@@ -49,3 +49,17 @@ services:
       # gas sponsor for helix::journal::commit only (dedicated low-value testnet key)
       - key: SPONSOR_SUI_KEY
         sync: false
+      # the Council: four rule-based agents, each with its own key and gas (never the judge sponsor)
+      - key: FEATURE_COUNCIL
+        value: "1"
+      - key: COUNCIL_KEY_MOMENTUM
+        sync: false
+      - key: COUNCIL_KEY_REVERSION
+        sync: false
+      - key: COUNCIL_KEY_SURFACE
+        sync: false
+      - key: COUNCIL_KEY_CROWD
+        sync: false
+      # Passport attestation signer (public key at /.well-known/helix-attestation.json)
+      - key: HELIX_ATTESTATION_KEY
+        sync: false

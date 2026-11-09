@@ -20,6 +20,7 @@ export interface SettledRow {
   p_mkt: number;
   p_hlx: number;
   p_crowd: number | null;
+  p_council?: number | null; // the Council ensemble's probability for this order, when it was live
   structure: string;          // directional | bracketed_range | range
   regime: string | null;
   commit: number;
@@ -34,8 +35,9 @@ export interface BucketStats {
   posterior: number;          // Beta(2,2)
   mean_p_you: number | null;
   gap_you: number | null;
-  brier: { you: number | null; market: number | null; helix: number | null; crowd: number | null };
+  brier: { you: number | null; market: number | null; helix: number | null; crowd: number | null; council: number | null };
   n_crowd: number;
+  n_council: number;
   pnl: number;
 }
 
@@ -47,6 +49,7 @@ export function bucketStats(rows: SettledRow[]): BucketStats {
   const n = rows.length;
   const wins = rows.filter((r) => r.won === 1).length;
   const crowd = rows.filter((r) => r.p_crowd != null);
+  const cncl = rows.filter((r) => r.p_council != null);
   const mpy = mean(rows.map((r) => r.p_you));
   const post = posteriorOf(wins, n);
   return {
@@ -60,28 +63,31 @@ export function bucketStats(rows: SettledRow[]): BucketStats {
       market: brierOf(rows.map((r) => [r.p_mkt, r.won])),
       helix: brierOf(rows.map((r) => [r.p_hlx, r.won])),
       crowd: brierOf(crowd.map((r) => [r.p_crowd as number, r.won])),
+      council: brierOf(cncl.map((r) => [r.p_council as number, r.won])),
     },
     n_crowd: crowd.length,
+    n_council: cncl.length,
     pnl: rows.reduce((a, r) => a + (r.payoff ?? 0), 0),
   };
 }
 
-export type VoiceName = 'you' | 'market' | 'helix' | 'crowd';
+export type VoiceName = 'you' | 'market' | 'helix' | 'crowd' | 'council';
 /** Weighted blend of the voices' current probabilities by inverse remembered Brier. */
 export function blendedProbability(
-  now: Record<VoiceName, number | null>, stats: BucketStats | null,
+  now: Partial<Record<VoiceName, number | null>>, stats: BucketStats | null,
 ): { p: number | null; weights: Partial<Record<VoiceName, number>>; basis: 'memory' | 'market' } {
-  if (!stats || stats.n < MIN_N) return { p: now.market, weights: { market: 1 }, basis: 'market' };
+  if (!stats || stats.n < MIN_N) return { p: now.market ?? null, weights: { market: 1 }, basis: 'market' };
   const raw: Partial<Record<VoiceName, number>> = {};
-  for (const v of ['you', 'market', 'helix', 'crowd'] as VoiceName[]) {
+  for (const v of ['you', 'market', 'helix', 'crowd', 'council'] as VoiceName[]) {
     const b = stats.brier[v];
     const p = now[v];
     if (p == null || b == null) continue;
     if (v === 'crowd' && stats.n_crowd < MIN_N) continue;
+    if (v === 'council' && (stats.n_council ?? 0) < MIN_N) continue;
     raw[v] = 1 / Math.max(b, 0.05);
   }
   const tot = Object.values(raw).reduce((a, b) => a + (b as number), 0);
-  if (!tot) return { p: now.market, weights: { market: 1 }, basis: 'market' };
+  if (!tot) return { p: now.market ?? null, weights: { market: 1 }, basis: 'market' };
   const weights: Partial<Record<VoiceName, number>> = {};
   let p = 0;
   for (const [v, w] of Object.entries(raw) as [VoiceName, number][]) {
@@ -143,9 +149,9 @@ export function structureBias(rowsInRegime: SettledRow[]): {
 export function bestVoice(stats: BucketStats): VoiceName | null {
   if (stats.n < MIN_N) return null;
   let best: VoiceName | null = null, bv = Infinity;
-  for (const v of ['you', 'market', 'helix', 'crowd'] as VoiceName[]) {
+  for (const v of ['you', 'market', 'helix', 'crowd', 'council'] as VoiceName[]) {
     const b = stats.brier[v];
-    if (b == null || (v === 'crowd' && stats.n_crowd < MIN_N)) continue;
+    if (b == null || (v === 'crowd' && stats.n_crowd < MIN_N) || (v === 'council' && (stats.n_council ?? 0) < MIN_N)) continue;
     if (b < bv) { bv = b; best = v; }
   }
   return best;
@@ -153,6 +159,7 @@ export function bestVoice(stats: BucketStats): VoiceName | null {
 
 export const VOICE_LABEL: Record<VoiceName, string> = {
   you: 'your own confidence', market: 'the Predict market', helix: "HELIX's regime model", crowd: 'the Polymarket crowd',
+  council: 'the HELIX Council',
 };
 
 /** A plain-language lesson, only when the bucket has n ≥ 3 and a clear pattern. */
