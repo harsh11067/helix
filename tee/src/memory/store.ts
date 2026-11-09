@@ -189,7 +189,11 @@ export async function recallAll(namespace: string, opts: { fresh?: boolean } = {
 
 async function recallIncremental(namespace: string): Promise<MemRecord[]> {
   const t0 = Date.now();
-  const listed = await listedBlobIds(namespace).catch(() => null);
+  // never let a stalled listMemories hold the shared in-flight recall (and every request for this namespace) hostage
+  const listed = await Promise.race([
+    listedBlobIds(namespace).catch(() => null),
+    new Promise<null>((r) => setTimeout(() => r(null), 15_000)),
+  ]);
   const have = parsedByNs.get(namespace) ?? new Map<string, MemRecord | null>();
   if (listed) for (const b of [...have.keys()]) if (!listed.has(b)) have.delete(b);       // deleted upstream
   const skip = unfindable.get(namespace);
