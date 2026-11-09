@@ -28,6 +28,7 @@ import { boardFor } from '../memory/board.ts';
 import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts';
 import { councilRoutes } from '../council/routes.ts';
 import { passportRoutes } from '../passport/offchain/routes.ts';
+import { ticker } from '../fun/ticker.ts';
 import { startCouncil } from '../council/runner.ts';
 import { council } from '../council/state.ts';
 
@@ -193,6 +194,8 @@ export function makeServer() {
     ...paidRoutes(),
     ...councilRoutes(),
     ...passportRoutes(),
+    // F1 live proof ticker, from chain events
+    'GET /proof/ticker': () => ticker(),
   });
 }
 

@@ -5,6 +5,7 @@
    ============================================================ */
 import { api, apiBase } from './sui.js';
 import { walruscanBlobUrl, shareCardSVG, xIntentUrl } from './share.js';
+import { humilityMeterHTML, beatTheMarketHTML } from './fun.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (p) => (p == null || !Number.isFinite(p) ? '—' : Math.round(p * 100) + '%');
@@ -181,7 +182,8 @@ export function viewMemory(ctx) {
               <button class="mono" data-proof="${esc(r.blob_id)}" style="font-size:11px;color:var(--accent-deep);background:none;border:0;padding:0;cursor:pointer" data-cursor>verify on mainnet ↗</button></div>
             <div class="proof-out" data-for="${esc(r.blob_id)}"></div></div></div>`;
       }).join('');
-      host.innerHTML = banner + header + `
+      const fun = (t.overall?.n >= 3 || t.today?.n) ? `<div class="grid-2 reveal" style="gap:18px;margin-bottom:18px;align-items:start">${humilityMeterHTML(t.overall)}${beatTheMarketHTML(t.today)}</div>` : '';
+      host.innerHTML = banner + header + fun + `
         <div class="grid-2 reveal" style="align-items:start;gap:18px">
           <div class="panel"><div class="section-title">who has been right · Brier per voice</div>${voices}
             <div class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.5">${o.n >= 3 && bestK ? `Across ${o.n} settled convictions, <b>${VOICE[bestK]}</b> has been the best-calibrated voice.` : `Scores firm up after 3 settled convictions (n=${o.n || 0}). Lower Brier = better calibrated.`}</div></div>

@@ -179,3 +179,24 @@ export function lessonFor(bucket: string, stats: BucketStats, bias: ReturnType<t
   }
   return bits.length ? `${bucket}: ${bits.join(' ')}` : null;
 }
+
+/**
+ * F4 Beat the Market (NEXT_BIG.md §5): today's settled calls, each won by the voice that put the most
+ * probability on what actually happened (smallest (p − outcome)²). The Council joins only on rows where it
+ * was live, so every compared voice saw the same window. Ties give each tied voice the point.
+ */
+export function beatTheMarket(rows: SettledRow[], now = Date.now()) {
+  const dayStart = Math.floor(now / 86_400_000) * 86_400_000;
+  const today = rows.filter((r) => r.ts * 1000 >= dayStart && r.ts * 1000 <= now);
+  const withCouncil = today.filter((r) => r.p_council != null);
+  const threeWay = withCouncil.length > 0;
+  const use = threeWay ? withCouncil : today;
+  const score: Record<string, number> = threeWay ? { you: 0, market: 0, council: 0 } : { you: 0, market: 0 };
+  for (const r of use) {
+    const err: Record<string, number> = { you: (r.p_you - r.won) ** 2, market: (r.p_mkt - r.won) ** 2 };
+    if (threeWay) err.council = ((r.p_council as number) - r.won) ** 2;
+    const best = Math.min(...Object.values(err));
+    for (const [k, e] of Object.entries(err)) if (Math.abs(e - best) < 1e-12) score[k]++;
+  }
+  return { day: new Date(dayStart).toISOString().slice(0, 10), n: use.length, mode: threeWay ? 'you · market · council' : 'you · market', score };
+}

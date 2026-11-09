@@ -415,5 +415,22 @@
 <script type="text/babel" src="tweaks-panel.jsx"></script>
 <script type="text/babel" src="js/tweaks.jsx"></script>
 
+<!-- F1 live proof ticker: counted from helix::journal ConvictionCommitted events on Sui (via Tatum).
+     A fixed pill outside the page layout; shown only once real numbers arrive. -->
+<a id="proof-ticker" href="passport.html?id=helix-v1-4d922636976d" title="Every call is committed on Sui before it settles; hidden = commits with no memory"
+   style="position:fixed;left:16px;bottom:16px;z-index:60;display:none;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:var(--bg);border:1px solid var(--line);color:var(--ink-2);font-family:var(--mono);font-size:12px;text-decoration:none;box-shadow:0 6px 24px rgba(0,0,0,.08);max-width:calc(100vw - 32px)">
+  <span style="width:7px;height:7px;border-radius:50%;background:var(--alive);flex:0 0 auto"></span><span id="proof-ticker-t"></span></a>
+<script type="module">
+  const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? s + 's ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; };
+  const run = async () => {
+    try {
+      const t = await (await fetch('https://helix-compiler.onrender.com/proof/ticker')).json();
+      if (t.commits == null) return;
+      document.getElementById('proof-ticker-t').textContent = `${t.commits} commits on Sui · ${t.settled} settled · last settled ${t.last_settled_ms ? ago(t.last_settled_ms) : '—'} · hidden ${t.hidden}`;
+      document.getElementById('proof-ticker').style.display = 'inline-flex';
+    } catch (e) {}
+  };
+  run(); setInterval(run, 60000);
+</script>
 </body>
 </html>

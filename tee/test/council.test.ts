@@ -98,3 +98,14 @@ test('the Council is a scored voice: Brier only over rows where it was live', ()
   assert.equal(st.n_council, 1);
   assert.ok(Math.abs(st.brier.council! - 0.09) < 1e-9);
 });
+
+test('F4 Beat the Market: today only, closest voice wins each row, Council only where it was live', async () => {
+  const { beatTheMarket } = await import('../src/memory/calibration.ts');
+  const now = Date.UTC(2026, 10, 9, 18, 0, 0);
+  const t = Math.floor(now / 1000) - 3600;
+  const row = (won: 0 | 1, p_you: number, p_mkt: number, p_council: number | null, ts = t) => ({ tx: String(Math.random()), won, p_you, p_mkt, p_hlx: 0.5, p_crowd: null, p_council, structure: 'directional', regime: null, commit: 5, payoff: 0, ts });
+  const two = beatTheMarket([row(1, 0.9, 0.6, null), row(0, 0.9, 0.6, null), row(1, 0.9, 0.6, null, t - 86_400)], now);
+  assert.deepEqual([two.mode, two.n, two.score], ['you · market', 2, { you: 1, market: 1 }]);
+  const three = beatTheMarket([row(1, 0.9, 0.6, 0.7), row(0, 0.9, 0.6, 0.3), row(1, 0.55, 0.6, null)], now);
+  assert.deepEqual([three.mode, three.n, three.score], ['you · market · council', 2, { you: 1, market: 0, council: 1 }]);
+});

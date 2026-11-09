@@ -31,6 +31,7 @@ import { voicesHTML, memoryBlockHTML, viewMemory } from './memory-ui.js';
 import { demoRequested, viewingAddress, isReadOnly, demoHref, DEMO_BANNER } from './demo.js';
 import { viewCouncil } from './council.js';
 import { renderPassport } from './passport.js';
+import { tickerText } from './fun.js';
 
 /* ---------------- config (verified on-chain testnet ids) ---------------- */
 const CFG = {
@@ -550,7 +551,7 @@ async function onCommit(el) {
       <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${res.digest} · sha256 ${c.hash}</div>
       <div id="mem-out" class="muted" style="margin-top:12px"><span class="sdot pending"></span> verifying the commit and writing a CONVICTION memory to Walrus (mainnet)…</div></div>`;
     toast('Conviction committed', 'hash on Sui · executed via Tatum', 'alive');
-    pollConvictionMemory($('#mem-out', el), res.digest);
+    pollConvictionMemory($('#mem-out', el), res.digest, c.market.expiryMs);
   } catch (e) {
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)">
       <b style="color:var(--coral)">Not committed</b><div class="muted" style="margin-top:6px">${escapeHtml(e.message || 'rejected')}</div></div>`;
@@ -594,14 +595,45 @@ async function onDeploy(el) {
     state.busy = false; if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
   }
 }
-async function pollConvictionMemory(node, digest) {
+// F2 — countdown to settlement, then the reveal: the watcher re-hashes the memory against the chain and scores it.
+async function awaitReveal(node, digest, expiryMs) {
+  const addr = state.account?.address;
+  const tick = setInterval(() => {
+    if (!node?.isConnected) { clearInterval(tick); return; }
+    const s = Math.round((expiryMs - Date.now()) / 1000);
+    if (s > 0) node.innerHTML = `<div class="row" style="gap:10px;align-items:center"><span class="mono" style="font-size:1.6rem">${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</span><span class="muted">until the window settles on-chain — then HELIX reveals: hash check + result.</span></div>`;
+    else if (!node.dataset.revealed) node.innerHTML = `<span class="sdot pending"></span> settled — reading the result through Tatum and checking the hash…`;
+  }, 1000);
+  while (node?.isConnected && Date.now() < expiryMs + 6 * 60_000) {
+    await new Promise(r => setTimeout(r, Date.now() < expiryMs ? 5000 : 10000));
+    if (Date.now() < expiryMs + 5000) continue;
+    try {
+      const t = await api(`/memory/${addr}`);
+      const o = (t.timeline || []).find(x => x.type === 'OUTCOME' && x.fields?.tx === digest);
+      if (o) {
+        clearInterval(tick); node.dataset.revealed = '1';
+        const f = o.fields, win = f.result === 'WIN';
+        node.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,${win ? 'var(--alive)' : 'var(--coral)'} 45%,transparent)">
+          <div class="row spread"><b style="font-size:1.3rem;color:${win ? 'var(--alive)' : 'var(--coral)'}">${escapeHtml(f.result)}</b><span class="mono">${f.mode === 'commit' ? 'would have paid' : 'payoff'} ${escapeHtml(f.payoff)}</span></div>
+          <div style="margin-top:6px">${f.reveal_ok === 'true' ? '<span style="color:var(--alive)">✓ hash verified</span> — the remembered call is exactly what you committed' : f.reveal_ok === 'false' ? '<b style="color:var(--coral)">✗ hash mismatch</b>' : ''} · settled ${escapeHtml(f.settle_px)} vs ${escapeHtml(f.strike_px)}</div>
+          <div class="muted mono" style="font-size:11px;margin-top:6px">OUTCOME blob ${short(o.blob_id)} · calibration updated · <a href="#/memory" style="color:var(--accent-deep)">see what memory learned →</a></div></div>`;
+        return;
+      }
+    } catch (e) {}
+  }
+  clearInterval(tick);
+  if (node?.isConnected && !node.dataset.revealed) node.innerHTML = `<span class="muted">The result is still being written — it will appear on the <a href="#/memory" style="color:var(--accent-deep)">Memory</a> page.</span>`;
+}
+async function pollConvictionMemory(node, digest, expiryMs) {
   for (let i = 0; i < 24 && node?.isConnected; i++) {
     await new Promise(r => setTimeout(r, 5000));
     try {
       const t = await api(`/memory/${state.account.address}`);
       const hit = (t.timeline || []).find(x => x.type === 'CONVICTION' && x.fields?.tx === digest);
       if (hit) {
-        node.innerHTML = `<span class="sdot active"></span> CONVICTION remembered on Walrus mainnet · blob <span class="mono">${short(hit.blob_id)}</span> · ${hit.fields.mode === 'commit' ? 'commit verified on-chain' : 'fill ' + hit.fields.fill} · <a href="#/memory" style="color:var(--accent-deep)">open Memory →</a> · the outcome is written automatically when the window settles.`;
+        node.innerHTML = `<span class="sdot active"></span> CONVICTION remembered on Walrus mainnet · blob <span class="mono">${short(hit.blob_id)}</span> · ${hit.fields.mode === 'commit' ? 'commit verified on-chain' : 'fill ' + hit.fields.fill} · <a href="#/memory" style="color:var(--accent-deep)">open Memory →</a>
+          <div id="reveal" style="margin-top:10px"></div>`;
+        if (expiryMs) awaitReveal($('#reveal', node), digest, expiryMs);
         return;
       }
     } catch (e) {}
@@ -1240,6 +1272,7 @@ function build() {
       <div class="topbar">
         <div class="page-h"><span class="eyebrow" id="page-sub">express a belief</span><h1 id="page-title">Conviction Canvas</h1></div>
         <div class="right">
+          <a class="chip" id="proof-ticker" href="#/passport" style="display:none;text-decoration:none" title="Counted from helix::journal ConvictionCommitted events on Sui (via Tatum); hidden = commits with no memory"></a>
           <span class="chip" title="Sui reads + execution via Tatum · memory on Walrus mainnet"><span class="live"></span> sui testnet · tatum</span>
           <div class="theme-toggle" role="radiogroup" aria-label="Theme" id="theme-toggle">
             <span class="tt-pill" id="tt-pill"></span>
@@ -1255,8 +1288,15 @@ function build() {
   document.body.appendChild(app);
 }
 
+function proofTicker() {
+  const run = async () => {
+    const n = $('#proof-ticker'); if (!n) return;
+    try { const t = await api('/proof/ticker'); const s = tickerText(t); if (s) { n.textContent = s; n.style.display = ''; } } catch (e) {}
+  };
+  run(); setInterval(run, 60_000);
+}
 function init() {
-  build(); cursor(); themeToggle(); walletButton();
+  build(); cursor(); themeToggle(); walletButton(); proofTicker();
   // (a0) arrived from the landing-page "Continue with Google" CTA (app.html?login=google)?
   const qp = new URLSearchParams(location.search);
   if (qp.get('login') === 'google' && zkConfigured() && !loadZkSession() && !location.hash.includes('id_token=')) {

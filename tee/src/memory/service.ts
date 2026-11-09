@@ -12,7 +12,7 @@ import {
   num, str, p2, p3, signed2, type MemRecord,
 } from './format.ts';
 import {
-  bucketStats, blendedProbability, suggestCommit, structureBias, bestVoice, lessonFor, oddsFromPrice,
+  bucketStats, blendedProbability, suggestCommit, structureBias, bestVoice, lessonFor, oddsFromPrice, beatTheMarket,
   VOICE_LABEL, MIN_N, RANGEISH, type SettledRow, type BucketStats,
 } from './calibration.ts';
 import { remember, recallAll, recallForAddress, registerNamespace, registeredNamespaces, recallCoverage, mode as memMode } from './store.ts';
@@ -661,6 +661,7 @@ export async function timelineFor(address: string) {
     namespace: ns,
     commits,
     recall: recallCoverage.get(ns) ?? null,
+    today: beatTheMarket(rows),
     memory_network: memMode() === 'mainnet' ? 'walrus-mainnet' : memMode(),
     count: recs.length,
     timeline: recs.map((r) => ({ type: r.type, blob_id: r.blob_id, created_at: r.created_at, fields: r.f, text: r.text })),
