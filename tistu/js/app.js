@@ -1300,6 +1300,7 @@ function proofTicker() {
 }
 function init() {
   build(); cursor(); themeToggle(); walletButton(); proofTicker();
+  import('./ask-button.js').then(m => m.mountAskButton({ api, address: () => viewingAddress(state), readOnly: () => isReadOnly(state) })).catch(() => {});
   // (a0) arrived from the landing-page "Continue with Google" CTA (app.html?login=google)?
   const qp = new URLSearchParams(location.search);
   if (qp.get('login') === 'google' && zkConfigured() && !loadZkSession() && !location.hash.includes('id_token=')) {
