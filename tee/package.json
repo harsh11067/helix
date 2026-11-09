@@ -8,7 +8,7 @@
     "test": "node --test \"test/*.test.ts\"",
     "compiler": "node src/compiler/server.ts",
     "backtest": "node src/backtest/server.ts",
-    "start": "node src/index.ts"
+    "start": "node src/compiler/server.ts"
   },
   "engines": {
     "node": ">=22"

@@ -5,7 +5,6 @@
 // attestation. Pure + synchronous → fast and testable.
 import type { Candidate, CompileResult, Conviction } from '../shared/types.ts';
 import { getSnapshot, atmIV, type MarketSnapshot } from '../shared/mockOracle.ts';
-import { getLiveSnapshot } from '../shared/oracle.ts';
 import { enumerateCandidates } from './structures.ts';
 import { buildDNA } from '../shared/dna.ts';
 import { sign } from '../shared/attestation.ts';
@@ -55,7 +54,7 @@ function paretoFront(cands: Candidate[]): Candidate[] {
 
 // Pure, synchronous core. The snapshot defaults to the deterministic mock so the
 // TEE unit tests call compile(conv, epoch) unchanged; the live path passes a real
-// snapshot in (see compileLive).
+// snapshot in (see compileOffline; live pricing is memory/service.ts liveCompile).
 export function compile(
   conv: Conviction,
   currentEpoch = 0,
@@ -96,12 +95,8 @@ export function compile(
   };
 }
 
-// Live entry used by the HTTP server. OFFLINE=1 → deterministic mock snapshot;
-// otherwise the real testnet SVI surface from the Predict server. Pricing,
-// selection, DNA and attestation are identical — only the snapshot source changes.
-export async function compileLive(conv: Conviction, currentEpoch = 0): Promise<CompileResult> {
-  const snap = isOffline()
-    ? getSnapshot(conv.horizonCode, conv.volView)
-    : await getLiveSnapshot(conv.horizonCode, conv.volView);
-  return compile(conv, currentEpoch, snap);
+// OFFLINE=1 entry used by the HTTP server and tests: the deterministic mock snapshot.
+// Live pricing (DeepBook Predict v4, on-chain via Tatum) lives in memory/service.ts liveCompile.
+export function compileOffline(conv: Conviction, currentEpoch = 0): CompileResult {
+  return compile(conv, currentEpoch, getSnapshot(conv.horizonCode, conv.volView));
 }

@@ -67,8 +67,6 @@ export function bucketStats(rows: SettledRow[]): BucketStats {
 }
 
 export type VoiceName = 'you' | 'market' | 'helix' | 'crowd';
-export interface VoiceNow { p: number | null }
-
 /** Weighted blend of the voices' current probabilities by inverse remembered Brier. */
 export function blendedProbability(
   now: Record<VoiceName, number | null>, stats: BucketStats | null,

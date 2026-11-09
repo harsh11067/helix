@@ -22,8 +22,6 @@ export function recordForward(f: number, rho: number | null = null, t = Date.now
   if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES);
   if (rho != null && Number.isFinite(rho)) lastRho = rho;
 }
-export function __resetSamples(): void { samples.length = 0; lastRho = 0; }
-
 export interface RegimeView {
   regime: RegimeName; word: string; confidence: number;
   features: { realizedVol: number; trend: number; skew: number; n: number; windowMin: number };
