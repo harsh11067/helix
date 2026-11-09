@@ -1,0 +1,10 @@
+[package]
+name = "helix_passport"
+edition = "2024"
+license = "MIT"
+authors = ["Helix Labs"]
+
+# HELIX Forecaster Passport: a soulbound, dynamic reputation object (LANES.md §2, P4).
+# A separate, freshly published package: its `init` claims the Publisher that
+# `sui::display` needs, so wallets render the passport card.
+# The Sui framework and MoveStdlib are resolved implicitly (CLI >= 1.63 format).

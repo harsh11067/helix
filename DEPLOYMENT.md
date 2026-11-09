@@ -162,6 +162,35 @@ on-chain via `seal_policy::attach_thesis` (`ThesisAttached` event).
 
 ---
 
+## 🪪 HELIX Forecaster Passport (`helix_passport`, P4)
+
+A separate, freshly published package (its `init` claims the `Publisher` for `Display`). Soulbound
+`ForecasterPassport` (`key` without `store`), minted from a HELIX attestation verified on-chain with
+`sui::ed25519` over the BCS payload (LANES.md §0). Published 2026-11-09 with the TS SDK through Tatum
+(`tee/src/passport/onchain/scripts/publish.ts`) by the Lane B deployer.
+
+| Item | ID / digest |
+| :-- | :-- |
+| Package (`passport`, `gate_example`) | `0xe4241667de38a2df7c286a8f3fbbeeb481c3aed1adb4cf5a17e0337d2dd7f4e3` |
+| Publish tx | `DXYCsg3SXN8dE4nngUzCmAh7yPkaLt65TjbNijZR4WTW` |
+| `AttestorRegistry` (shared) | `0x7c6acbeee7273c0c0ea60192811338ce1f08ab31f2a35536d815f5d9b6ec57a7` |
+| `set_attestor` tx | `HVz2K4j4WSxKSuRLWopVDz385inNL7dPYgp9umJFCN4k` |
+| Attestor public key (Ed25519) | `18a0e77777aa256a62417fa8b6debb559aaa1af1b0754a5252897a46b6116a6f` |
+| `AdminCap` | `0xac088060d854d734cbbfeaadff1f038c3e7cd4d5858b921f2ad44ca8255babee` |
+| `Publisher` | `0x9e19e689aff16156dc8943218c110a0f706aa898ff7cdfbd7fd1101c8521dede` |
+| `Display<ForecasterPassport>` | `0x8c65d337e3fed137c8064d15e3c3c96c848369f2b82828b0bba2b086de498e69` |
+| `UpgradeCap` | `0x19114c7e811a25f6fc9a8c54413340613d2e5c9729301c0cad6bb55f141110c6` |
+| Deployer (Lane B) | `0xbb617be1662fd8faa26e73dc1abe13ddd7e93707557121e420976d88f1bd2753` |
+
+Live checks (`scripts/live-check.ts`, a fresh 0-SUI test key, gas sponsored by the deployer): claim
+`C61Q6o2q5oypTLGz8spnGa1asxEVrhJUiqq75fMkqczz` → passport `0xada5f7b9acbe2b06c24cec9a57f37c14d23e892e218ee347fdbedfaae6cfa47d`,
+refresh `7dnJmyEJb5FSNfsfVKkgxcRXuiyFhNHfmjhwyPW5hLBG` (version 2). Simulated and rejected: replay of
+the mint attestation (abort 5), forged signature (abort 2), someone else's attestation (abort 3),
+duplicate claim (abort 7), `TransferObjects` of the passport (no `store`), `gate_example::assert_calibrated(p, 2000, 10)`
+on an n=0 passport (abort 0).
+
+---
+
 ## 🌐 Live deployment (Render)
 
 | Service | URL | Config |
