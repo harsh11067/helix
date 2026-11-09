@@ -151,9 +151,11 @@ let reweighTimer: ReturnType<typeof setTimeout> | null = null;
 export async function reweigh(write = true): Promise<void> {
   const records = await agentRecords(true);
   const weights = councilWeights(records);
-  const prevN = JSON.stringify(council.records.map((r) => [r.agent, r.n]));
+  // compare with the last COUNCIL memory (not this process's view) so restarts never skip a snapshot
+  const last = (await councilHistory().catch(() => [])).at(-1);
+  const lastN = JSON.stringify(Object.fromEntries(records.map((r) => [r.agent, last?.n?.[r.agent] ?? 0])));
   Object.assign(council, { records, weights });
-  if (!write || !records.some((r) => r.n > 0) || JSON.stringify(records.map((r) => [r.agent, r.n])) === prevN) return;
+  if (!write || !records.some((r) => r.n > 0) || JSON.stringify(Object.fromEntries(records.map((r) => [r.agent, r.n]))) === lastN) return;
   const fmt = (f: (r: AgentRecord) => string) => records.map((r) => `${r.agent}:${f(r)}`).join(',');
   await remember(COUNCIL_NS, formatRecord('COUNCIL', [
     ['weights', fmt((r) => (weights[r.agent] ?? 0).toFixed(3))], ['n', fmt((r) => String(r.n))],
@@ -206,7 +208,8 @@ export function startCouncil(): void {
     if (reweighTimer) clearTimeout(reweighTimer);                       // one reweigh per settled window
     reweighTimer = setTimeout(() => { reweigh().catch((e) => console.error('[council] reweigh', (e as Error).message)); }, 90_000);
   });
-  reweigh(false).catch((e) => console.error('[council] initial weights', (e as Error).message));
+  // catch up: write a COUNCIL snapshot if agents settled since the last one (e.g. across restarts)
+  reweigh(true).catch((e) => console.error('[council] initial weights', (e as Error).message));
   console.log(`[council] ${agents.length} agents: ${agents.map((a) => `${a.name}=${a.address.slice(0, 10)}…`).join(' ')}`);
   void tick();
   setInterval(() => { void tick(); }, 60_000).unref?.();

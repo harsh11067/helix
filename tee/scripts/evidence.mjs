@@ -31,6 +31,20 @@ const after = ADDR ? pick(await post('/preview', { ...conv, address: ADDR })) : 
 const timeline = ADDR ? await get(`/memory/${ADDR}`) : null;
 
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+// live extras: ticker, Council, passport, payments, and provenance across the demo trader + every agent
+const ticker = await get('/proof/ticker').catch(() => ({}));
+const council = await get('/council').catch(() => ({}));
+const passport = ADDR ? (await get(`/passport/${ADDR}`).catch(() => ({}))).passport ?? null : null;
+const api = await get('/api/v1').catch(() => ({}));
+const who = [...(ADDR ? [['demo trader', ADDR]] : []), ...(council.agents ?? []).map((a) => [`agent ${a.name}`, a.address])];
+const provRows = [];
+for (const [label, a] of who) {
+  const t = await get(`/memory/${a}`).catch(() => null);
+  const by = {};
+  for (const r of t?.timeline ?? []) if (r.type === 'CONVICTION') by[r.fields?.origin ?? 'unknown'] = (by[r.fields?.origin ?? 'unknown'] ?? 0) + 1;
+  provRows.push(`| ${label} | \`${t?.namespace ?? '—'}\` | ${Object.entries(by).map(([k, v]) => `${k} ${v}`).join(' · ') || '—'} | ${t?.commits?.onchain ?? '—'} | ${t?.commits?.missing_memory ?? '—'} | ${t?.count ?? 0} |`);
+}
+const provenance = `| forecaster | namespace | CONVICTION by origin | commits on-chain | hidden | memories |\n|---|---|---|---|---|---|\n${provRows.join('\n')}`;
 // Commit mode (RECOVERY.md R3/R4): every CONVICTION ↔ its on-chain commit ↔ its OUTCOME, from the live service
 const tl = timeline?.timeline ?? [];
 const commitConv = tl.filter((r) => r.type === 'CONVICTION' && r.fields?.mode === 'commit');
@@ -74,6 +88,18 @@ ${timeline?.commits ? `On-chain ledger (\`ConvictionCommitted\` events by this a
 | # | committed (UTC) | conviction | commit tx | sha256 | CONVICTION blob | outcome | OUTCOME blob | origin |
 |---|---|---|---|---|---|---|---|---|
 ${commitRows || '| — | — | — | — | — | — | — | — | — |'}
+
+## 2c. Provenance — every commit counted by origin
+
+${provenance}
+
+## 2d. Proof-of-Forecast — Council, Passport, payments (live)
+
+- **Ticker** (\`GET /proof/ticker\`, chain events): ${ticker.commits} commits by ${ticker.committers} committers · ${ticker.settled} settled · hidden ${ticker.hidden}
+- **Council**: ${council.agents?.length ?? 0} agents · weights ${council.weights_equal ? 'still equal (n < 5)' : JSON.stringify(council.weights)} · ${council.history?.length ?? 0} COUNCIL memories · allocator vetting decisions: ${council.allocator?.vetting?.length ?? 0}
+${(council.agents ?? []).map((a) => `  - ${a.name} \`${a.address}\` — ${a.commits} commits, ${a.record?.n ?? 0} settled, ${a.record?.wins ?? 0} won${a.record?.n ? `, Brier ${a.record.brier?.toFixed(3)}` : ''}`).join('\n')}
+- **Passport** (\`GET /passport/${passport?.namespace}\`, Ed25519-signed, key \`${passport?.attestor_pubkey_hex}\`): committed ${passport?.committed} · shown ${passport?.shown} · hidden ${passport?.hidden} · badges ${(passport?.badge_names ?? []).join(', ') || '—'}
+- **Paid Credibility API** (\`GET /api/v1\`): ${api.price} ${api.currency} per call, treasury \`${api.recipient}\` · paid calls ${api.paid_calls}${(api.recent ?? []).length ? ' · latest ' + api.recent.slice(0, 3).map((r) => `[\`${r.digest.slice(0, 10)}…\`](https://suiscan.xyz/testnet/tx/${r.digest})`).join(', ') : ''}
 
 ## 3. Memory visibly changes the product (L-01 vs L-02)
 
