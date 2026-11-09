@@ -8,14 +8,14 @@
 //   GET  /memory/:address[...]   Walrus Memory (mainnet) timeline, proof, dividend
 //   GET  /health                 Tatum checkpoints (both networks) + Walrus Memory health
 import { jsonServer, HttpError } from '../shared/http.ts';
-import { compileLive } from './compiler.ts';
+import { compileOffline } from './compiler.ts';
 import { MOCK_TEE } from '../shared/attestation.ts';
 import type { Conviction } from '../shared/types.ts';
 import { gql, latestCheckpoint, stats as tatumStats, checkProxyQuery, recordExecution, tatumConfigured, TATUM_URLS } from '../shared/tatum.ts';
 import { handleRpc } from '../shared/rpcFacade.ts';
 import * as P from '../predict/predict.ts';
 import {
-  liveCompile, buildMint, buildFund, onMintExecuted, timelineFor, dividendFor, credibilityFor,
+  liveCompile, buildMint, buildFund, onMintExecuted, buildCommit, recordCommit, onCommitExecuted, timelineFor, dividendFor, credibilityFor,
   resolveByDigest, startWatcher, pendingCount, reasonCheck,
 } from '../memory/service.ts';
 import { PRIVACY_COPY } from '../memory/reasons.ts';
@@ -87,12 +87,12 @@ export function makeServer() {
     // ---------------------------------------------------------------- compile
     'POST /compile': async (b) => {
       const conv = asConviction(b);
-      if (offline()) return compileLive(conv, Number(b.currentEpoch ?? 0));
+      if (offline()) return compileOffline(conv, Number(b.currentEpoch ?? 0));
       return liveCompile(conv, { address: addr(b.address), currentEpoch: Number(b.currentEpoch ?? 0) });
     },
     'POST /preview': async (b) => {
       const conv = asConviction(b);
-      const r: any = offline() ? await compileLive(conv, Number(b.currentEpoch ?? 0))
+      const r: any = offline() ? compileOffline(conv, Number(b.currentEpoch ?? 0))
         : await liveCompile(conv, { address: addr(b.address), currentEpoch: Number(b.currentEpoch ?? 0) });
       return {
         selected: r.selected, candidates: r.candidates,
@@ -106,6 +106,9 @@ export function makeServer() {
 
     // ---------------------------------------------------------------- transactions (Predict v4 via Tatum)
     'POST /tx/fund': (b) => buildFund({ address: needAddr(b.address), amount: Number(b.amount) }),
+    // Commit mode (no capital): journal::commit(sha256(conviction), market, expiry) — gas only
+    'POST /tx/commit': (b) => buildCommit({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser', reason: b.reason }),
+    'POST /memory/conviction': (b) => recordCommit({ address: needAddr(b.address), text: String(b.text ?? ''), digest: String(b.digest ?? ''), origin: b.origin === 'cli' ? 'cli' : 'browser' }),
     'POST /tx/mint': (b) => buildMint({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser', reason: b.reason }),
     'POST /tx/execute': async (b) => {
       const txBytes = String(b.txBytes ?? '');
@@ -118,8 +121,9 @@ export function makeServer() {
       const ok = !!tx?.effects?.status?.success;
       let recordId: string | null = null;
       if (ok && b.mintId) recordId = (await onMintExecuted(String(b.mintId), digest, res)).recordId;
+      const committed = ok && b.commitId ? onCommitExecuted(String(b.commitId), digest) : false;
       const changed = (tx?.effects?.changedObjects ?? []).map((o: any) => ({ id: o.objectId ?? o.id, op: o.idOperation ?? o.outputState, type: tx?.objectTypes?.[o.objectId ?? o.id] ?? null }));
-      return { digest, success: ok, error: tx?.effects?.status?.error ?? null, recordId, changed, executedVia: new URL(TATUM_URLS.testnet).host };
+      return { digest, success: ok, error: tx?.effects?.status?.error ?? null, recordId, committed, changed, executedVia: new URL(TATUM_URLS.testnet).host };
     },
     'GET /predict/account/:address': async (_b, _u, p) => {
       const a = needAddr(p.address);

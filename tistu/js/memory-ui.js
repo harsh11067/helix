@@ -76,6 +76,18 @@ function reliabilitySVG(bins) {
     <text x="10" y="${H / 2}" font-size="10" text-anchor="middle" fill="var(--ink-2)" font-family="var(--mono)" transform="rotate(-90 10 ${H / 2})">won %</text></svg>`;
 }
 
+/** Commit vs On-chain: a paper conviction hashed on Sui (journal::commit) or a real Predict order. */
+export function modeBadge(r) {
+  if (r.type !== 'CONVICTION' && r.type !== 'OUTCOME') return '';
+  const commit = (r.fields || {}).mode === 'commit';
+  return `<div style="margin-top:6px"><span class="badge" style="font-size:10px;${commit ? '' : 'color:var(--alive);border-color:color-mix(in srgb,var(--alive) 40%,transparent)'}" title="${commit ? 'Paper conviction: sha256 committed on Sui before settlement (helix::journal)' : 'Real DeepBook Predict order'}">${commit ? 'Commit' : 'On-chain'}</span></div>`;
+}
+/** J-07: every on-chain commit by this address is matched to its memory; hidden commits show up here. */
+export function commitLedgerBadge(c) {
+  if (!c || c.error || !c.onchain) return '';
+  const bad = c.missing_memory > 0;
+  return `<span class="badge" style="color:${bad ? 'var(--coral)' : 'var(--alive)'}" title="ConvictionCommitted events on Sui (via Tatum) matched to Walrus memories by hash">${c.onchain} committed on-chain · ${c.with_memory} remembered${bad ? ` · ${c.missing_memory} missing_memory` : ''}</span>`;
+}
 function dividendSVG(rows) {
   const W = 520, H = 200, P = 30;
   let a = 0, m = 0; const A = [0], M = [0];
@@ -109,7 +121,7 @@ export function viewMemory(ctx) {
       const header = `<div class="row spread reveal" style="flex-wrap:wrap;gap:12px;margin-bottom:16px">
           <div><div style="font-family:var(--serif);font-size:1.9rem;letter-spacing:-.02em">${t.count} memor${t.count === 1 ? 'y' : 'ies'} on Walrus</div>
           <div class="muted mono" style="font-size:11.5px">namespace ${esc(t.namespace)} · ${esc(t.memory_network)} · address never stored in the namespace</div></div>
-          <div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge">${o.n || 0} settled · ${o.wins || 0} won</span>
+          <div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge">${o.n || 0} settled · ${o.wins || 0} won</span>${commitLedgerBadge(t.commits)}
           <button class="btn-soft" id="share-btn" data-cursor>${ctx.readOnly ? 'Share this record' : 'Share my record'}</button></div></div>
           <div id="share-out"></div>`;
       const banner = ctx.readOnly && ctx.banner ? ctx.banner : '';
@@ -153,13 +165,13 @@ export function viewMemory(ctx) {
       const rows = tl.map(r => {
         const f = r.fields || {};
         const summary = r.type === 'CONVICTION' ? `${esc(f.dir)} · conf ${esc(f.conf)} · ${esc(f.vol)} · ${esc(f.structure)} · commit ${esc(f.commit)} · you ${esc(f.p_you)} / mkt ${esc(f.p_mkt)} / hlx ${esc(f.p_hlx)}${f.p_crowd && f.p_crowd !== 'na' ? ' / crowd ' + esc(f.p_crowd) : ''}${f.origin ? ' · via ' + esc(f.origin) : ''}`
-          : r.type === 'OUTCOME' ? `<b style="color:${f.result === 'WIN' ? 'var(--alive)' : 'var(--coral)'}">${esc(f.result)}</b> · payoff ${esc(f.payoff)} · settled ${esc(f.settle_px)} vs ${esc(f.strike_px)}${f.witness_usd && f.witness_usd !== 'na' ? ' · Tatum witness ' + esc(f.witness_usd) : ''}`
+          : r.type === 'OUTCOME' ? `<b style="color:${f.result === 'WIN' ? 'var(--alive)' : 'var(--coral)'}">${esc(f.result)}</b> · ${f.mode === 'commit' ? 'would have paid' : 'payoff'} ${esc(f.payoff)} · settled ${esc(f.settle_px)} vs ${esc(f.strike_px)}${f.reveal_ok === 'true' ? ' · <span style="color:var(--alive)">reveal ✓ hash matches on-chain</span>' : f.reveal_ok === 'false' ? ' · <b style="color:var(--coral)">reveal ✗</b>' : ''}${f.witness_usd && f.witness_usd !== 'na' ? ' · Tatum witness ' + esc(f.witness_usd) : ''}`
           : r.type === 'CALIBRATION' ? `${esc(f.bucket)} · n=${esc(f.n)} · won ${esc(f.wins)} · posterior ${esc(f.posterior)} · Brier you ${esc(f.brier_you)} / mkt ${esc(f.brier_mkt)} / hlx ${esc(f.brier_hlx)}`
           : r.type === 'LESSON' ? esc(f.text)
           : esc(r.text.slice(0, 160));
-        const tx = f.tx && f.tx !== 'na' ? `<a class="mono" href="${explorer(f.tx)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">tx ${shortB(f.tx)} ↗</a>` : '';
+        const tx = f.tx && f.tx !== 'na' ? `<a class="mono" href="${explorer(f.tx)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">${f.mode === 'commit' ? 'commit tx' : 'tx'} ${shortB(f.tx)} ↗</a>` : '';
         return `<div class="mem-row" style="display:grid;grid-template-columns:110px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)">
-          <div><span class="badge" style="color:${TYPE_COLOR[r.type] || 'var(--ink-2)'}">${r.type}</span><div class="muted mono" style="font-size:10px;margin-top:6px">${f.ts ? new Date(Number(f.ts) * 1000).toISOString().slice(5, 16).replace('T', ' ') : ''}</div></div>
+          <div><span class="badge" style="color:${TYPE_COLOR[r.type] || 'var(--ink-2)'}">${r.type}</span>${modeBadge(r)}<div class="muted mono" style="font-size:10px;margin-top:6px">${f.ts ? new Date(Number(f.ts) * 1000).toISOString().slice(5, 16).replace('T', ' ') : ''}</div></div>
           <div style="min-width:0"><div style="font-size:13.5px;line-height:1.5;overflow-wrap:anywhere">${summary}</div>
             <div class="row" style="gap:12px;margin-top:6px;flex-wrap:wrap;font-size:11px">${tx}
               <a class="mono" href="${walruscanBlobUrl(r.blob_id)}" target="_blank" rel="noopener" style="color:var(--accent-deep)" title="Walruscan (mainnet)">blob ${shortB(r.blob_id)} ↗</a>

@@ -180,24 +180,6 @@ const confWord = c => c < 30 ? 'Tentative' : c < 60 ? 'Moderate' : c < 85 ? 'Con
    SCREEN coordinates point-by-point, so the curve glides smoothly even when its
    vertical scale changes, and mid-flight recompiles continue from the live frame. */
 const PF = { W: 600, H: 240, pad: 8, steps: 96 };
-function payoffGeometry(legs, spot) {
-  const { W, H, pad, steps } = PF;
-  const lo = spot * 0.6, hi = spot * 1.4, raw = [];
-  for (let i = 0; i <= steps; i++) {
-    const s = lo + (hi - lo) * i / steps; let intr = 0;
-    for (const l of legs) intr += l.qty * (l.type === 'call' ? Math.max(s - l.strike, 0) : Math.max(l.strike - s, 0));
-    raw.push({ s, y: intr });
-  }
-  const ys = raw.map(p => p.y); const mid = (Math.min(...ys) + Math.max(...ys)) / 2;
-  raw.forEach(p => { p.y -= mid; }); // premium-less intrinsic view, centered
-  let loY = Math.min(...raw.map(p => p.y), 0), hiY = Math.max(...raw.map(p => p.y), 0);
-  const yr = (hiY - loY) || 1; loY -= yr * 0.14; hiY += yr * 0.14;
-  const X = x => pad + (x - lo) / (hi - lo) * (W - 2 * pad);
-  const Y = y => pad + (1 - (y - loY) / (hiY - loY)) * (H - 2 * pad);
-  return { pts: raw.map(p => ({ x: X(p.s), y: Y(p.y) })), spotX: X(spot), zeroY: Y(0), x0: X(lo), x1: X(hi) };
-}
-const ptsToLine = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
-const ptsToArea = (pts, zeroY, x0, x1) => `${ptsToLine(pts)} L ${x1.toFixed(1)} ${zeroY.toFixed(1)} L ${x0.toFixed(1)} ${zeroY.toFixed(1)} Z`;
 function payoffSkeleton() {
   const { W, H } = PF;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:240px">
@@ -234,11 +216,6 @@ function tweenPayoff(host, target) {
     if ((now - t0) / dur < 1) host.__pfRaf = requestAnimationFrame(frame); else host.__pfRaf = null;
   };
   host.__pfRaf = requestAnimationFrame(frame);
-}
-function updatePayoff(el, legs, spot) {
-  const host = $('#payoff', el); if (!host) return;
-  if (!host.querySelector('svg')) host.innerHTML = payoffSkeleton();
-  tweenPayoff(host, payoffGeometry(legs, spot));
 }
 // Payoff of the REAL Predict order at expiry: pays $1 per contract inside its range.
 const FEE_APPROX = 1.12; // indicative fee-inclusive price multiple; exact fees come from the plan at signing
@@ -390,6 +367,7 @@ function mountCanvas(el) {
   schedule();
   window.addEventListener('helix:wallet', () => { if (!el.isConnected) return; const b = $('#demo-banner', el); if (b) b.innerHTML = demoBannerHTML(); doCompile(); });
   el.addEventListener('click', (e) => {
+    if (e.target.closest('#commit')) onCommit(el);
     if (e.target.closest('#deploy')) onDeploy(el);
     if (e.target.closest('#fund')) onFund(el);
     if (e.target.closest('#wallet-inline') || e.target.closest('#demo-connect')) openWalletPicker();
@@ -467,40 +445,47 @@ function renderCompiled(el, r, conv) {
     <div id="deploy-out" style="margin-top:14px"></div>`;
   if (!reduce) { box.style.animation = 'none'; void box.offsetWidth; box.style.animation = ''; } // replay cFade
 }
-function deployControl(commit) {
-  if (!state.account && isReadOnly(state))
-    return `<button class="btn-solid" id="deploy" disabled aria-disabled="true" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed">Bring it to life — read-only demo</button>
-      <button class="btn-soft" id="wallet-inline" data-cursor style="margin-top:10px">Connect a wallet to trade as yourself ${arrow()}</button>`;
-  if (!state.account)
-    return `<button class="btn-solid" id="wallet-inline" data-cursor>Connect a wallet to bring it to life ${arrow()}</button>`;
-  const a = state.acct;
-  if (!a) return `<div class="muted"><span class="sdot pending"></span> checking your DeepBook Predict account…</div>`;
-  if (a.error) return `<div class="muted" style="color:var(--coral)">Couldn't read your Predict account (${a.error}).</div>`;
-  const need = commit + 0.05;
-  if (a.balance >= need)
-    return `<div class="muted mono" style="font-size:11px;margin-bottom:8px">Predict account balance ${fmt(a.balance, 2)} dUSDC</div>
-    <div class="thesis-compose">
-      <label class="ctrl-head" for="thesis" style="margin-bottom:6px"><span class="lab">private thesis <span class="muted" style="font-weight:400">— optional, Seal-encrypted</span></span></label>
-      <textarea id="thesis" class="hx-textarea" rows="2" placeholder="Why you believe this. Encrypted with Seal, stored on Walrus — only you (and paying copiers) can read it." data-cursor></textarea>
-      <div class="muted mono" style="font-size:10.5px;margin-top:4px">structure &amp; performance stay public · reasoning stays private</div>
+function thesisBlock() {
+  return `<div class="thesis-compose">
+      <label class="ctrl-head" for="thesis" style="margin-bottom:6px"><span class="lab">private thesis <span class="muted" style="font-weight:400">— optional</span></span></label>
+      <textarea id="thesis" class="hx-textarea" rows="2" placeholder="Why you believe this. On a mint it is encrypted with Seal and stored on Walrus — only you (and paying copiers) can read it." data-cursor></textarea>
       <label class="row" style="gap:9px;margin-top:10px;align-items:flex-start;cursor:pointer;font-size:12.5px;line-height:1.5" data-cursor>
         <input type="checkbox" id="reason-optin" style="margin-top:3px;accent-color:var(--accent)"/>
-        <span class="muted">Let HELIX learn from my reasoning — sends a <b>plaintext</b> copy of this thesis to the Walrus Memory relayer, which extracts and stores facts from it. Your Seal-encrypted thesis stays private. Off by default.</span></label>
+        <span class="muted">Let HELIX learn from my reasoning — sends a <b>plaintext</b> copy of this thesis to the Walrus Memory relayer, which extracts and stores facts from it. Off by default.</span></label>
       <div id="reason-check" class="muted" style="font-size:12.5px;margin-top:6px"></div>
-    </div>
-    <button class="btn-solid" id="deploy" data-cursor style="margin-top:12px">Bring it to life — commit ${fmt(commit, 2)} on Sui ${arrow()}</button>`;
-  const wallet = a.walletQuoteBalance ?? 0;
-  if (wallet >= 1) {
-    const sugg = Math.max(1, Math.min(Math.floor(wallet), Math.max(Math.ceil(need * 4), 10)));
-    return `<div class="panel" style="border-color:color-mix(in srgb,var(--accent) 40%,transparent)">
-      <div class="row spread"><b>Fund your DeepBook Predict account</b><span class="mono muted">wallet ${fmt(wallet, 2)} · account ${fmt(a.balance, 2)}</span></div>
-      <div class="muted" style="margin-top:8px;line-height:1.55">Predict v4 trades from an on-chain account${a.exists ? '' : ' (created in this same transaction)'}. Move some test dUSDC in once; every conviction then draws from it.</div>
+    </div>`;
+}
+// Commit mode is always available (gas only). Minting a real DeepBook Predict order ("Bring to life")
+// appears only when the wallet holds Predict v4's test USDC.
+function deployControl(commit) {
+  if (!state.account && isReadOnly(state))
+    return `<button class="btn-solid" id="commit" disabled aria-disabled="true" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed">Commit conviction — read-only demo</button>
+      <button class="btn-soft" id="deploy" disabled aria-disabled="true" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed;margin-left:8px">Bring to life — mint</button>
+      <button class="btn-soft" id="wallet-inline" data-cursor style="margin-top:10px">Connect a wallet to commit as yourself ${arrow()}</button>`;
+  if (!state.account)
+    return `<button class="btn-solid" id="wallet-inline" data-cursor>Connect a wallet to commit this conviction ${arrow()}</button>`;
+  const commitBtn = `<button class="btn-solid" id="commit" data-cursor style="margin-top:12px">Commit conviction — hash on Sui, gas only ${arrow()}</button>
+    <div class="muted mono" style="font-size:10.5px;margin-top:6px">sha256 of this call goes on-chain before the window settles · can't be backdated · every commit counts in your record</div>`;
+  const a = state.acct;
+  let mint = '';
+  if (!a) mint = `<div class="muted" style="margin-top:12px"><span class="sdot pending"></span> checking your DeepBook Predict account…</div>`;
+  else if (a.error) mint = `<div class="muted" style="margin-top:12px;color:var(--coral)">Couldn't read your Predict account (${a.error}).</div>`;
+  else {
+    const need = commit + 0.05, wallet = a.walletQuoteBalance ?? 0;
+    if (a.balance >= need)
+      mint = `<div style="margin-top:14px"><button class="btn-soft" id="deploy" data-cursor>Bring to life — mint ${fmt(commit, 2)} on DeepBook Predict ${arrow()}</button>
+        <div class="muted mono" style="font-size:10.5px;margin-top:6px">real Predict v4 order · account balance ${fmt(a.balance, 2)} test USDC</div></div>`;
+    else if (wallet >= 1) {
+      const sugg = Math.max(1, Math.min(Math.floor(wallet), Math.max(Math.ceil(need * 4), 10)));
+      mint = `<div class="panel" style="margin-top:14px;border-color:color-mix(in srgb,var(--accent) 40%,transparent)">
+      <div class="row spread"><b>Optional: fund your DeepBook Predict account to mint</b><span class="mono muted">wallet ${fmt(wallet, 2)} · account ${fmt(a.balance, 2)}</span></div>
+      <div class="muted" style="margin-top:8px;line-height:1.55">Predict v4 trades from an on-chain account${a.exists ? '' : ' (created in this same transaction)'}. Move some test USDC in once; minted convictions then draw from it.</div>
       <div class="row" style="gap:10px;margin-top:12px;align-items:center"><input id="fund-amt" class="hx-textarea mono" style="width:110px;padding:8px 10px" type="number" min="1" max="${Math.floor(wallet)}" value="${sugg}"/>
       <button class="btn-solid" id="fund" data-cursor>Fund account ${arrow()}</button></div></div>`;
+    } else
+      mint = `<div class="muted" style="margin-top:12px;font-size:12.5px;line-height:1.55">Minting a real position needs DeepBook Predict v4 test USDC (<span class="mono" style="font-size:11px">${short((a.quoteCoinType || '').split('::')[0])}::usdc::USDC</span>), which DeepBook distributes manually. Commit mode needs none.</div>`;
   }
-  return `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 40%,transparent)">
-      <div class="row spread"><b style="color:var(--coral)">No test dUSDC for DeepBook Predict v4</b><span class="mono muted">wallet ${fmt(wallet, 2)}</span></div>
-      <div class="muted" style="margin-top:8px;line-height:1.55">Predict was redeployed on 2026-09-12 with a new test quote coin (<span class="mono" style="font-size:11px">${short((a.quoteCoinType || '').split('::')[0])}::usdc::USDC</span>). Request it for this address with Mysten's <a class="mono" style="color:var(--accent-deep)" href="${CFG.FAUCET_FORM}" target="_blank" rel="noopener">DeepBook Predict token form</a>, then reconnect.</div></div>`;
+  return thesisBlock() + commitBtn + mint;
 }
 const arrow = () => `<span style="width:30px;height:30px;border-radius:50%;background:var(--bg);color:var(--ink);display:grid;place-items:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>`;
 
@@ -528,6 +513,37 @@ async function onFund(el) {
   } catch (e) {
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)"><b style="color:var(--coral)">Not funded</b><div class="muted" style="margin-top:6px">${e.message || 'rejected'}</div></div>`;
   } finally { state.busy = false; }
+}
+async function onCommit(el) {
+  if (!state.account || isReadOnly(state)) return;   // the demo trader is read-only
+  if (state.busy) return; state.busy = true;
+  const out = $('#deploy-out', el); const btn = $('#commit', el);
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+  const r = state.compile, conv = state.conv;
+  const commit = state.chosen.commit ?? conv.capital;
+  out.innerHTML = `<div class="muted"><span class="sdot pending"></span> hashing your conviction and building the commit through Tatum…</div>`;
+  try {
+    const thesisText = ($('#thesis', el)?.value || '').trim();
+    const reason = $('#reason-optin', el)?.checked && thesisText ? { text: thesisText, optIn: true } : undefined;
+    const c = await api('/tx/commit', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure, reason }, { timeoutMs: 60000 });
+    const settles = new Date(c.market.expiryMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: commit <span class="mono">sha256 ${c.hash.slice(0, 10)}…</span> of “${escapeHtml(c.order.label)}” to <span class="mono">helix::journal</span> — before the window settles at ${settles}. Gas only; no USDC.</div></div>`;
+    const res = await signAndExecuteBytes(c.txBytes, { commitId: c.commitId });
+    if (!res.success) throw new Error(res.error || 'transaction failed');
+    out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--alive) 45%,transparent);background:var(--alive-soft)">
+      <div class="row spread"><b style="color:var(--alive)">Committed on Sui testnet</b><span class="sdot active"></span></div>
+      <div class="muted" style="margin-top:8px;line-height:1.55">Your conviction's hash is on-chain, timestamped before settlement — executed through <span class="mono">${res.executedVia}</span>. When the window settles, HELIX reads the result through Tatum, checks the hash, and scores every voice.</div>
+      <a class="btn-soft" style="margin-top:12px" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener" data-cursor>View commit on Suiscan ${arrow()}</a>
+      <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${res.digest} · sha256 ${c.hash}</div>
+      <div id="mem-out" class="muted" style="margin-top:12px"><span class="sdot pending"></span> verifying the commit and writing a CONVICTION memory to Walrus (mainnet)…</div></div>`;
+    toast('Conviction committed', 'hash on Sui · executed via Tatum', 'alive');
+    pollConvictionMemory($('#mem-out', el), res.digest);
+  } catch (e) {
+    out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)">
+      <b style="color:var(--coral)">Not committed</b><div class="muted" style="margin-top:6px">${escapeHtml(e.message || 'rejected')}</div></div>`;
+  } finally {
+    state.busy = false; if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+  }
 }
 async function onDeploy(el) {
   if (!state.account || isReadOnly(state)) return;   // the demo trader is read-only
@@ -572,7 +588,7 @@ async function pollConvictionMemory(node, digest) {
       const t = await api(`/memory/${state.account.address}`);
       const hit = (t.timeline || []).find(x => x.type === 'CONVICTION' && x.fields?.tx === digest);
       if (hit) {
-        node.innerHTML = `<span class="sdot active"></span> CONVICTION remembered on Walrus mainnet · blob <span class="mono">${short(hit.blob_id)}</span> · fill ${hit.fields.fill} · <a href="#/memory" style="color:var(--accent-deep)">open Memory →</a> · the outcome is written automatically when the window settles.`;
+        node.innerHTML = `<span class="sdot active"></span> CONVICTION remembered on Walrus mainnet · blob <span class="mono">${short(hit.blob_id)}</span> · ${hit.fields.mode === 'commit' ? 'commit verified on-chain' : 'fill ' + hit.fields.fill} · <a href="#/memory" style="color:var(--accent-deep)">open Memory →</a> · the outcome is written automatically when the window settles.`;
         return;
       }
     } catch (e) {}

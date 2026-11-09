@@ -2,7 +2,7 @@
 // recompute calibration. Walrus Memory (mainnet) is the source of truth; Tatum is the
 // only path to Sui (testnet for Predict, mainnet for memory proofs).
 
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { compile } from '../compiler/compiler.ts';
 import type { Conviction, CompileResult } from '../shared/types.ts';
 import * as P from '../predict/predict.ts';
@@ -20,6 +20,8 @@ import { crowdVoice, type CrowdView } from '../crowd/polymarket.ts';
 import { witnessBtc } from '../shared/tatumRates.ts';
 import { classifyReason } from './reasons.ts';
 import { memwal } from './store.ts';
+import { commitBody, commitMemoryText, commitTx, commitEventsOf, checkCommit, commitsBy, sha256hex, verifyReveal, JOURNAL_PKG } from './commit.ts';
+import { suiClient } from '../shared/tatum.ts';
 
 export const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
 
@@ -217,7 +219,10 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
 
   // ---- guardian: plain-language risk classes
   const guardian: GuardianLine[] = [];
-  guardian.push({ cls: 'oracle', bad: false, t: `Volatility surface and BTC price passed Predict's on-chain freshness gate (priced ${new Date(pv.asOf || now).toISOString().slice(11, 19)} UTC).` });
+  const sviAge = P.sviAgeSeconds(pv, now);
+  guardian.push(sviAge != null && sviAge > 60
+    ? { cls: 'oracle', bad: true, t: `Volatility surface is ${sviAge}s old (on-chain Block Scholes store) — Predict will refuse stale pricing; wait for the next update.` }
+    : { cls: 'oracle', bad: false, t: `Volatility surface is ${sviAge ?? '?'}s old and BTC price passed Predict's on-chain freshness gate (priced ${new Date(Number.isFinite(pv.asOf) ? pv.asOf : now).toISOString().slice(11, 19)} UTC).` });
   const mins = market.minutesLeft;
   guardian.push(mins < 3
     ? { cls: 'time', bad: true, t: `Resolves in ${mins.toFixed(1)} min — fees rise near expiry and trading stops ~11s before it.` }
@@ -293,6 +298,89 @@ export async function buildFund(body: { address: string; amount: number }) {
   return P.buildFundTx(body.address, amt);
 }
 
+// ---------------------------------------------------------------- Commit mode: hash on-chain → remember → resolve
+interface CommitCtx { id: string; at: number; address: string; body: string; hash: string; market: P.LiveMarket; origin: string; reason: string | null }
+const commitsPending = new Map<string, CommitCtx>();
+
+/** The canonical CONVICTION body for a paper commit (hashed; hash/tx/commit_tx are appended after signing). */
+export function convictionCommitBody(c: CompileCtx, o: { order: P.PredictOrder; commit: number; usedMemoryStructure: boolean; followed: boolean; origin: string; at: number; nonce: string }): string {
+  const conv = c.conv, ord = o.order;
+  const pHlx = o.usedMemoryStructure ? helixProbability(ord.pMkt, ord.kind, ord.side, c.regime) : c.voices.helix;
+  const alt = o.usedMemoryStructure ? c.order : c.alt;
+  const price = Math.min(0.99, Math.max(0.01, ord.ppcEst));
+  return formatRecord('CONVICTION', [
+    ['mode', 'commit'], ['asset', 'BTC'], ['dir', dirWord(conv.direction)], ['conf', p2(conv.confidence / 100)],
+    ['vol', volWord(conv.volView)], ['vol_view', Math.round(conv.volView)], ['horizon', `${Math.max(1, Math.round(c.market.minutesLeft))}m`],
+    ['regime', c.regime.word], ['structure', ord.kind], ['side', ord.side], ['order', ord.rule],
+    ['commit', p2(o.commit)], ['sugg_commit', p2(c.memory.suggested_commit)], ['followed_memory', o.followed],
+    ['mem_n', c.memory.n],
+    ['p_you', p3(c.voices.you)], ['p_mkt', p3(ord.pMkt)], ['p_hlx', p3(pHlx)],
+    ['p_crowd', c.voices.crowd == null ? 'na' : p3(c.voices.crowd)], ['crowd_slug', c.voices.crowd_slug ?? 'na'],
+    ['market', c.market.id], ['expiry', Math.floor(c.market.expiryMs / 1000)], ['expiry_ms', c.market.expiryMs],
+    ['fill', 'paper'], ['price', p3(price)], ['qty', p2(o.commit / price)], ['cost', p2(o.commit)],
+    ['alt_struct', alt?.kind ?? 'na'], ['alt_cost', alt ? p3(alt.ppcEst) : 'na'], ['alt_rule', alt?.rule ?? 'na'],
+    ['origin', o.origin], ['ts', Math.floor(o.at / 1000)], ['nonce', o.nonce],
+  ]);
+}
+
+/** Build `journal::commit(sha256(body), market, expiry)` for the wallet to sign. Costs gas only. */
+export async function buildCommit(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean } }) {
+  const c = compiles.get(body.compileId);
+  if (!c) throw new Error('compile expired — recompile and try again');
+  if (!/^0x[0-9a-f]{64}$/i.test(body.address || '')) throw new Error('invalid address');
+  if (c.market.expiryMs < Date.now() + 15_000) throw new Error('this window settles too soon to commit — recompile for the next one');
+  const commit = Number(body.commit ?? c.conv.capital);
+  if (!Number.isFinite(commit) || commit < 1 || commit > 10_000) throw new Error('invalid commit');
+  const useAlt = !!body.useMemoryStructure && !!c.memory.structure_suggestion;
+  const order = useAlt ? c.memory.structure_suggestion!.order : c.order;
+  const followed = useAlt || (c.memory.n >= MIN_N && Math.abs(commit - c.memory.suggested_commit) < 0.005 && c.memory.suggested_commit !== c.conv.capital);
+  const at = Date.now();
+  const text = convictionCommitBody(c, { order, commit, usedMemoryStructure: useAlt, followed, origin: body.origin ?? 'browser', at, nonce: randomBytes(4).toString('hex') });
+  const hash = sha256hex(text);
+  const tx = commitTx(body.address, hash, c.market.id, c.market.expiryMs);
+  const txBytes = Buffer.from(await tx.build({ client: suiClient(P.NETWORK) as any })).toString('base64');
+  const id = 'cmt_' + randomBytes(8).toString('hex');
+  const reasonText = body.reason?.optIn === true && typeof body.reason.text === 'string' ? body.reason.text.trim().slice(0, 2000) : '';
+  commitsPending.set(id, { id, at, address: body.address, body: text, hash, market: c.market, origin: body.origin ?? 'browser', reason: reasonText || null });
+  for (const [k, v] of commitsPending) if (Date.now() - v.at > 30 * 60_000) commitsPending.delete(k);
+  return { commitId: id, txBytes, text, hash, order, market: { id: c.market.id, expiryMs: c.market.expiryMs }, journal: JOURNAL_PKG };
+}
+
+/**
+ * Verify a landed commit on-chain (via Tatum) against its plaintext, then write the CONVICTION memory.
+ * Trust-minimised: the server re-derives the hash from the text and checks owner/market/expiry in the event.
+ */
+export async function recordCommit(b: { address: string; text: string; digest: string; origin?: string; reason?: string | null }) {
+  const body = commitBody(String(b.text ?? ''));
+  const rec = parseRecord(body);
+  if (!rec || rec.type !== 'CONVICTION' || str(rec, 'mode') !== 'commit') throw new Error('text is not a commit-mode CONVICTION record');
+  const hash = sha256hex(body);
+  const market = str(rec, 'market'), expiryMs = num(rec, 'expiry_ms') ?? (num(rec, 'expiry') ?? 0) * 1000;
+  if (!market || !expiryMs) throw new Error('conviction lacks market/expiry');
+  const tx = await P.waitTx(String(b.digest));
+  const t = tx?.Transaction ?? tx?.transaction ?? tx;
+  if (!t?.effects?.status?.success) throw new Error('commit transaction failed or not found');
+  const why = checkCommit(commitEventsOf(tx)[0], { address: b.address, hash, market, expiryMs });
+  if (why) throw new Error(`commit does not verify: ${why}`);
+  const ns = namespaceFor(b.address);
+  const text = commitMemoryText(body, hash, b.digest);
+  const mem = await remember(ns, text, { tx: b.digest, origin: b.origin ?? str(rec, 'origin') ?? 'browser' });
+  await registerNamespace(ns).catch((e) => console.error('[memory] registry write failed', (e as Error).message));
+  pending.set(b.digest, { ns, rec: parseRecord(text)! });
+  if (b.reason) await writeReason(ns, b.digest, b.reason, b.origin ?? 'browser').catch((e) => console.error('[memory] reason write failed', (e as Error).message));
+  return { ok: true, digest: b.digest, hash, blob_id: mem.blob_id, namespace: ns, reveal: 'sha256(text without hash/tx/commit_tx) == on-chain ConvictionCommitted.hash' };
+}
+
+/** After /tx/execute lands a commit built by buildCommit: record it in the background. */
+export function onCommitExecuted(commitId: string, digest: string): boolean {
+  const cc = commitsPending.get(commitId);
+  if (!cc) return false;
+  commitsPending.delete(commitId);
+  void recordCommit({ address: cc.address, text: cc.body, digest, origin: cc.origin, reason: cc.reason })
+    .catch((e) => console.error('[memory] commit record failed', digest, (e as Error).message));
+  return true;
+}
+
 /** Called after a mint lands: wait for the keeper's fill, then write the CONVICTION memory. */
 export async function onMintExecuted(mintId: string, digest: string, result: any): Promise<{ recordId: string | null }> {
   const mc = mints.get(mintId);
@@ -361,7 +449,7 @@ export async function rebuildPending(): Promise<number> {
     const done = new Set(recs.filter((r) => r.type === 'OUTCOME').map((r) => str(r, 'tx')));
     for (const r of recs) {
       const tx = str(r, 'tx');
-      if (r.type === 'CONVICTION' && tx && str(r, 'fill') === 'filled' && !done.has(tx)) pending.set(tx, { ns, rec: r });
+      if (r.type === 'CONVICTION' && tx && (str(r, 'fill') === 'filled' || str(r, 'fill') === 'paper') && !done.has(tx)) pending.set(tx, { ns, rec: r });
     }
   }
   return pending.size;
@@ -404,10 +492,17 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
   if (altRule && altCost && sugg) alt_payoff = (P.orderWon(altRule, s.price) ? sugg / altCost : 0) - sugg;
   if (sugg && commit) memory_pnl = payoff * (sugg / commit);
 
+  // Commit mode: re-hash the remembered text and compare with the on-chain ConvictionCommitted event
+  const mode = str(conv, 'mode') ?? 'onchain';
+  let reveal_ok: boolean | 'na' = 'na';
+  if (mode === 'commit') {
+    const ev = commitEventsOf(await P.waitTx(tx).catch(() => null))[0];
+    reveal_ok = !!ev && verifyReveal(conv.text, ev.hash) && ev.committed_ms < (num(conv, 'expiry_ms') ?? expiry * 1000);
+  }
   const witness = await witnessBtc(s.price).catch(() => null);
   const strikeTxt = order.side === 'range' ? `${order.lower}-${order.upper}` : String(order.strike);
   const text = formatRecord('OUTCOME', [
-    ['tx', tx], ['result', won ? 'WIN' : 'LOSS'], ['payout', p2(payout)], ['cost', p2(costPaid)], ['payoff', signed2(payoff)],
+    ['tx', tx], ['mode', mode], ['reveal_ok', reveal_ok], ['result', won ? 'WIN' : 'LOSS'], ['payout', p2(payout)], ['cost', p2(costPaid)], ['payoff', signed2(payoff)],
     ['settle_px', p2(s.price)], ['strike_px', strikeTxt],
     ['witness_usd', witness?.status === 'ok' ? p2(witness.tatum_usd) : 'na'],
     ['alt_payoff', signed2(alt_payoff)], ['memory_pnl', signed2(memory_pnl)], ['mem_n', memN],
@@ -516,8 +611,10 @@ export async function timelineFor(address: string) {
   const buckets = new Map<string, SettledRow[]>();
   for (const r of rows) { const b = bucketOfRow(recs, r.tx); if (b) (buckets.get(b) ?? buckets.set(b, []).get(b)!).push(r); }
   const overall = bucketStats(rows);
+  const commits = await commitLedger(address, recs).catch((e) => ({ error: (e as Error).message }));
   return {
     namespace: ns,
+    commits,
     memory_network: memMode() === 'mainnet' ? 'walrus-mainnet' : memMode(),
     count: recs.length,
     timeline: recs.map((r) => ({ type: r.type, blob_id: r.blob_id, created_at: r.created_at, fields: r.f, text: r.text })),
@@ -525,6 +622,31 @@ export async function timelineFor(address: string) {
     buckets: [...buckets].map(([bucket, rs]) => ({ bucket, ...bucketStats(rs) })),
     reliability: reliability(rows),
     reasons: reasonStats(recs),
+  };
+}
+
+/**
+ * J-07 — no cherry-picking: every ConvictionCommitted by the address (chain events via Tatum) is matched to
+ * its memory by hash. A commit with no memory is `missing_memory` and, once its window has passed, counts as
+ * a loss in `win_rate_all_commits` — hiding a losing call cannot improve the record.
+ */
+export async function commitLedger(address: string, recs: MemRecord[]) {
+  const evs = await commitsBy(address);
+  const byHash = new Map(recs.filter((r) => r.type === 'CONVICTION' && str(r, 'hash')).map((r) => [str(r, 'hash')!, r]));
+  const outcome = new Map(recs.filter((r) => r.type === 'OUTCOME').map((r) => [str(r, 'tx'), r]));
+  const now = Date.now();
+  let wins = 0, settled = 0, missingExpired = 0, revealOk = 0;
+  const missing: { digest?: string; hash: string | null; expiry_ms: number }[] = [];
+  for (const e of evs) {
+    const m = e.hash ? byHash.get(e.hash) : undefined;
+    if (!m) { missing.push({ digest: e.digest, hash: e.hash, expiry_ms: e.expiry_ms }); if (e.expiry_ms < now) missingExpired++; continue; }
+    const o = outcome.get(str(m, 'tx'));
+    if (o && (str(o, 'result') === 'WIN' || str(o, 'result') === 'LOSS')) { settled++; if (str(o, 'result') === 'WIN') wins++; if (str(o, 'reveal_ok') === 'true') revealOk++; }
+  }
+  const denom = settled + missingExpired;
+  return {
+    journal: JOURNAL_PKG, onchain: evs.length, with_memory: evs.length - missing.length, missing_memory: missing.length,
+    settled, wins, reveal_ok: revealOk, win_rate_all_commits: denom ? wins / denom : null, missing: missing.slice(0, 20),
   };
 }
 
@@ -559,4 +681,3 @@ export async function credibilityFor(address: string) {
   return { namespace: t.namespace, n: t.overall.n, overall: t.overall, buckets: t.buckets, lessons, memory_network: t.memory_network };
 }
 
-export const hashTx = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16);

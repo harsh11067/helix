@@ -73,7 +73,10 @@ export async function pricerFor(m: LiveMarket, now = Date.now()): Promise<Pricer
   const hit = pricerCache.get(m.id);
   if (hit && now - hit.at < 3000) return hit.v;
   const p = await pc().predict.read.pricer({ underlying: 'BTC', expiryMs: m.expiryMs, marketId: m.id });
-  const v: PricerView = { forward: p.forward, svi: p.svi, sources: p.sources ?? null, asOf: Number(p.asOf ?? now), bp: p };
+  // SDK 2.11: `asOf` is the per-source timestamp record {pythSpotMs, blockScholesSpotMs, blockScholesForwardMs, blockScholesSviMs}
+  const src = p.sources ?? (p.asOf && typeof p.asOf === 'object' ? p.asOf : null);
+  const ts = src ? Object.values(src).map(Number).filter(Number.isFinite) : [];
+  const v: PricerView = { forward: p.forward, svi: p.svi, sources: src, asOf: ts.length ? Math.min(...ts) : Number(p.asOf ?? now), bp: p };
   pricerCache.set(m.id, { at: now, v });
   if (pricerCache.size > 50) pricerCache.clear();
   return v;
@@ -150,15 +153,6 @@ export function kindFor(selectedName: string, direction: number): { kind: Struct
   }
 }
 
-function bisect(f: (x: number) => number, lo: number, hi: number, target: number, increasing: boolean): number {
-  for (let i = 0; i < 60; i++) {
-    const mid = (lo + hi) / 2;
-    const v = f(mid);
-    if ((v < target) === increasing) lo = mid; else hi = mid;
-  }
-  return (lo + hi) / 2;
-}
-
 /** Build a concrete Predict order for a structure kind, inside the market's entry band. */
 export function buildOrder(
   kind: StructKind, side: 'up' | 'down' | 'range', confidence: number,
@@ -222,13 +216,6 @@ export function indicativePrice(p: number, boundUps: number[]): number {
 }
 
 /** The same admission test the chain applies at placement (minus price drift until τ). */
-export function admissible(o: PredictOrder, pv: PricerView, band: { minEntry: number; maxEntry: number }): boolean {
-  const inBand = (x: number) => x >= band.minEntry && x <= band.maxEntry;
-  if (!inBand(o.pMkt)) return false;
-  if (o.side === 'range') return inBand(pv.bp.up(o.lower)) && inBand(pv.bp.up(o.upper));
-  return true;
-}
-
 export const fmtUsd = (x: number) => '$' + Number(x).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
 export function descriptorFor(m: LiveMarket, o: Pick<PredictOrder, 'side' | 'strike' | 'lower' | 'upper'>): any {
