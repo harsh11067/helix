@@ -86,10 +86,14 @@ export const dirWord = (direction: number): DirWord => (direction >= 20 ? 'up' :
 export const confBand = (conf01: number) => (conf01 < 0.4 ? 'low' : conf01 < 0.7 ? 'mid' : 'high');
 export const volWord = (volView: number) => (volView < 50 ? 'calm' : 'choppy');
 export const bucketKey = (dir: string, conf01: number, vol: string) => `${dir}/${confBand(conf01)}/${vol}`;
+/** The asset a record is about. Records written before multi-asset (P5) carry none and are BTC. */
+export const assetOf = (r: MemRecord | undefined): string => (str(r, 'asset') ?? 'BTC').toUpperCase();
+/** Calibration bucket. BTC keeps its original keys (`up/high/choppy`); other assets are scoped (`ETH:up/high/choppy`). */
 export function bucketOfConviction(r: MemRecord): string | null {
   const dir = str(r, 'dir'), conf = num(r, 'conf'), vol = str(r, 'vol');
   if (!dir || conf == null || !vol) return null;
-  return bucketKey(dir, conf, vol);
+  const a = assetOf(r), k = bucketKey(dir, conf, vol);
+  return a === 'BTC' ? k : `${a}:${k}`;
 }
 
 /** "you" voice: confidence 0–100 mapped to a win probability in [0.5, 0.95]. */
