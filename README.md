@@ -12,8 +12,10 @@
 [![Status](https://img.shields.io/badge/Status-Production%20%26%20Deployed-brightgreen?style=for-the-badge)](./docs/SUBMISSION.md)
 
 > [!IMPORTANT]
-> **Don't build strategies. Express convictions. Watch them live, evolve, and compose.**
-> HELIX is not an options platform. It is not a prediction market. It is not a copy-trading app. It is a new category: **conviction-native finance.**
+> **HELIX is Proof-of-Forecast: a track record of judgment you can't fake, that learns, and that people and agents can pay to trust.**
+> Every call is hashed onto Sui before its market settles, remembered on **Walrus Memory (mainnet)**, settled against DeepBook Predict through **Tatum**, and scored — for you, the market, a model, the crowd and a Council of agents. Nothing can be backdated, and no losing call can be hidden.
+
+**Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [where this goes](./PRODUCT.md)
 
 ---
 
@@ -25,7 +27,9 @@ No wallet needed. (The free-tier compiler may take ~50 s to wake on the first re
 2. **Check any memory:** click a blob id → **Walruscan mainnet**; click *verify on mainnet* → the MemWal account read through **Tatum's mainnet gateway** plus the blob from the Walrus mainnet aggregator.
 3. **See memory change the product:** open the **Canvas** (still in demo mode), move the sliders — the compile uses the demo trader's memory: *you set X · memory suggests Y*, the four voices, and the **Memory** line in the risk guardian.
 4. **See Tatum is the chokepoint:** [`/health`](https://helix-compiler.onrender.com/health) shows live testnet + mainnet checkpoints read through Tatum.
-5. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
+5. **Open a Forecaster Passport:** [the demo trader's](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) — *committed N · shown N · hidden 0*, counted from Sui events. Press **Verify all**: your browser fetches each commit from Sui itself and re-hashes the remembered call — every row turns green. The same record is a **soulbound passport object on Sui** ([Suiscan](https://suiscan.xyz/testnet/object/0xa8d8500dd363468edaab8e011deeb7243c2f9fcddb20d23f9e858f45c6089790)), signed by HELIX and verified on-chain.
+6. **Watch the Council:** [four agents](https://helix-app-fovn.onrender.com/app.html#/council) commit every half hour with their own keys and memory; their weights move as memory scores them.
+7. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
 
 ## 🏗️ Architecture
 
@@ -97,6 +101,10 @@ HELIX existed before this hackathon (Move package, DeepBook Predict integration,
 | **Settlement watcher** — resolves every commit and every filled order at expiry, writes OUTCOME → CALIBRATION → LESSON; rebuilt from Walrus Memory on restart (no duplicate writes) | `memory/service.ts` |
 | **Memory changes the compile** — "you set X · memory suggests Y" with one-click accept (never silent), memory-preferred structure, a 4th guardian class *Memory* in plain language | Canvas |
 | **Memory page** — timeline with every Walrus blob id and an inline **mainnet proof** (MemWal account read via Tatum mainnet + blob fetched from the Walrus mainnet aggregator), Brier per voice, reliability diagram, memory dividend, who-to-trust board | `tistu/js/memory-ui.js` |
+| **The Council** — four rule-based agents (Momentum, Reversion, Surface, Crowd), each with its own Sui key, gas and Walrus Memory, commit on every 15-minute BTC window twice an hour. Memory weights them (∝ 1/Brier, equal until n ≥ 5, a `COUNCIL` memory per settled window); the Council becomes a fifth voice in every compile — the market's own surface re-centred on the agents' edge — and is scored like any voice | `tee/src/council/`, `#/council` |
+| **Forecaster Passport** — a public, signed record for any forecaster or agent: committed / shown / **hidden** counted from chain events, best and worst setup, latest lesson, badges, every commit with a one-click in-browser **Verify** (WebCrypto sha256 vs the on-chain hash). Ed25519-signed JSON (attestor key at [`/.well-known/helix-attestation.json`](https://helix-compiler.onrender.com/.well-known/helix-attestation.json)), share card, embeddable badge | `tee/src/passport/offchain/`, `passport.html`, `/passport/:id` |
+| **On-chain Forecaster Passport** — `helix_passport`: a **soulbound** object (no `store`) minted from HELIX's BCS attestation and checked with `ed25519::ed25519_verify` on-chain, anti-rollback refresh, one per address, Display for wallets, and `gate_example::assert_calibrated` so any protocol can gate on reputation | `contracts-passport/`, `tee/src/passport/onchain/` |
+| **Fun layer, all from data** — live proof ticker, settlement countdown + hash-verified reveal, humility meter (confidence vs record, n ≥ 3), Beat the Market (today, shared windows only) | `tistu/js/fun.js`, `/proof/ticker` |
 | **W1 Crowd voice** (Polymarket BTC 15-min Up/Down, compared only when windows and strikes match) · **W2 Price witness** (Tatum exchange-rate API) · **W3 Memory dividend** · **W5 MCP server + agent skill** · **W6 opt-in reasoning memory** · **W7 who-to-trust board** | see [WIN_FEATURES.md](./WIN_FEATURES.md) |
 
 Verify it yourself:
