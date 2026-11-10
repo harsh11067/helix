@@ -9,7 +9,7 @@ import { commitLedger } from '../memory/service.ts';
 
 let all: CommitEvent[] = [];
 let cursor: string | null = null;
-let hiddenBySender = new Map<string, number>();
+let hiddenBySender = new Map<string, number | null>();
 let at = 0, hiddenAt = 0;
 
 /** All ConvictionCommitted events, fetched incrementally (forward pages from the last cursor). */
@@ -30,7 +30,8 @@ async function syncHidden(): Promise<void> {
   const next = new Map<string, number>();
   for (const s of senders) {
     const l: any = await commitLedger(s, await recallForAddress(s)).catch(() => null);
-    next.set(s, l?.missing_memory ?? hiddenBySender.get(s) ?? 0);
+    // unknown (ledger unreadable or memory still being recalled) keeps the last known count, never becomes 0
+    next.set(s, typeof l?.missing_memory === 'number' ? l.missing_memory : (hiddenBySender.get(s) ?? null));
   }
   hiddenBySender = next;
   hiddenAt = Date.now();
@@ -52,7 +53,10 @@ export async function ticker(now = Date.now()) {
   return {
     commits: all.length, settled: settled.length, pending: all.length - settled.length, committers,
     last_settled_ms: lastSettled || null, last_commit_ms: lastCommit || null,
-    hidden: [...hiddenBySender.values()].reduce((a, b) => a + b, 0), hidden_checked_ms: hiddenAt || null,
+    // null until every committer's memory has been checked at least once
+    hidden: hiddenAt && [...hiddenBySender.values()].every((v) => typeof v === 'number')
+      ? [...hiddenBySender.values()].reduce((a: number, b) => a + (b as number), 0) : null,
+    hidden_checked_ms: hiddenAt || null,
     source: 'helix::journal ConvictionCommitted events on Sui testnet (via Tatum) · hidden from each committer\'s Walrus Memory',
   };
 }

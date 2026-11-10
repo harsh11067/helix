@@ -15,7 +15,7 @@ import {
   bucketStats, blendedProbability, suggestCommit, structureBias, bestVoice, lessonFor, oddsFromPrice, beatTheMarket,
   VOICE_LABEL, MIN_N, RANGEISH, type SettledRow, type BucketStats,
 } from './calibration.ts';
-import { remember, recallAll, recallForAddress, registerNamespace, registeredNamespaces, recallCoverage, mode as memMode } from './store.ts';
+import { remember, recallAll, recallForAddress, registerNamespace, registeredNamespaces, recallCoverage, recallComplete, findRecord, mode as memMode } from './store.ts';
 import { crowdVoice, type CrowdView } from '../crowd/polymarket.ts';
 import { witness, witnessBtc, type WitnessSymbol } from '../shared/tatumRates.ts';
 import { classifyReason } from './reasons.ts';
@@ -727,6 +727,17 @@ export async function commitLedger(address: string, recs: MemRecord[]) {
   const byHash = new Map(recs.filter((r) => r.type === 'CONVICTION' && str(r, 'hash')).map((r) => [str(r, 'hash')!, r]));
   const outcome = new Map(recs.filter((r) => r.type === 'OUTCOME').map((r) => [str(r, 'tx'), r]));
   const now = Date.now();
+  // before calling any commit hidden: look up, by its exact digest, every commit whose memory the semantic
+  // recall didn't reach (and its outcome), so a large namespace never inflates the hidden count
+  const ns = namespaceFor(address);
+  const unmatched = evs.filter((e) => e.hash && e.digest && !byHash.has(e.hash) && now - e.committed_ms >= 120_000).slice(0, 12);
+  for (const e of unmatched) {
+    const c = await findRecord(ns, 'CONVICTION', e.digest!).catch(() => null);
+    if (!c || str(c, 'hash') !== e.hash) continue;
+    byHash.set(e.hash!, c);
+    const tx = str(c, 'tx');
+    if (tx && !outcome.has(tx) && e.expiry_ms < now) { const o = await findRecord(ns, 'OUTCOME', tx).catch(() => null); if (o) outcome.set(tx, o); }
+  }
   let wins = 0, settled = 0, missingExpired = 0, revealOk = 0, recording = 0;
   const missing: { digest?: string; hash: string | null; expiry_ms: number }[] = [];
   for (const e of evs) {
@@ -738,8 +749,12 @@ export async function commitLedger(address: string, recs: MemRecord[]) {
     if (o && (str(o, 'result') === 'WIN' || str(o, 'result') === 'LOSS')) { settled++; if (str(o, 'result') === 'WIN') wins++; if (str(o, 'reveal_ok') === 'true') revealOk++; }
   }
   const denom = settled + missingExpired;
+  // "hidden" is only claimed once memory has been searched completely; while a recall is still catching up
+  // (e.g. right after a restart) a commit whose memory hasn't been read yet is unknown, not hidden.
+  const complete = recallComplete(namespaceFor(address));
   return {
-    journal: JOURNAL_PKG, onchain: evs.length, with_memory: evs.length - missing.length - recording, recording, missing_memory: missing.length,
+    journal: JOURNAL_PKG, onchain: evs.length, with_memory: evs.length - missing.length - recording, recording,
+    missing_memory: complete ? missing.length : null, memory_complete: complete,
     settled, wins, reveal_ok: revealOk, win_rate_all_commits: denom ? wins / denom : null, missing: missing.slice(0, 20),
   };
 }

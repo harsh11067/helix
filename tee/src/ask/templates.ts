@@ -13,7 +13,7 @@ export const NO_DATA = "I don't have memories about that yet.";
 
 export interface Cited { text: string; blob_id: string; type: string }
 export interface StatsAnswer { answer: string; template: string | null; memories_used: Cited[]; memories_total: number; n: number | null }
-export interface CommitLedger { onchain: number; with_memory: number; missing_memory: number; recording?: number }
+export interface CommitLedger { onchain: number; with_memory: number; missing_memory: number | null; recording?: number }
 export interface AskData {
   recs: MemRecord[];                                   // the forecaster's records (recallAll(ns))
   now: number;                                         // ms
@@ -207,6 +207,9 @@ export const TEMPLATES: Template[] = [
       const L = c.d.ledger;
       const convs = c.d.recs.filter((r) => r.type === 'CONVICTION');
       if (!L || !convs.length) return null;
+      if (L.missing_memory == null) return done('hidden',
+        `You committed ${L.onchain} conviction${L.onchain === 1 ? '' : 's'} on-chain (helix::journal). HELIX is still reading your memory back from Walrus, so it won't claim a hidden count yet — ask again in a minute.`,
+        cite(convs), L.onchain);
       return done('hidden',
         `You committed ${L.onchain} conviction${L.onchain === 1 ? '' : 's'} on-chain (helix::journal); ${L.with_memory} have their memory and ${L.missing_memory} ${L.missing_memory === 1 ? 'has' : 'have'} none${L.missing_memory ? ' (each counts as a loss once its window passes)' : ': hidden 0'}.`,
         cite(convs), L.onchain);

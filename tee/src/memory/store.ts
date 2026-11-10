@@ -155,7 +155,11 @@ async function listedBlobIds(namespace: string): Promise<Set<string> | null> {
 }
 
 /** How much of the namespace the last recall actually returned (memory is only as honest as it is complete). */
-export const recallCoverage = new Map<string, { listed: number | null; recalled: number; at: number }>();
+export const recallCoverage = new Map<string, { listed: number | null; recalled: number; at: number; complete: boolean }>();
+/** True once a recall has searched for everything listed in the namespace (what is left, if anything, can't be
+ *  found by any query), i.e. a commit with no recalled memory really has none. False while a recall is still
+ *  catching up (cut off by its time budget) or when the listing itself failed. */
+export const recallComplete = (namespace: string): boolean => recallCoverage.get(namespace)?.complete === true;
 
 /**
  * Every HELIX record in a namespace, from Walrus Memory.
@@ -210,9 +214,10 @@ async function recallIncremental(namespace: string): Promise<MemRecord[]> {
   const skip = unfindable.get(namespace);
   const skipSet = skip && Date.now() - skip.at < 10 * 60_000 ? skip.blobs : new Set<string>();
   const missing = () => (listed ? [...listed].filter((b) => !have.has(b) && !skipSet.has(b)).length : Infinity);
-  let idle = 0;
+  let idle = 0, budgetHit = false;
   for (const q of listed ? RECALL_QUERIES : QUERIES) {
-    if (missing() === 0 || Date.now() - t0 > RECALL_BUDGET_MS || idle >= 3) break;
+    if (missing() === 0 || idle >= 3) break;
+    if (Date.now() - t0 > RECALL_BUDGET_MS) { budgetHit = true; break; }
     const before = have.size;
     let res: any;
     try { res = await memwal().recall({ query: q, limit: listed ? Math.min(RECALL_CHUNK, missing() + 20) : 100, namespace }); }
@@ -230,15 +235,43 @@ async function recallIncremental(namespace: string): Promise<MemRecord[]> {
   parsedByNs.set(namespace, have);
   if (listed) {
     const still = [...listed].filter((b) => !have.has(b));
-    if (still.length && !skipSet.size) unfindable.set(namespace, { blobs: new Set(still), at: Date.now() });
+    // only blobs that were actually searched for are "unfindable" — not ones the time budget never reached
+    if (still.length && !skipSet.size && !budgetHit) unfindable.set(namespace, { blobs: new Set(still), at: Date.now() });
     else if (!still.length) unfindable.delete(namespace);
   }
   const recalled = listed ? [...listed].filter((b) => have.has(b)).length : have.size;
   if (listed && recalled < listed.size) console.warn(`[memory] recall covered ${recalled}/${listed.size} blobs in ${namespace} (continues next call)`);
-  recallCoverage.set(namespace, { listed: listed?.size ?? null, recalled, at: Date.now() });
+  const supportsList = typeof (memwal() as any).listMemories === 'function';
+  const complete = !supportsList || (!!listed && (recalled >= listed.size || !budgetHit));
+  recallCoverage.set(namespace, { listed: listed?.size ?? null, recalled, at: Date.now(), complete });
   const recs = sortedRecs(have);
   timelineCache.set(namespace, { at: Date.now(), recs });
   return recs;
+}
+
+/**
+ * Exact lookup of one record by commit digest. Recall is semantic top-k search, so past ~200 records some
+ * memories never rank in any query's top results and the incremental recall can't reach them. A query
+ * carrying the exact digest ranks that record first (verified live), so commits whose memory wasn't
+ * recalled are looked up one by one before anything is called hidden. Misses are cached for 10 minutes.
+ */
+const lookupMiss = new Map<string, number>();
+export async function findRecord(namespace: string, type: 'CONVICTION' | 'OUTCOME', tx: string): Promise<MemRecord | null> {
+  const key = `${namespace}|${type}|${tx}`, miss = lookupMiss.get(key);
+  if (miss && Date.now() - miss < 10 * 60_000) return null;
+  const res: any = await memwal().recall({ query: `${type} v1 | tx=${tx}`, limit: 3, namespace });
+  for (const h of res?.results ?? []) {
+    const r = h?.blob_id ? parseRecord(h.text, { blob_id: h.blob_id, created_at: h.created_at }) : null;
+    if (!r || r.type !== type || (str(r, 'tx') !== tx && str(r, 'commit_tx') !== tx)) continue;
+    const have = parsedByNs.get(namespace) ?? parsedByNs.set(namespace, new Map()).get(namespace)!;
+    have.set(h.blob_id, r);
+    const hit = timelineCache.get(namespace);
+    if (hit) timelineCache.set(namespace, { at: hit.at, recs: sortedRecs(have) });
+    lookupMiss.delete(key);
+    return r;
+  }
+  lookupMiss.set(key, Date.now());
+  return null;
 }
 
 /** Warm the parsed-record cache for namespaces judges are likely to open first (after a restart). */
