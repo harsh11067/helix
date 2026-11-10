@@ -5,9 +5,9 @@
 ---
 
 [![CI](https://github.com/harsh11067/helix/actions/workflows/ci.yml/badge.svg)](https://github.com/harsh11067/helix/actions/workflows/ci.yml)
-[![Sui Overflow 2026](https://img.shields.io/badge/Sui%20Overflow-2026-blueviolet?style=for-the-badge&logo=sui)](https://overflow.sui.io)
-[![Track](https://img.shields.io/badge/Track-Agentic%20Web%20%2F%20Intent%20Engine-brightgreen?style=for-the-badge)](https://overflow.sui.io)
-[![Sui Stack](https://img.shields.io/badge/Sui%20Stack-DeepBook%20%7C%20Walrus%20%7C%20Seal%20%7C%20zkLogin-aqua?style=for-the-badge)](https://sui.io)
+[![Total Recall](https://img.shields.io/badge/Total%20Recall-Tatum%20%C3%97%20Walrus%20Memory-blueviolet?style=for-the-badge)](./blog.md)
+[![Track](https://img.shields.io/badge/Track-Markets%20%26%20Sports%20Prediction-brightgreen?style=for-the-badge)](./blog.md)
+[![Stack](https://img.shields.io/badge/Stack-Sui%20%7C%20Walrus%20Memory%20%7C%20Tatum%20%7C%20DeepBook%20Predict%20%7C%20Seal%20%7C%20zkLogin-aqua?style=for-the-badge)](./docs/TATUM.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production%20%26%20Deployed-brightgreen?style=for-the-badge)](./docs/SUBMISSION.md)
 
@@ -33,7 +33,7 @@ No wallet needed. (The free-tier compiler may take ~50 s to wake on the first re
 3. **Watch it learn:** on the same Memory page, press **▶ Replay** on the *memory time machine*: the page re-renders from only the memories that existed at each moment — the over-confidence gap opening, Brier per voice settling, memory's suggestion tightening. (The Council page has its own time machine for the agents' weights.)
 4. **See memory change the product:** open the **Canvas** (still in demo mode) and set a confident bullish call in a choppy market — *you set X · memory suggests Y*, the five voices, the **Memory** line in the risk guardian, and the demo trader's own **Ulysses rule** turning into a gate: *"Cap my commit at 2 dUSDC when my over-confidence gap in this setup is over 30 points"*. Committing past it takes a typed override, which is remembered (`OVERRIDE v1`) and scored.
 5. **See Tatum is the chokepoint:** the [**Ops panel**](https://helix-app-fovn.onrender.com/ops.html) (click the *sui testnet · tatum* chip in the app) shows calls per hour per Tatum interface (GraphQL and gRPC, testnet and mainnet, plus the rates API), p50/p95 latency, cache hits, the credit runway, and **direct fullnode calls by HELIX: 0** — counted, not promised.
-6. **Open a Forecaster Passport:** [the demo trader's](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) — *committed N · shown N · hidden N*, counted from Sui events (its hidden count is not zero, and the passport says why). Press **Verify all**: your browser fetches each commit from Sui itself and re-hashes the remembered call, and the server confirms the same transaction through **Tatum's gRPC interface** — a row turns ✓✓ *verified via 2 Tatum interfaces* only when both match. Settled rows also show how many independent prices agree with the settlement (*3 price sources agree ✓*: Predict oracle, Pyth, Tatum). The same record is a **soulbound passport object on Sui** ([Suiscan](https://suiscan.xyz/testnet/object/0xa8d8500dd363468edaab8e011deeb7243c2f9fcddb20d23f9e858f45c6089790)), signed by HELIX and verified on-chain.
+6. **Open a Forecaster Passport:** [the demo trader's](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) — *committed N · shown N · hidden N*, counted from Sui events (its hidden count is not zero, and the passport says why). Press **Verify all**: your browser fetches each commit from Sui itself and re-hashes the remembered call, and the server confirms the same transaction through **Tatum's gRPC interface** — a row turns ✓✓ *verified via 2 Tatum interfaces* only when both match. Settled rows also show how many independent prices agree with the settlement (*3 price sources agree ✓*: Predict oracle, Pyth, Tatum). **Freeze a signed copy on Walrus** stores a signed snapshot of the passport as a Walrus blob — [here is one](https://helix-app-fovn.onrender.com/passport.html?report=aJ9wNCpB6XUvGDkkYd261wpr9JUggd3cMW1ghPDpqi8), verified in your browser from the Walrus aggregator. The same record is a **soulbound passport object on Sui** ([Suiscan](https://suiscan.xyz/testnet/object/0xa8d8500dd363468edaab8e011deeb7243c2f9fcddb20d23f9e858f45c6089790)), signed by HELIX and verified on-chain.
 7. **Check the chain audit:** [`/proof/audit`](https://helix-compiler.onrender.com/proof/audit) — every commit ever made, re-fetched as a transaction through Tatum and checked: it exists, succeeded, was sent by the committer, carries the same hash, and landed **before** its market's expiry (consensus time, not the contract's clock). Re-run every 30 min.
 8. **Watch the Council:** [four agents](https://helix-app-fovn.onrender.com/app.html#/council) commit every half hour with their own keys and memory; their weights move as memory scores them.
 9. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
@@ -123,6 +123,7 @@ HELIX existed before this hackathon (Move package, DeepBook Predict integration,
 | **Two Tatum interfaces per proof** — Tatum's Sui **gRPC** (`sui-testnet-grpc` / `sui-mainnet-grpc.gateway.tatum.io`, `sui.rpc.v2`) next to GraphQL: Passport *Verify* re-reads each commit via `LedgerService/GetTransaction` (BCS event decoded) and shows ✓✓ only when both interfaces match; memory proofs read the Walrus Memory account via `GetObject` as well (`via: [tatum-graphql-mainnet, tatum-grpc-mainnet]`) | `tee/src/shared/tatumGrpc.ts`, `/verify/:digest/grpc` |
 | **Tatum Ops panel + credit runway** — every call counted at the chokepoint by interface and operation; `/health` projects when the free plan's credits run out; the watcher is expiry-driven, the Council and passports share one incremental event log, and **degrade mode** serves cached reads and pauses writes (with a banner) if Tatum refuses the key — never a silent public fullnode | `tee/src/shared/tatumUsage.ts`, `ops.html`, `/ops/tatum` |
 | **Three price sources per settlement** — BTC outcomes record the Predict oracle's settlement, Pyth's first Hermes price at expiry and Tatum's rate; ETH/SUI record Pyth and Tatum. Passport rows show *3 price sources agree ✓ · ≤X bps*, in red when they don't | `memory/service.ts`, `passport.js` |
+| **Forecaster Report, frozen on Walrus** — one click signs a snapshot of a passport (Ed25519 over canonical JSON, the published attestor key), stores it as a Walrus blob and writes a `REPORT v1` memory pointing at it. `passport.html?report=<blob>` fetches it straight from a Walrus aggregator and checks the signature in the browser; `tee/scripts/verify-report.mjs` does it offline. The record outlives HELIX's servers. [Example report](https://helix-app-fovn.onrender.com/passport.html?report=aJ9wNCpB6XUvGDkkYd261wpr9JUggd3cMW1ghPDpqi8) | `tee/src/passport/offchain/report.ts`, `POST /passport/:id/report` |
 | **Memory mirror** — every record HELIX has recalled (blob id + exact text) is snapshotted and preloaded, so Walrus Memory's top-k search variance can't flip a remembered call to "hidden"; a mirrored record counts only while its blob is still listed on the account | `tee/mirror/`, `scripts/memory-mirror.mjs` |
 | **Fun layer, all from data** — live proof ticker, settlement countdown + hash-verified reveal, humility meter (confidence vs record, n ≥ 3), Beat the Market (today, shared windows only) | `tistu/js/fun.js`, `/proof/ticker` |
 | **W1 Crowd voice** (Polymarket BTC 15-min Up/Down, compared only when windows and strikes match) · **W2 Price witness** (Tatum exchange-rate API) · **W3 Memory dividend** · **W5 MCP server + agent skill** · **W6 opt-in reasoning memory** · **W7 who-to-trust board** | see [WIN_FEATURES.md](./WIN_FEATURES.md) |
@@ -211,22 +212,20 @@ Live usage, latency and the credit runway: [Ops panel](https://helix-app-fovn.on
 
 ## 📑 The Document Set
 
-The design and planning of the HELIX platform are systematically organized under the [docs/](./docs/) folder. Read them in the following order:
-
-| Document | Focus | Purpose |
-| :--- | :--- | :--- |
-| 📋 **[SUBMISSION.md](./docs/SUBMISSION.md)** | **Honest Submission Proof** | Verdict, locked demo script, Q&A, and live deployment details. |
-| 💡 **[idea.md](./docs/idea.md)** | Concept & Vision | High-level overview, user stories, and conceptual diagrams. |
-| 🏗️ **[architecture.md](./docs/architecture.md)** | System Architecture | Six-layer design, Move contracts object model, and TEE data flows. |
-| ⚖️ **[decisions.md](./docs/decisions.md)** | Tradeoffs & ADRs | Architectural Decision Records explaining the *why* behind design choices. |
-| 📅 **[plan.md](./docs/plan.md)** | 8-Week Build Plan | Phase-by-phase backend-first build schedule. |
-| 🧪 **[test.md](./docs/test.md)** | Binary Checkpoints | 278 verifiable test checkpoints for incremental progress tracking. |
-| 🎨 **[DESIGN.md](./tistu/DESIGN.md)** | UI & Visual Design | High-fidelity UI layouts, bioluminescent theme, and motion specs. |
-
-> [!NOTE]
-> Each document is fully cross-referenced. A decision in [decisions.md](./docs/decisions.md) maps to a system component in [architecture.md](./docs/architecture.md), a build phase in [plan.md](./docs/plan.md), and a verification checkpoint in [test.md](./docs/test.md).
+| Document | What it is |
+| :--- | :--- |
+| 📰 **[blog.md](./blog.md)** | The story: what Proof-of-Forecast is, what memory learned, how Sui, Walrus Memory and Tatum fit, honest limits |
+| 🎬 **[docs/media/helix-demo.mp4](./docs/media/helix-demo.mp4)** | The 2:58 demo, recorded from the live site ([how it was made](./video)) |
+| 🔌 **[docs/TATUM.md](./docs/TATUM.md)** | Every Tatum interface HELIX uses (GraphQL + gRPC on testnet and mainnet, the rates API), the runway, degrade mode |
+| 🧾 **[TOTAL_RECALL_EVIDENCE.md](./TOTAL_RECALL_EVIDENCE.md)** | Generated from the live API: every memory with its blob id and source transaction, the commit ledger, before/after compiles |
+| 🚢 **[DEPLOYMENT.md](./DEPLOYMENT.md)** | Packages, upgrade lineage, object ids, digests |
+| 🧭 **[PRODUCT.md](./PRODUCT.md)** | Where Proof-of-Forecast goes next |
+| 🗂️ [docs/](./docs/) | Earlier design docs from the Sui Overflow build: idea, architecture, decisions, plan, test checkpoints, [DESIGN.md](./tistu/DESIGN.md) |
 
 ---
+
+<details>
+<summary><b>Before Total Recall: the Sui Overflow 2026 build (Intent Engine)</b> — the conviction compiler, strategy DNA and research basis HELIX grew from</summary>
 
 ## ⚠️ The Problem
 
@@ -343,6 +342,10 @@ To satisfy the strict 2026 Overflow judging criteria (*demo-first verification, 
 
 ---
 
+</details>
+
+---
+
 ## 📂 Repository Directory Layout
 
 ```text
@@ -386,16 +389,14 @@ helix/
 
 ## 🚦 Project Status
 
-This repository has completed **Phase 5 (Backend Integration)**.
-* Move smart contracts are published to testnet.
-* Nautilus TEE Agent Services are deployed and running on Render.
-* Frontend Web App is deployed and running on Vercel, querying the live compiler and wallet Standard.
+Submitted to **Total Recall (Tatum × Walrus Memory)** on 10 Nov 2026 — tag [`v1.0.1-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.1-total-recall).
 
-Next Steps: Record the final submission demo video and finalize the pitch deck.
+* **Live:** commit on Sui (testnet), remember on Walrus Memory (mainnet), settle and score every voice, learn (lessons, suggestions, rules, the time machine), and prove it (passport, chain audit, ✓✓ verify over two Tatum interfaces, signed reports frozen on Walrus).
+* **Agents:** four Council agents and an allocator commit, learn and pay on their own keys.
+* **Tests:** Move, TEE (`cd tee && OFFLINE=1 npm test`), indexer and frontend suites run in CI on every push.
+* **Next:** real positions when DeepBook Predict reaches mainnet, user-owned memory spaces, history import from Polymarket and Predict, third-party agents in the Council ([PRODUCT.md](./PRODUCT.md)).
 
 ---
 
 ### 🧬 One-Sentence Summary
-*HELIX makes sophisticated finance conversational — you express what you believe, an AI brings it to life as a living on-chain organism, and a public marketplace of conviction lineages emerges from the bottom up.*
-
-> **The first platform where finance becomes biology.**
+*HELIX is Proof-of-Forecast: every call is hashed onto Sui before it settles, remembered on Walrus Memory, verified through Tatum and scored against the market, the crowd and a council of agents — a track record of judgment that can't be faked, that learns, and that people and agents can trust.*

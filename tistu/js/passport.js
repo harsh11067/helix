@@ -92,6 +92,38 @@ export async function verifyReportSignature(doc) {
   } catch (e) { return null; }
 }
 
+/** Verify buttons, the freeze button and settlement countdowns (live passport and frozen report alike). */
+function wirePassport(host, p, base) {
+  const rows = new Map((p.commits || []).map(c => [c.digest, c]));
+  const verify = async (digest) => {
+    const out = host.querySelector(`[data-verify-out="${CSS.escape(digest)}"]`);
+    if (!out) return;
+    out.innerHTML = '<span class="muted">checking Sui…</span>';
+    try {
+      const v = await verifyCommitInBrowser(base, digest, rows.get(digest).text);
+      out.innerHTML = verifyResultHTML(v);
+    } catch (e) { out.innerHTML = `<span style="color:var(--coral)">couldn't reach Sui (${esc(e.message)})</span>`; }
+  };
+  host.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-verify]'); if (b) verify(b.dataset.verify);
+    if (e.target.closest('#verify-all')) [...rows.keys()].filter(d => d && rows.get(d).text).forEach((d, i) => setTimeout(() => verify(d), i * 400));
+    const fr = e.target.closest('#freeze-report');
+    if (fr) {
+      const out = host.querySelector('#report-out');
+      fr.disabled = true; out.innerHTML = '<span class="muted">signing this passport and uploading it to Walrus…</span>';
+      fetch(`${base}/passport/${encodeURIComponent(p.namespace)}/report`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+        .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`); return j; }))
+        .then(j => { out.innerHTML = `<span style="color:var(--alive)">✓ frozen on ${esc(j.walrus_network)}</span> · <a href="passport.html?report=${encodeURIComponent(j.blob_id)}">open the signed report</a> · <a href="${esc(j.aggregator_url)}" target="_blank" rel="noopener">raw blob</a>${j.reused ? ' <span class="muted">(made in the last 10 min)</span>' : ''}`; })
+        .catch(err => { out.innerHTML = `<span style="color:var(--coral)">${esc(err.message)}</span>`; })
+        .finally(() => { fr.disabled = false; });
+    }
+  });
+  const timer = setInterval(() => {
+    if (!host.isConnected) { clearInterval(timer); return; }
+    host.querySelectorAll('[data-countdown]').forEach(n => { n.textContent = countdown(Number(n.dataset.countdown)); });
+  }, 1000);
+}
+
 /** passport.html?report=<blob>: the frozen passport, fetched from a Walrus aggregator and verified in the browser. */
 export async function renderReport(host, blobId, { base, aggregator = 'https://aggregator.walrus-testnet.walrus.space' } = {}) {
   host.innerHTML = `<div class="muted"><span class="sdot pending"></span> reading the report from Walrus…</div>`;
@@ -115,6 +147,8 @@ export async function renderReport(host, blobId, { base, aggregator = 'https://a
     <div style="font-size:14px">Issued ${esc(doc.report.issued_at.slice(0, 16).replace('T', ' '))} UTC · ${verdict}</div>
     <div class="mono muted" style="font-size:11px;margin-top:6px;overflow-wrap:anywhere">blob <a href="${aggregator}/v1/blobs/${esc(blobId)}" target="_blank" rel="noopener">${esc(blobId)}</a> · key ${esc(doc.signature.pubkey_hex.slice(0, 16))}… · <a href="passport.html?id=${encodeURIComponent(doc.report.passport.namespace)}">today's live passport →</a></div></div>`;
   host.innerHTML = banner + passportHTML(doc.report.passport, base, doc.signature);
+  host.querySelector('#freeze-report')?.closest('div[style*="border-top"]')?.remove();   // a frozen copy isn't re-frozen
+  wirePassport(host, doc.report.passport, base);                                            // its rows still verify against Sui
   return doc;
 }
 
@@ -216,34 +250,7 @@ export async function renderPassport(host, id, { base, embed = false, onMount } 
   const p = data.passport;
   if (embed) { host.innerHTML = passportEmbedHTML(p); return p; }
   host.innerHTML = passportHTML(p, base, data.signature);
-  const rows = new Map((p.commits || []).map(c => [c.digest, c]));
-  const verify = async (digest) => {
-    const out = host.querySelector(`[data-verify-out="${CSS.escape(digest)}"]`);
-    if (!out) return;
-    out.innerHTML = '<span class="muted">checking Sui…</span>';
-    try {
-      const v = await verifyCommitInBrowser(base, digest, rows.get(digest).text);
-      out.innerHTML = verifyResultHTML(v);
-    } catch (e) { out.innerHTML = `<span style="color:var(--coral)">couldn't reach Sui (${esc(e.message)})</span>`; }
-  };
-  host.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-verify]'); if (b) verify(b.dataset.verify);
-    if (e.target.closest('#verify-all')) [...rows.keys()].filter(d => d && rows.get(d).text).forEach((d, i) => setTimeout(() => verify(d), i * 400));
-    const fr = e.target.closest('#freeze-report');
-    if (fr) {
-      const out = host.querySelector('#report-out');
-      fr.disabled = true; out.innerHTML = '<span class="muted">signing this passport and uploading it to Walrus…</span>';
-      fetch(`${base}/passport/${encodeURIComponent(p.namespace)}/report`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
-        .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`); return j; }))
-        .then(j => { out.innerHTML = `<span style="color:var(--alive)">✓ frozen on ${esc(j.walrus_network)}</span> · <a href="passport.html?report=${encodeURIComponent(j.blob_id)}">open the signed report</a> · <a href="${esc(j.aggregator_url)}" target="_blank" rel="noopener">raw blob</a>${j.reused ? ' <span class="muted">(made in the last 10 min)</span>' : ''}`; })
-        .catch(err => { out.innerHTML = `<span style="color:var(--coral)">${esc(err.message)}</span>`; })
-        .finally(() => { fr.disabled = false; });
-    }
-  });
-  const timer = setInterval(() => {
-    if (!host.isConnected) { clearInterval(timer); return; }
-    host.querySelectorAll('[data-countdown]').forEach(n => { n.textContent = countdown(Number(n.dataset.countdown)); });
-  }, 1000);
+  wirePassport(host, p, base);
   if (onMount) onMount(p, host.querySelector('#onchain-passport'));
   return p;
 }

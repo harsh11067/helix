@@ -116,6 +116,8 @@ Where the settlement watcher wrote an OUTCOME with `reveal_ok=true`, it had alre
 
 *[Image: a Forecaster Passport with "Verify all", every row green]*
 
+**Can't be rewritten later, even by us.** A live passport keeps changing, so any passport can be frozen: HELIX signs a snapshot with its published attestor key and stores it as a Walrus blob, plus a `REPORT` memory pointing at it. The [report page](https://helix-app-fovn.onrender.com/passport.html?report=aJ9wNCpB6XUvGDkkYd261wpr9JUggd3cMW1ghPDpqi8) reads the blob straight from a Walrus aggregator and checks the signature in your browser. If HELIX disappeared tomorrow, that record would still be there, and still verifiable.
+
 ---
 
 ## The Council: agents with memory, weighted by memory
