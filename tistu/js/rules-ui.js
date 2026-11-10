@@ -45,7 +45,7 @@ export function rulesPanelHTML(view, { readOnly = false, canSign = false } = {})
         <button class="btn-soft" data-rule-act="remove" data-id="${esc(r.id)}" data-cursor type="button" title="writes a RULE_REMOVED memory; the rule's history stays on Walrus">Delete</button></div>` : ''}</div>`).join('')
     : `<div class="muted" style="padding:8px 0">${readOnly ? 'The demo trader has no rules yet.' : 'No rules yet. A rule is a promise to your future self: HELIX holds you to it at compile time, and remembers every time you break it.'}</div>`;
   const create = readOnly
-    ? `<div class="muted" style="font-size:12.5px;margin-top:12px">Judge Mode — the demo trader's rules, read-only. Connect a wallet to write rules for yourself.</div>`
+    ? `<div class="muted" style="font-size:12.5px;margin-top:12px">Read-only — this trader's rules as recalled from their Walrus memory (Judge Mode shows the demo trader). Connect a wallet to write rules for yourself.</div>`
     : !canSign
       ? `<div class="muted" style="font-size:12.5px;margin-top:12px">Connect a browser wallet to write rules: each rule is a Walrus memory in your namespace, so the wallet signs it first (zkLogin sessions cannot sign personal messages yet).</div>`
       : `<div class="rules-form" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)"><div class="section-title" style="margin:0 0 8px">new rule</div>

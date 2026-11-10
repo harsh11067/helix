@@ -16,7 +16,7 @@ test('N2-05 Judge Mode: rules visible, read-only — no create, pause or delete 
   const html = rulesPanelHTML(view, { readOnly: true, canSign: false });
   assert.match(html, /Cap my commit at 2 dUSDC/); assert.match(html, /No more than 3 commits/);
   assert.match(html, /1 active · 2 total/);
-  assert.match(html, /Judge Mode — the demo trader's rules, read-only/);
+  assert.match(html, /Read-only — this trader's rules .*Judge Mode shows the demo trader/);
   assert.ok(!html.includes('id="rule-create"'), 'no create button');
   assert.ok(!html.includes('data-rule-act='), 'no pause/delete');
   assert.match(html, /You broke your own rules 3 times and lost 2\./);
