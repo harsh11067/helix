@@ -60,6 +60,35 @@ Had the trader sized every call the way memory suggested, over its last 53 settl
 
 *[Image: the Memory page, with a timeline of Walrus blob ids, Brier per voice and the reliability diagram]*
 
+### Watch it learn
+
+The Memory page has a **time machine**. Drag the scrubber back, or press Replay, and the whole page re-renders from only the memories that existed at that moment. You watch the over-confidence gap open as losses accumulate, Brier per voice settle, and memory's suggestion for the same setup tighten from "take it at face value" to "size down". The browser runs the same calibration module as the server; it's bundled from the same source file, and a test checks that the replay at "now" equals the live page exactly.
+
+The Council page has one too. Scrub it and you watch the agents' weights drift apart as memory learns who to trust.
+
+*[Image: the time machine scrubbed back to the first day, next to the same page today]*
+
+---
+
+## Promises to your future self
+
+Advice is easy to ignore, so HELIX also lets you make promises. I call them **Ulysses Rules**, after the sailor who had himself tied to the mast.
+
+You pick from four templates:
+
+- cap my commit when my gap in a setup is over N points;
+- block high-confidence calls in choppy markets for a day after three straight losses;
+- ask me to justify any call against the market's lean;
+- a daily limit.
+
+Each rule is a signed `RULE v1` memory on Walrus. When a rule matches a conviction, the guardian's warning becomes a **gate**: the Commit button stays disabled until you type an override, a sentence about why this time is different.
+
+The override is remembered too (`OVERRIDE v1`), and memory scores it like any other call. Over time HELIX can tell you something no trading app does: how often you broke your own rules, and how those calls turned out.
+
+Our demo trader holds two rules, *"Cap my commit at 2 dUSDC when my over-confidence gap in this setup is over 30 points"* and a losing-streak cool-down. It's a script, so when a rule binds, it commits anyway with an override sentence that says exactly that. Memory is now scoring whether breaking its own rules pays.
+
+*[Image: the Canvas with the rule gate: "Your rule binds this call"]*
+
 ---
 
 ## Why a track record you can't fake is hard, and how HELIX does it
@@ -79,7 +108,9 @@ At the time of writing: **141 of 141 commits pass. The closest one landed 17 sec
 
 Our own demo trader honestly shows **hidden 2**, and both have a story. In the first, a server restart during a deploy landed between a commit and its memory write, so that conviction's text was never saved. In the second, the memory was written successfully but Walrus Memory's search no longer returns it, so HELIX can't verify it. I fixed the first cause (the writer retries, and the browser records the memory itself if needed). I left both counts visible. That's the point.
 
-**Can't edit the text.** Every row on a passport has a **Verify** button. Your browser fetches the commit from Sui itself, re-hashes the remembered call with WebCrypto, and turns the row green only if they match. HELIX's server isn't in that loop.
+**Can't edit the text.** Every row on a passport has a **Verify** button. Your browser fetches the commit from Sui itself (through Tatum's GraphQL gateway) and re-hashes the remembered call with WebCrypto. The server separately re-reads the same transaction through **Tatum's gRPC interface**, decoding the event from raw BCS. A row turns ✓✓, *verified via 2 Tatum interfaces*, only when both match. If gRPC is down, the row honestly says "1 interface".
+
+**Can't fudge the settlement.** Every BTC outcome records three independent prices for the same moment: the DeepBook Predict oracle's settlement, Pyth's first published price, and Tatum's exchange rate. Passport rows show *3 price sources agree ✓ · ≤ 2 bps*, or turn red when they don't.
 
 *[Image: a Forecaster Passport with "Verify all", every row green]*
 
@@ -147,13 +178,16 @@ My first ETH call settled at $2,122.96 against a strike of $2,126.18, with the P
 
 **Tatum is the only path to Sui, and that's a feature.** Sui retired public JSON-RPC this year, so every read, event query and transaction in HELIX goes through Tatum's GraphQL gateway on testnet, and memory proofs go through its mainnet gateway. One server-side queue respects the free plan's 3 requests per second, with jittered backoff, so the browser never sees the key. Two things made it fast in practice:
 
-- **Batching:** the chain audit checks 20 transactions per GraphQL request using aliases, so 141 commits take 11 requests.
+- **Batching:** the chain audit checks 20 transactions per GraphQL request using aliases, so a full re-verification of every commit takes about a dozen requests.
 - **Stale-while-revalidate:** a compile never waits on the gateway for market data a few seconds old.
+- **Two interfaces.** Tatum also serves Sui gRPC (`sui-testnet-grpc.gateway.tatum.io`). It's plain gRPC, not grpc-web, so the server speaks it directly with a small HTTP/2 client and protobuf codec. That gives every proof a second, independent read.
+- **A credit runway, measured.** Every call is counted at the chokepoint by interface and operation. A public [Ops panel](https://helix-app-fovn.onrender.com/ops.html) shows calls per hour, latency, cache hits, and when the free plan's credits would run out at the current rate. It also counts direct fullnode calls by HELIX: zero. Measuring paid off immediately. A Council warm-up loop was re-reading every agent's commits every 45 seconds, and fixing it, along with an expiry-driven settlement watcher, cut the burn by more than half.
+- **Degrade mode.** If Tatum ever refuses the key, HELIX serves cached reads, pauses writes and shows a banner. It never falls back to a public fullnode silently.
 
 **Walrus Memory was the fastest part of the stack to get a first result from.** The relayer handles embeddings, Seal encryption and the Walrus upload, so I spent my time on the learning logic instead of storage plumbing. The real work came from memory being semantic while my data is structured:
 
 - **Versioned records.** I store one fact per memory as a versioned `key=value` line, so each record is both searchable and parseable.
-- **Searching a big namespace.** Recall is top-k similarity search, so past about 200 records some memories never rank in any query's top results. HELIX pages through `listMemories` and recalls in chunks. Before calling any commit hidden, it looks the record up by its exact transaction digest, which recall reliably ranks first.
+- **Searching a big namespace.** Recall is top-k similarity search, so past about 200 records some memories never rank in any query's top results. Which ones drift between calls: on the last day, 35 of the demo trader's 307 listed blobs weren't returned by any query, and the index-rebuild call only saw 36 candidates because of a per-owner cap. HELIX pages through `listMemories`, recalls in chunks, looks records up by exact digest, and keeps a **mirror** of every record it has ever recalled. A mirrored record counts only while its blob is still listed on the account, so a remembered call can't flip to "hidden" just because search was unlucky.
 
 **The browser deserves the same care as the chain.** My first user test was blunt: connecting a wallet was slow, page changes glitched, and the graph lagged. I measured it in a headless browser instead of guessing:
 
