@@ -68,7 +68,13 @@ export async function tradeableMarkets(now = Date.now()): Promise<LiveMarket[]> 
 /** The open market whose remaining time best matches the conviction's horizon. */
 export async function pickMarket(horizonCode: number, now = Date.now()): Promise<LiveMarket> {
   const t = await tradeableMarkets(now);
-  if (!t.length) throw new Error('no open DeepBook Predict BTC window with enough runway — retry in a few seconds');
+  if (!t.length) {
+    // two different states, said differently: Predict's keeper isn't running windows at all (an outage on
+    // testnet, outside HELIX), or a window just closed and the next opens within a minute
+    if (!(await liveMarkets(now)).length)
+      throw new Error('DeepBook Predict testnet has no BTC markets open right now (its keeper creates the windows; checked on chain through Tatum). ETH and SUI calls settle on Pyth and still work.');
+    throw new Error('no open DeepBook Predict BTC window with enough runway — retry in a few seconds');
+  }
   const target = HORIZON_TARGET_MIN[Math.max(0, Math.min(3, horizonCode | 0))];
   return t.slice().sort((a, b) =>
     Math.abs(a.minutesLeft - target) - Math.abs(b.minutesLeft - target) || b.expiryMs - a.expiryMs)[0];

@@ -415,6 +415,7 @@ function mountCanvas(el) {
       box.innerHTML = state.asset && state.asset !== 'BTC' ? assetErrorHTML(e, state.asset) : compileError(e);
       // between Predict windows (quarter-hour roll): the next one opens within a minute — retry by itself
       if (/no open DeepBook Predict|runway/i.test(e.message || '')) setTimeout(() => { if (el.isConnected && !box.dataset.ready) doCompile(); }, 10000);
+      else if (/no BTC markets open/i.test(e.message || '')) setTimeout(() => { if (el.isConnected && !box.dataset.ready && (state.asset || 'BTC') === 'BTC') doCompile(); }, 30000);
     }
   }
   Object.values(s).forEach(x => x.addEventListener('input', schedule));
@@ -453,6 +454,7 @@ function mountCanvas(el) {
     if (e.target.closest('#fund')) onFund(el);
     if (e.target.closest('#wallet-inline') || e.target.closest('#demo-connect')) openWalletPicker();
     if (e.target.closest('#retry')) doCompile();
+    if (e.target.closest('#try-eth')) { const b = $('#asset-switch [data-asset="ETH"]', el); if (b) b.click(); else { state.asset = 'ETH'; doCompile(); } }
     if (e.target.closest('#mem-accept-commit')) {
       const m = state.compile?.memory; if (!m) return;
       state.chosen.commit = Math.abs((state.chosen.commit ?? m.commit) - m.suggested_commit) < 0.005 ? m.commit : m.suggested_commit;
@@ -469,6 +471,12 @@ function readConv(s) {
 }
 function compileError(e) {
   const msg = e.message || 'error';
+  // Predict's own keeper isn't running BTC windows (testnet outage): say so, and offer the assets that settle on Pyth
+  if (/no BTC markets open/i.test(msg)) return `<div class="empty" style="padding:36px 16px">
+    <svg class="em-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01" stroke-linecap="round"/></svg>
+    <h3 style="font-size:1.4rem">DeepBook Predict has no BTC markets open</h3>
+    <p>Its testnet keeper creates the BTC windows, and right now there are none on chain (checked through Tatum). HELIX re-checks every 30 seconds and never shows a fabricated structure. Meanwhile, ETH and SUI convictions settle on Pyth and work as usual.</p>
+    <div class="row" style="gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn-solid" id="try-eth" data-cursor>Try ETH (settles on Pyth)</button><button class="btn-soft" id="retry" data-cursor>Check BTC again</button></div></div>`;
   const closing = /no open DeepBook Predict|runway/i.test(msg);
   return `<div class="empty" style="padding:36px 16px">
     <svg class="em-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01" stroke-linecap="round"/></svg>
