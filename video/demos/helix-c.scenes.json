@@ -1,0 +1,22 @@
+[
+  {
+    "scene": "council",
+    "text": "Four rule-based agents commit around the clock, each with its own wallet and its own memory. Memory decides whom to trust: surface now carries 34 percent. And an allocator agent paid to read our demo trader's record, and rejected it."
+  },
+  {
+    "scene": "paid",
+    "text": "Because a record you can verify is worth paying for. H T T P 402, pay a cent in USDC on Sui, and get the record with a receipt."
+  },
+  {
+    "scene": "ask",
+    "text": "Ask your memory a question, and the answer cites the exact Walrus blobs it used."
+  },
+  {
+    "scene": "ops",
+    "text": "And every Sui call goes through Tatum. Measured, not promised: zero direct fullnode calls, and all 249 commits re-verified on chain."
+  },
+  {
+    "scene": "outro",
+    "text": "HELIX. Proof of Forecast. A track record you can't fake, that learns, and that people and agents can trust."
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "scene": "memory",
+    "text": "The full call is remembered on Walrus Memory, on mainnet. At settlement, HELIX re-hashes it, checks the chain, and scores every voice. Our demo trader says 82 percent, and wins 37 percent of the time.",
+    "overlay": {
+      "type": "lower-third",
+      "text": "313 memories on Walrus mainnet · Brier you 0.46 vs market 0.23",
+      "placement": "bottom-center",
+      "motion": "fade-in"
+    }
+  },
+  {
+    "scene": "learn",
+    "text": "Scrub back in time and watch memory learn. The gap opens, the evidence grows, and the advice tightens."
+  },
+  {
+    "scene": "effect",
+    "text": "So memory changes the next call. In this setup the trader runs 44 points hot, so HELIX suggests a smaller commit. And the trader's own rule now binds the call: break it, and the override is remembered and scored."
+  },
+  {
+    "scene": "passport",
+    "text": "Every forecaster gets a passport: 86 calls committed, 4 hidden, counted from the chain, not from our database. Verify any row: your browser re-hashes the memory, and Tatum confirms the commit through two separate interfaces, GraphQL and g R P C."
+  }
+]

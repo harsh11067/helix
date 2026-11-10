@@ -1,0 +1,24 @@
+[
+  {
+    "scene": "hook",
+    "text": "Every prediction market forgets you the moment it settles. And a track record is the easiest thing in the world to fake. Delete the losers. Screenshot the winners."
+  },
+  {
+    "scene": "promise",
+    "text": "HELIX makes a track record you can't fake. Proof of Forecast: built on Sui, remembered on Walrus Memory, and verified through Tatum. 249 calls are already on chain."
+  },
+  {
+    "scene": "canvas",
+    "text": "You state a conviction with four sliders. HELIX prices it live against DeepBook Predict on Sui, and the payoff follows your hand. Five voices weigh in on the same outcome: you, the market, a regime model, the Polymarket crowd, and a council of A I agents.",
+    "overlay": {
+      "type": "lower-third",
+      "text": "Conviction Canvas · priced live on DeepBook Predict",
+      "placement": "bottom-center",
+      "motion": "fade-in"
+    }
+  },
+  {
+    "scene": "commit",
+    "text": "Commit, and a hash of your call lands on Sui before the market settles. This is a brand new test wallet with zero SUI. HELIX sponsors the gas. The call can't be backdated, and it can't be quietly deleted."
+  }
+]

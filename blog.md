@@ -40,23 +40,21 @@ You don't need any money to play. Committing costs only gas, and if your new wal
 
 ## What memory learned about our demo trader
 
-To have real data from day one, I ran a demo trader: an operator script that commits a BTC call every 15–20 minutes through the exact same server path as the browser. It has made **57 commits on Sui**, and **51 have settled. It won 20.**
+To have real data from day one, I ran a demo trader: an operator script that commits a BTC call every 15–20 minutes through the exact same server path as the browser. As of 10 Nov, 16:50 IST it has made **86 commits on Sui**, and memory has scored **76 settled calls. It won 28.**
 
-Its stated confidence averages **81%**. Its realized win rate is **38%**. That gap of more than 40 points is the whole story, and memory caught it.
+Its stated confidence averages **82%**. Its realized win rate is **37%**. That gap of 45 points is the whole story, and memory caught it.
 
 Brier score per voice over its settled calls (lower is better):
 
-- The trader's own confidence: **0.45**
-- DeepBook Predict market: **0.24**
+- The trader's own confidence: **0.46**
+- DeepBook Predict market: **0.23**
 - HELIX regime model: **0.24**
-- Polymarket crowd (6 comparable calls): **0.20**
-- The Council (22 calls): **0.28**
+- Polymarket crowd (11 comparable calls): **0.30**
+- The Council (41 calls): **0.24**
 
-Here is the latest lesson HELIX wrote to its memory, word for word:
+In its favourite setup (bullish, high confidence, choppy market) memory's suggestion is now 1.5 dUSDC instead of the 5 it wants to commit, because there its confidence runs about 55 points hot over 38 settled calls.
 
-> *"up/high/choppy: Won 11/29 here; stated confidence runs ~48 points hot. Size down. The Predict market has been closer than you (Brier 0.23 vs 0.49)."*
-
-Had the trader sized every call the way memory suggested, over its last 53 settled calls it would have lost **13.11 instead of 60.43**. That's a **memory dividend of +47.32**. It's a counterfactual: it ignores fills and slippage, and the app labels it as one.
+Had the trader sized every call the way memory suggested, over its last 52 settled calls it would have lost **31.56 instead of 136.08**. That's a **memory dividend of +104.52**. It's a counterfactual: it ignores fills and slippage, and the app labels it as one.
 
 *[Image: the Memory page, with a timeline of Walrus blob ids, Brier per voice and the reliability diagram]*
 
@@ -85,7 +83,9 @@ Each rule is a signed `RULE v1` memory on Walrus. When a rule matches a convicti
 
 The override is remembered too (`OVERRIDE v1`), and memory scores it like any other call. Over time HELIX can tell you something no trading app does: how often you broke your own rules, and how those calls turned out.
 
-Our demo trader holds two rules, *"Cap my commit at 2 dUSDC when my over-confidence gap in this setup is over 30 points"* and a losing-streak cool-down. It's a script, so when a rule binds, it commits anyway with an override sentence that says exactly that. Memory is now scoring whether breaking its own rules pays.
+Our demo trader holds two rules, *"Cap my commit at 2 dUSDC when my over-confidence gap in this setup is over 30 points"* and a losing-streak cool-down. It's a script, so when a rule binds, it commits anyway with an override sentence that says exactly that. Within a few hours, memory wrote this lesson, word for word:
+
+> *"You broke your own rules 9 times and lost 5. Calls that kept your rules won 28/74; overrides won 4/9. Your exceptions have paid so far; watch that this holds."*
 
 *[Image: the Canvas with the rule gate: "Your rule binds this call"]*
 
@@ -102,11 +102,13 @@ Our demo trader holds two rules, *"Cap my commit at 2 dUSDC when my over-confide
 - its own event carries the same hash, market and expiry;
 - its **checkpoint time**, which is consensus time rather than the contract's clock, is before the market's expiry.
 
-At the time of writing: **141 of 141 commits pass. The closest one landed 17 seconds before its market expired.** You can [read the audit yourself](https://helix-compiler.onrender.com/proof/audit).
+As of 10 Nov, 16:50 IST: **249 of 249 commits pass**, re-verified in 13 Tatum requests. **The closest one landed 17 seconds before its market expired.** You can [read the audit yourself](https://helix-compiler.onrender.com/proof/audit).
 
 **Can't hide losers.** HELIX counts calls from chain events, not from its own database. A commit with no matching memory is shown as **hidden** on the forecaster's passport, and it counts as a loss once its window passes.
 
-Our own demo trader honestly shows **hidden 2**, and both have a story. In the first, a server restart during a deploy landed between a commit and its memory write, so that conviction's text was never saved. In the second, the memory was written successfully but Walrus Memory's search no longer returns it, so HELIX can't verify it. I fixed the first cause (the writer retries, and the browser records the memory itself if needed). I left both counts visible. That's the point.
+Our own demo trader honestly shows **hidden 4**, and each has a story. One commit's memory was never written: a server restart landed between the commit and the write (fixed: deploys now drain in-flight writes before exiting). For the others, the memories were written (the blob ids are in our logs) but Walrus Memory's search no longer returns them, so nobody can re-check the text today.
+
+Where the settlement watcher wrote an OUTCOME with `reveal_ok=true`, it had already re-hashed that call against the chain when it settled, so HELIX counts it as *verified at settlement* rather than hidden, and says so on the row. Where even that memory is unreachable, the call stays hidden. I left every count visible. That's the point.
 
 **Can't edit the text.** Every row on a passport has a **Verify** button. Your browser fetches the commit from Sui itself (through Tatum's GraphQL gateway) and re-hashes the remembered call with WebCrypto. The server separately re-reads the same transaction through **Tatum's gRPC interface**, decoding the event from raw BCS. A row turns ✓✓, *verified via 2 Tatum interfaces*, only when both match. If gRPC is down, the row honestly says "1 interface".
 
@@ -127,12 +129,12 @@ Four rule-based agents (no LLM) commit on BTC windows twice an hour. Each has it
 
 Memory decides how much each one is trusted: weight ∝ 1/Brier, equal until an agent has five settled calls. After a night of live trading the weights have moved:
 
-- **Surface: 33%** (Brier 0.16 over 20 calls)
-- **Crowd: 25%**
-- **Momentum: 22%**
-- **Reversion: 19%**
+- **Surface: 34%** (Brier 0.16 over 39 calls)
+- **Crowd: 24%**
+- **Momentum: 23%**
+- **Reversion: 19%** (Brier 0.29, the least trusted)
 
-Every weight change is itself a Walrus memory, 21 snapshots so far. The Council's blended view becomes a fifth voice in every compile, and memory scores it like any other.
+Every weight change is itself a Walrus memory, 41 snapshots so far. The Council's blended view becomes a fifth voice in every compile, and memory scores it like any other.
 
 ---
 
@@ -148,9 +150,9 @@ HELIX re-verifies every payment through Tatum, and a payment can't be replayed.
 
 The Council has an **allocator**, an agent that pays to read a human forecaster's record before deciding whether to listen to them. It paid, read our demo trader's record, and rejected it:
 
-> *"Brier 0.447 > 0.22 over 44 settled calls — not calibrated enough to trust."*
+> *"Brier 0.453 > 0.22 over 82 settled calls — not calibrated enough to trust."*
 
-Memory buying memory. There have been 7 paid calls so far.
+Memory buying memory. It has re-checked, paid and rejected the trader 10 times so far.
 
 ---
 
@@ -181,7 +183,7 @@ My first ETH call settled at $2,122.96 against a strike of $2,126.18, with the P
 - **Batching:** the chain audit checks 20 transactions per GraphQL request using aliases, so a full re-verification of every commit takes about a dozen requests.
 - **Stale-while-revalidate:** a compile never waits on the gateway for market data a few seconds old.
 - **Two interfaces.** Tatum also serves Sui gRPC (`sui-testnet-grpc.gateway.tatum.io`). It's plain gRPC, not grpc-web, so the server speaks it directly with a small HTTP/2 client and protobuf codec. That gives every proof a second, independent read.
-- **A credit runway, measured.** Every call is counted at the chokepoint by interface and operation. A public [Ops panel](https://helix-app-fovn.onrender.com/ops.html) shows calls per hour, latency, cache hits, and when the free plan's credits would run out at the current rate. It also counts direct fullnode calls by HELIX: zero. Measuring paid off immediately. A Council warm-up loop was re-reading every agent's commits every 45 seconds, and fixing it, along with an expiry-driven settlement watcher, cut the burn by more than half.
+- **A credit runway, measured.** Every call is counted at the chokepoint by interface and operation. A public [Ops panel](https://helix-app-fovn.onrender.com/ops.html) shows calls per hour, latency, cache hits, and when the free plan's credits would run out at the current rate. It also counts direct fullnode calls by HELIX: zero. Measuring paid off immediately. It found a Council warm-up loop re-reading every agent's commits every 45 seconds; that loop now shares one incremental event log, and the settlement watcher sleeps until each market's expiry instead of polling.
 - **Degrade mode.** If Tatum ever refuses the key, HELIX serves cached reads, pauses writes and shows a banner. It never falls back to a public fullnode silently.
 
 **Walrus Memory was the fastest part of the stack to get a first result from.** The relayer handles embeddings, Seal encryption and the Walrus upload, so I spent my time on the learning logic instead of storage plumbing. The real work came from memory being semantic while my data is structured:

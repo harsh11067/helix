@@ -1,1 +1,1 @@
-{"name":"helix-video","private":true,"type":"module","description":"HELIX demo video pipeline (VIDEO_PIPELINE.md): Argo + Playwright + Kokoro TTS + ffmpeg","devDependencies":{"@argo-video/cli":"^0.42.1","@playwright/test":"^1.65.0","kokoro-js":"^1.2.1"}}
+{"name":"helix-video","private":true,"type":"module","description":"HELIX demo video pipeline (VIDEO_PIPELINE.md): Argo + Playwright + Kokoro TTS + ffmpeg","devDependencies":{"@argo-video/cli":"^0.42.1","@playwright/test":"^1.65.0","ffprobe-static":"^3.1.0","kokoro-js":"^1.2.1"}}
