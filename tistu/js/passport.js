@@ -83,7 +83,8 @@ function commitRow(c) {
       ${c.digest ? `<a class="mono" style="color:var(--accent-deep)" href="${SUISCAN(c.digest)}" target="_blank" rel="noopener">commit ↗</a>` : ''}
       ${c.conviction_blob ? ` · <a class="mono" style="color:var(--accent-deep)" href="${WALRUSCAN(c.conviction_blob)}" target="_blank" rel="noopener">memory ↗</a>` : ''}
       ${c.outcome_blob ? ` · <a class="mono" style="color:var(--accent-deep)" href="${WALRUSCAN(c.outcome_blob)}" target="_blank" rel="noopener">outcome ↗</a>` : ''}</td>
-    <td>${c.text && c.digest ? `<button class="btn-soft" data-verify="${esc(c.digest)}" style="padding:4px 12px;font-size:12px" data-cursor>Verify</button><div class="mono" data-verify-out="${esc(c.digest)}" style="font-size:10.5px;margin-top:4px"></div>` : ''}</td>
+    <td>${c.text && c.digest ? `<button class="btn-soft" data-verify="${esc(c.digest)}" style="padding:4px 12px;font-size:12px" data-cursor>Verify</button><div class="mono" data-verify-out="${esc(c.digest)}" style="font-size:10.5px;margin-top:4px"></div>`
+      : c.verified_at_settlement ? `<div class="mono muted" style="font-size:10.5px;max-width:190px" title="Walrus Memory search no longer returns this CONVICTION's text, so the browser can't re-hash it. The settlement watcher re-hashed it against the chain when it settled and wrote reveal_ok=true in the OUTCOME memory.">✓ verified at settlement<br>(memory search no longer returns the text)</div>` : ''}</td>
   </tr>`;
 }
 

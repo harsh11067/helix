@@ -43,6 +43,7 @@ export interface PassportCommit {
   call?: { dir: string | null; conf: number | null; structure: string | null; order: string | null; p_you: number | null; p_mkt: number | null; origin: string | null };
   conviction_blob?: string; outcome_blob?: string; result?: string | null; payoff?: number | null; reveal_ok?: string | null;
   prices?: { settle: number | null; oracle: string; sources: { name: string; usd: number; bps: number }[] } | null;
+  verified_at_settlement?: boolean;
   text?: string;                       // the remembered CONVICTION line — the browser re-hashes it against the chain
 }
 
@@ -88,14 +89,18 @@ export async function passportFor(address: string, opts: { commits?: number } = 
   const now = Date.now();
   const commits: PassportCommit[] = evs.slice().sort((a, b) => b.committed_ms - a.committed_ms).slice(0, opts.commits ?? 60).map((e) => {
     const c = e.hash ? byHash.get(e.hash) : undefined;
-    const o = c ? outByTx.get(str(c, 'tx')) : undefined;
-    const status: PassportCommit['status'] = !c ? (now - e.committed_ms < 120_000 ? 'recording' : 'hidden') : o ? 'settled' : 'pending';
+    // no CONVICTION returned by search, but the watcher's OUTCOME (reveal_ok=true) proves it was remembered and matched
+    const vo = !c && e.digest ? outByTx.get(e.digest) : undefined;
+    const verified = !!vo && str(vo, 'reveal_ok') === 'true';
+    const o = c ? outByTx.get(str(c, 'tx')) : verified ? vo : undefined;
+    const status: PassportCommit['status'] = !c && !verified ? (now - e.committed_ms < 120_000 ? 'recording' : 'hidden') : o ? 'settled' : 'pending';
     return {
       digest: e.digest ?? null, hash: e.hash, market: e.oracle, expiry_ms: e.expiry_ms, committed_ms: e.committed_ms, status,
       ...(c ? {
         call: { dir: str(c, 'dir'), conf: num(c, 'conf'), structure: str(c, 'structure'), order: str(c, 'order'), p_you: num(c, 'p_you'), p_mkt: num(c, 'p_mkt'), origin: str(c, 'origin') },
         conviction_blob: c.blob_id, text: commitBody(c.text),
       } : {}),
+      ...(verified ? { verified_at_settlement: true } : {}),
       ...(o ? { outcome_blob: o.blob_id, result: str(o, 'result'), payoff: num(o, 'payoff'), reveal_ok: str(o, 'reveal_ok'),
         prices: priceSources(c, o) } : {}),
     };

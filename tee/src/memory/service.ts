@@ -786,6 +786,7 @@ export async function commitLedger(address: string, recs: MemRecord[]) {
   const unmatched = evs.filter((e) => e.hash && e.digest && !byHash.has(e.hash) && now - e.committed_ms >= 120_000).slice(0, 12);
   for (const e of unmatched) {
     const c = await findRecord(ns, 'CONVICTION', e.digest!).catch(() => null);
+    if (!c && !outcome.has(e.digest!) && e.expiry_ms < now) { const o = await findRecord(ns, 'OUTCOME', e.digest!).catch(() => null); if (o) outcome.set(e.digest!, o); }
     if (!c || str(c, 'hash') !== e.hash) continue;
     byHash.set(e.hash!, c);
     const tx = str(c, 'tx');
@@ -793,10 +794,17 @@ export async function commitLedger(address: string, recs: MemRecord[]) {
   }
   let wins = 0, settled = 0, missingExpired = 0, revealOk = 0, recording = 0;
   const missing: { digest?: string; hash: string | null; expiry_ms: number }[] = [];
+  const verifiedAtSettlement: string[] = [];
   for (const e of evs) {
     const m = e.hash ? byHash.get(e.hash) : undefined;
     // the memory write lands ~20-40s after the commit: a fresh commit is "recording", not missing
     if (!m && now - e.committed_ms < 120_000) { recording++; continue; }
+    // Walrus Memory search can stop returning a record. If the settlement watcher wrote this commit's OUTCOME with
+    // reveal_ok=true, it re-hashed the CONVICTION memory against the chain at settlement: remembered, not hidden.
+    const vo = !m && e.digest ? outcome.get(e.digest) : undefined;
+    if (vo && str(vo, 'reveal_ok') === 'true' && (str(vo, 'result') === 'WIN' || str(vo, 'result') === 'LOSS')) {
+      verifiedAtSettlement.push(e.digest!); settled++; revealOk++; if (str(vo, 'result') === 'WIN') wins++; continue;
+    }
     if (!m) { missing.push({ digest: e.digest, hash: e.hash, expiry_ms: e.expiry_ms }); if (e.expiry_ms < now) missingExpired++; continue; }
     const o = outcome.get(str(m, 'tx'));
     if (o && (str(o, 'result') === 'WIN' || str(o, 'result') === 'LOSS')) { settled++; if (str(o, 'result') === 'WIN') wins++; if (str(o, 'reveal_ok') === 'true') revealOk++; }
@@ -808,6 +816,7 @@ export async function commitLedger(address: string, recs: MemRecord[]) {
   return {
     journal: JOURNAL_PKG, onchain: evs.length, with_memory: evs.length - missing.length - recording, recording,
     missing_memory: complete ? missing.length : null, memory_complete: complete,
+    verified_at_settlement: verifiedAtSettlement.length, verified_at_settlement_digests: verifiedAtSettlement.slice(0, 20),
     settled, wins, reveal_ok: revealOk, win_rate_all_commits: denom ? wins / denom : null, missing: missing.slice(0, 20),
   };
 }
