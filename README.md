@@ -28,6 +28,8 @@
 
 No wallet needed. (The free-tier compiler may take ~50 s to wake on the first request.)
 
+**Fastest:** the [60-second guided tour](https://helix-app-fovn.onrender.com/app.html?demo=1&tour=1#/canvas) walks the demo trader through the Canvas, memory, the time machine, the passport, the Council and the Ops panel — skippable at every step. Or follow the steps below.
+
 1. **Open the demo trader:** [helix-app-fovn.onrender.com/app.html?demo=1#/memory](https://helix-app-fovn.onrender.com/app.html?demo=1#/memory) — a real trader's convictions, outcomes, calibration and lessons, recalled live from **Walrus Memory (mainnet)**, read-only.
 2. **Check any memory:** click a blob id → **Walruscan mainnet**; click *verify on mainnet* → the MemWal account read through **Tatum's mainnet gateway** plus the blob from the Walrus mainnet aggregator.
 3. **Watch it learn:** on the same Memory page, press **▶ Replay** on the *memory time machine*: the page re-renders from only the memories that existed at each moment — the over-confidence gap opening, Brier per voice settling, memory's suggestion tightening. (The Council page has its own time machine for the agents' weights.)

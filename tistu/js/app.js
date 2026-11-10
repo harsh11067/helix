@@ -78,7 +78,7 @@ function demoBannerHTML() {
   return `<div class="panel" style="margin-bottom:18px;padding:14px 18px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--accent-soft)">
     <div class="row spread" style="gap:10px;flex-wrap:wrap"><div><b>${DEMO_BANNER}</b> <span class="mono muted" style="font-size:11.5px">${short(state.demo)}</span>
     <div class="muted" style="font-size:12.5px;margin-top:4px">Compiles and the Memory page use this trader's Walrus memory. Nothing can be signed for it — connect a wallet to trade as yourself.</div></div>
-    <button class="btn-soft" id="demo-connect" data-cursor>Connect a wallet</button></div></div>`;
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn-solid" id="demo-tour" data-cursor>Take the 60-second tour</button><button class="btn-soft" id="demo-connect" data-cursor>Connect a wallet</button></div></div></div>`;
 }
 
 /* ============================================================ live data */
@@ -1425,6 +1425,9 @@ function proofTicker() {
 }
 function init() {
   build(); cursor(); themeToggle(); walletButton(); proofTicker();
+  // F9 guided tour: opt-in only (?tour=1 or the demo banner's button); never reappears once finished or skipped
+  document.addEventListener('click', (e) => { if (e.target.closest('#demo-tour')) import('./tour.js').then(m => m.startTour({ force: true })).catch(() => {}); });
+  if (new URLSearchParams(location.search).get('tour') === '1') setTimeout(() => import('./tour.js').then(m => m.startTour({ force: true })).catch(() => {}), 1200);
   import('./ask-button.js').then(m => m.mountAskButton({ api, address: () => viewingAddress(state), readOnly: () => isReadOnly(state) })).catch(() => {});
   // (a0) arrived from the landing-page "Continue with Google" CTA (app.html?login=google)?
   const qp = new URLSearchParams(location.search);
