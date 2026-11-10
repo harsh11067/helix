@@ -20,7 +20,7 @@
 
 **Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [Tatum Ops panel](https://helix-app-fovn.onrender.com/ops.html) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
 
-> **Judging snapshot:** git tag [`v1.0.1-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.1-total-recall) is the submitted version (`v1.0-total-recall` + a Tatum-credit saving for idle hours); the live services run it. Numbers in this README, the blog and the video are as of **10 Nov 2026, 16:50 IST**; the live pages keep counting.
+> **Judging snapshot:** git tag [`v1.0.2-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.2-total-recall) is the final version from the build window (every change before the 10 Nov 22:30 IST deadline; `v1.0-total-recall` and `v1.0.1-total-recall` mark earlier points that day); the live services run it. Numbers in this README, the blog and the video are as of **10 Nov 2026, 16:50 IST**; the live pages keep counting.
 
 ---
 
@@ -187,6 +187,7 @@ Live usage, latency and the credit runway: [Ops panel](https://helix-app-fovn.on
 - ETH and SUI are commit mode only (no DeepBook Predict market): they settle on Pyth's price, and the market voice is *n/a*. The Council commits on BTC only.
 - Walrus Memory recall is semantic top-k search, so it can't list a large namespace on its own, and its results drift between calls (on 10 Nov, 35 of the demo trader's 307 listed blobs weren't returned by any query; `restore` saw only 36 candidates because of the relayer's per-owner cap). HELIX pages through `listMemories`, recalls in chunks, looks up unmatched commits by exact digest, and keeps a **mirror** of every record it has ever recalled. The demo trader's passport shows **hidden 4** (as of 10 Nov 16:50 IST): one commit whose memory was never written (a server restart between commit and write — deploys now drain in-flight writes on SIGTERM), and commits whose memories were written (blob ids in the logs) but which search no longer returns, conviction and outcome alike. A commit whose OUTCOME memory says `reveal_ok=true` was re-hashed against the chain by the settlement watcher, so it counts as *verified at settlement* — remembered, not hidden — and its passport row says the text can't be re-checked in the browser. We also tried decrypting such blobs directly from Walrus with Seal and our delegate key (`tee/scripts/decrypt-memory.ts`): the relayer seals to a committee key server whose aggregator URL isn't exposed, so a client can't read its own memories without the relayer.
 - The demo trader holds two Ulysses rules; it is a script, so when a rule binds it commits anyway with an override sentence saying exactly that (`origin=cli`), and memory scores those overrides like anyone else's.
+- DeepBook Predict testnet's BTC windows are created by its own keeper. From about 19:00 IST on 10 Nov it had **no markets on chain at all**; while that lasts, the Canvas says so (checked through Tatum, re-checked every 30 s) and offers ETH or SUI, which settle on Pyth. The Council abstains when there's no window. Nothing is fabricated in the meantime.
 - Hardware TEE attestation remains a labeled dev stub (unchanged).
 
 ---
@@ -392,7 +393,7 @@ helix/
 
 ## 🚦 Project Status
 
-Submitted to **Total Recall (Tatum × Walrus Memory)** on 10 Nov 2026 — tag [`v1.0.1-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.1-total-recall).
+Submitted to **Total Recall (Tatum × Walrus Memory)** on 10 Nov 2026 — final build-window tag [`v1.0.2-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.2-total-recall).
 
 * **Live:** commit on Sui (testnet), remember on Walrus Memory (mainnet), settle and score every voice, learn (lessons, suggestions, rules, the time machine), and prove it (passport, chain audit, ✓✓ verify over two Tatum interfaces, signed reports frozen on Walrus).
 * **Agents:** four Council agents and an allocator commit, learn and pay on their own keys.

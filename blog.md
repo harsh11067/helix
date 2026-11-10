@@ -229,6 +229,8 @@ Next on the list:
 
 ---
 
+**Don't trust me, check:** `git clone https://github.com/harsh11067/helix && cd helix/tee && npm ci && node scripts/verify-all.mjs` re-hashes random calls on your machine and compares them with Sui over two Tatum interfaces, checks the passport's signature, fetches the latest frozen report straight from Walrus, and verifies a memory on Walrus mainnet.
+
 **Try it:** [the app](https://helix-app-fovn.onrender.com/app.html) · [the demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [the chain audit](https://helix-compiler.onrender.com/proof/audit) · [GitHub](https://github.com/harsh11067/helix)
 
 Built with [@Tatum_io](https://x.com/Tatum_io) and [@WalrusFoundation](https://x.com/WalrusFoundation) on Sui.

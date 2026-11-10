@@ -219,6 +219,13 @@ export function startCouncil(): void {
   council.enabled = true;
   council.agents = agents.map((a) => ({ name: a.name, address: a.address }));
   council.weights = Object.fromEntries(agents.map((a) => [a.name, 1 / agents.length]));
+  // until the fresh re-weigh lands (~2 min of recalls after a restart), start from the last published weights
+  // (the latest COUNCIL memory) instead of showing equal weights
+  councilHistory().then((h) => {
+    const w = h.at(-1)?.weights;
+    const stillEqual = Object.values(council.weights).every((v) => Math.abs(v - 1 / agents.length) < 1e-9);
+    if (w && agents.every((a) => Number.isFinite(w[a.name])) && stillEqual) council.weights = { ...w };
+  }).catch(() => {});
   onResolved((origin) => {
     if (!origin?.startsWith('agent:')) return;
     if (reweighTimer) clearTimeout(reweighTimer);                       // one reweigh per settled window

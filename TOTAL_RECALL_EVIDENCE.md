@@ -1,47 +1,21 @@
 # TOTAL_RECALL_EVIDENCE
 
-Generated 2026-11-10T11:51:07.479Z by `tee/scripts/evidence.mjs` from live endpoints — nothing in this file is hand-typed.
+Generated 2026-11-10T13:45:40.893Z by `tee/scripts/evidence.mjs` from live endpoints — nothing in this file is hand-typed.
 Service: https://helix-compiler.onrender.com
 
 ## 1. Tatum chokepoint + Walrus Memory health (`GET /health`)
 
 ```json
 {
-  "tatum_testnet_checkpoint": 404897132,
-  "tatum_mainnet_checkpoint": 343704646,
+  "tatum_testnet_checkpoint": 404925097,
+  "tatum_mainnet_checkpoint": 343732931,
   "tatum": {
     "plan": "free;ratelimit=3;strategy=shared",
     "testnet": "sui-testnet.gateway.tatum.io",
     "mainnet": "sui-mainnet.gateway.tatum.io",
-    "requests": 503,
-    "retries": 6,
-    "recent_executions": [
-      {
-        "net": "testnet",
-        "digest": "8xa5EA1rmYexSJt8JGr9yrJtDFwWuveH3CYKiHaFxtHe",
-        "at": 1794311026795
-      },
-      {
-        "net": "testnet",
-        "digest": "7WWKREo9rhsyjj686nehUGk6LqsNZpxXcZmsiKyxPnoF",
-        "at": 1794310472203
-      },
-      {
-        "net": "testnet",
-        "digest": "HofjsL7TrK6vuLVdAYh5U9w5radmtd6QQ7NA89PmHvm2",
-        "at": 1794310384192
-      },
-      {
-        "net": "testnet",
-        "digest": "HCFDetGZ8tdKr2VWBbDBs8YbSQik6D26kP6pkq61NaBg",
-        "at": 1794310352617
-      },
-      {
-        "net": "testnet",
-        "digest": "2GMagds1EfZAn3oRKDAnxANAhNw6aZmMqwideT9LJro9",
-        "at": 1794310292438
-      }
-    ]
+    "requests": 39,
+    "retries": 3,
+    "recent_executions": []
   },
   "memwal": "ok",
   "memwal_detail": {
@@ -55,10 +29,7 @@ Service: https://helix-compiler.onrender.com
   },
   "predict": {
     "network": "testnet",
-    "open_windows": [
-      4,
-      9
-    ],
+    "open_windows": [],
     "quote_coin": "0xc028557a1ed49e42ed091e115aedefd70a442b184c18fbec5c48d5b6c0b8c184::usdc::USDC"
   }
 }
@@ -91,9 +62,9 @@ Every row was written with `rememberAndWait` to the Walrus Memory mainnet relaye
 | 17 | CONVICTION | `JBoBZ81lIQkkyge5Ky0QAVAyZj1FBJrru5Ds0L95GPU` | `75cd5efd-bb36-4ea0-b33c-5a714c4baf99` | 2026-11-09T11:56:36Z | [`6TA4yADGgZ…`](https://suiscan.xyz/testnet/tx/6TA4yADGgZimoEqZXyZkd7irBpnNGVMBk623XrcCbFTX) | browser |
 | 18 | PAYMENT | `Uz1ZxIZ7wTfEcVOJAuDGiuQFkOUo2XC3kDWrgT625Xw` | `b6c0204a-bf02-4de8-afeb-85dec522ef5e` | 2026-11-09T15:35:54Z | [`5mhhMLQ6C5…`](https://suiscan.xyz/testnet/tx/5mhhMLQ6C5rnM3vpqdfpemt99DuVpGW9NKCJRjah6Fn2) | payments |
 
-## 2b. Commit mode — on-chain commit–reveal (80 CONVICTION · 80 OUTCOME; target ≥30 / ≥20)
+## 2b. Commit mode — on-chain commit–reveal (87 CONVICTION · 87 OUTCOME; target ≥30 / ≥20)
 
-On-chain ledger (`ConvictionCommitted` events by this address via Tatum, matched to memory by hash): `{"journal":"0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f","onchain":88,"with_memory":84,"recording":0,"missing_memory":4,"memory_complete":true,"verified_at_settlement":4,"verified_at_settlement_digests":["9odUAx2bXLgbGXbMLVNRWWq1SDDiWdDyU5NAQQqLLti3","Fqqh9cJzJwCr4FY4kadSMdwpRKX3AoSELeomqssq4i26","Aa8YJhbAXnMyMMTZeHG5PQ2oXWBEnRHEyu38gh34efSB","6SKKccFY5y1bRLmRNy1VasrJHj71exc6QsJx4Cvy3w8Q"],"settled":84,"wins":34,"reveal_ok":84,"win_rate_all_commits":0.38636363636363635,"missing":[{"digest":"Di18sa2d8Ae61KQrC6U9MRWAMQFpoSbK7czY5LZTg77e","hash":"66f6e7bd176499a82659ce260f83c271f6c646e8b62e4183228e7c03fcacfdc2","expiry_ms":1794240000000},{"digest":"CrWw3cmzoNygVeUEpkSddngSUxYB8mcJphbMieRFkjuE","hash":"65711cff0bab72ae642164e0823e94bc89da15a7dd3988e3222e943c89a31217","expiry_ms":1794294000000},{"digest":"B6tHQUWRhnTPbK5py8QeMs5Rhx11UwggaynQR8dEnqAj","hash":"dd534990d3e514243cf60f1a75023b5f73e80658cc6dd862759bacd707f5a0f1","expiry_ms":1794298800000},{"digest":"8QogKW8DRe1EefjauX7gMwLJYNNjx6hnN3jo28afqERX","hash":"e4e92df9635fd763bb011e17f39cd73f035f150d782f821656c3ade90f909d57","expiry_ms":1794309300000}]}`
+On-chain ledger (`ConvictionCommitted` events by this address via Tatum, matched to memory by hash): `{"journal":"0x5bcf3bf66f6c71f53aaf681842b554edde5b6c141c7315ba0ac6b4cd6766652f","onchain":92,"with_memory":91,"recording":0,"missing_memory":1,"memory_complete":true,"verified_at_settlement":4,"verified_at_settlement_digests":["9odUAx2bXLgbGXbMLVNRWWq1SDDiWdDyU5NAQQqLLti3","CrWw3cmzoNygVeUEpkSddngSUxYB8mcJphbMieRFkjuE","Aa8YJhbAXnMyMMTZeHG5PQ2oXWBEnRHEyu38gh34efSB","BKSt41B48w8embAXtAkiK92ScXh1PBrXs5emnvaE9oM6"],"settled":91,"wins":35,"reveal_ok":91,"win_rate_all_commits":0.3804347826086957,"missing":[{"digest":"Di18sa2d8Ae61KQrC6U9MRWAMQFpoSbK7czY5LZTg77e","hash":"66f6e7bd176499a82659ce260f83c271f6c646e8b62e4183228e7c03fcacfdc2","expiry_ms":1794240000000}]}`
 
 | # | committed (UTC) | conviction | commit tx | sha256 | CONVICTION blob | outcome | OUTCOME blob | origin |
 |---|---|---|---|---|---|---|---|---|
@@ -168,36 +139,43 @@ On-chain ledger (`ConvictionCommitted` events by this address via Tatum, matched
 | 69 | 2026-11-10 06:08 | up/0.85/choppy · bracketed_range | [`2trtPmsnZT…`](https://suiscan.xyz/testnet/tx/2trtPmsnZTZ2zPRHeqKptKTVceYPgUrykBsYkuzPtrje) | `b7464e1ab32a…` | `i375K5lzSdC-341tnOoEOt1KuvG6w45q6kgUhxIn9YQ` | LOSS · -8.00 · reveal_ok=true | `hqrCgKxk67-KWEbh4bN7T2uMw85FcCbEr8-kMxdVRwk` | cli |
 | 70 | 2026-11-10 06:30 | down/0.85/calm · bracketed_range | [`6fAuumwSWd…`](https://suiscan.xyz/testnet/tx/6fAuumwSWdAYfA17ksHF3EdqhaJqjZ2fArY12yHwVvD) | `bd1915c4a73c…` | `TG8tZuJ2YtFta1XXapMHpxTcYymvi0zamzSlK7PnXP8` | WIN · +2.96 · reveal_ok=true | `-vvX_7TkXXs5M2F-_D0fKJ21bFxTiV_vgT5O0k6C6rM` | cli |
 | 71 | 2026-11-10 06:33 | up/0.85/choppy · bracketed_range | [`CQa6HucVZq…`](https://suiscan.xyz/testnet/tx/CQa6HucVZqqwMbNmCWyEiuEWAgnPGHRPABqUP1MqmQzN) | `4eb743824fb7…` | `8yn-QIjZSCxTBjTxj5X3q-NwkVsLIbf8yeEOM3Mbt50` | WIN · +4.87 · reveal_ok=true | `PBs9YrVxi9QbsnL79s-F39yAnuaRODwzPUmfiS7FrCw` | cli |
-| 72 | 2026-11-10 07:36 | down/0.80/choppy · bracketed_range | [`XcLbfpc2kE…`](https://suiscan.xyz/testnet/tx/XcLbfpc2kELPS8n4F2dY2Ytyo6A1mWEW51CgMxaqyqQ) | `2db887f18f66…` | `UbROZvt3-8_FhhuyINoxm4cNKwGN7y6k0ExXg1Hyatw` | LOSS · -5.00 · reveal_ok=true | `BjqvTQiAQ0r8LgGDR4hwbtInPKhatKNp7b7nVJV8gN0` | cli |
-| 73 | 2026-11-10 07:56 | up/0.85/choppy · bracketed_range | [`FAGZFd4nTv…`](https://suiscan.xyz/testnet/tx/FAGZFd4nTvZLe5ZnKyWeCwP5Jyqhyss5G2ipNVdQgZhw) | `6bbe310439b5…` | `rL_Van8GlmW_gZXEjkwFQOu4sSJLb87dYmjvluJi8tY` | LOSS · -8.00 · reveal_ok=true | `4wUqzKP-Ao1NPWQhMezt6LvUe2abHRBNee5WL018OYA` | cli |
-| 74 | 2026-11-10 08:37 | up/0.85/choppy · bracketed_range | [`Ct3bbKhs6S…`](https://suiscan.xyz/testnet/tx/Ct3bbKhs6SQreysqCAnMCDaVEhmC9tzBPmqaCyRnj11e) | `e50b62585b28…` | `1ntluqZ6s_gNwUa2lMjE4C6Kaw96zYKCeYeqWGMEaNM` | WIN · +4.91 · reveal_ok=true | `P9JSMBm9rroD6I8Obywu4zm0Qv22jY9EkvfqRRT8c84` | cli |
-| 75 | 2026-11-10 08:58 | down/0.35/calm · bracketed_range | [`CDZiS2tdsq…`](https://suiscan.xyz/testnet/tx/CDZiS2tdsqiaw4omCRZ4mebmfHbS8VW6ATk8utJLcrAb) | `abe8c083537c…` | `X0EKAujJOQHchLtJ8OwVfODbET25JmOyWbwA-Rrn8WM` | WIN · +8.17 · reveal_ok=true | `efmxqlaI_sg1O0nYDouGNRNxo04ns7r1LJwwNPovKeU` | cli |
-| 76 | 2026-11-10 09:18 | up/0.85/choppy · bracketed_range | [`GmbxCKMwtm…`](https://suiscan.xyz/testnet/tx/GmbxCKMwtm8BeocA446Mnur5s6Tq2GEYkmrfd8L9Lh2Y) | `cb89282503e0…` | `8etbRzUDEFm9HzzxolwHwZ0Mn2PKIYbg492F9d4jOew` | LOSS · -3.00 · reveal_ok=true | `ew2iTyAXGxEYF2lVwZV1k2nSx0369tZe8CzsNpLJu_k` | cli |
-| 77 | 2026-11-10 10:00 | up/0.85/choppy · directional | [`Dvnu2e8LzZ…`](https://suiscan.xyz/testnet/tx/Dvnu2e8LzZBx3ze7ejp5si2JXWVGnBwhixkH3CAAUpLr) | `53b95155b2bf…` | `UV0FufT4nd15R9TNyHxAnO5raZkMaSY6DNhXBi0JZ38` | LOSS · -8.00 · reveal_ok=true | `T-reZQmuQ7sacOeuSh7rpugoU5G-LVFAE3Aymti_IYw` | cli |
-| 78 | 2026-11-10 10:21 | down/0.30/choppy · bracketed_range | [`3PyGLcRnzm…`](https://suiscan.xyz/testnet/tx/3PyGLcRnzmkHspYaWvUMFxXBZtQve3kzGHmXotM93pjH) | `6a8523cbc543…` | `zsWZBM6R7yIPnp7Ox-_LqV9a6-0tE3A_VtnijaNSuss` | WIN · +2.93 · reveal_ok=true | `Pdr6EPpnVgOeQ_SL1ZZHtke0KmU_CxL1h--XhJDM2rg` | cli |
-| 79 | 2026-11-10 11:23 | up/0.85/choppy · directional | [`FXhX9YtZGS…`](https://suiscan.xyz/testnet/tx/FXhX9YtZGSAWCpccwPpFuE4jdUodeUQK3xUwSad7rzjn) | `35037f03067e…` | `Ti6QM1IEMvjZDXXIFHPcldMXA4HloIstXWEeDVfAyYA` | WIN · +2.67 · reveal_ok=true | `DH82XnpeldrVOCvrhKjGz-i6OwitesIiP96Be5MJNLw` | cli |
-| 80 | 2026-11-10 11:43 | down/0.85/calm · bracketed_range | [`8xa5EA1rmY…`](https://suiscan.xyz/testnet/tx/8xa5EA1rmYexSJt8JGr9yrJtDFwWuveH3CYKiHaFxtHe) | `9f8e6d4a30ac…` | `MeHwysDx111J9cCwdqmfEpEP8lLUMh-gxHZOqM94o2Q` | WIN · +5.04 · reveal_ok=true | `IT4BNOMjQ3tZ8UKMI1Vhsu1iOKAZFVxNUwk-x5cupE0` | cli |
+| 72 | 2026-11-10 07:15 | up/0.85/choppy · directional | [`Fqqh9cJzJw…`](https://suiscan.xyz/testnet/tx/Fqqh9cJzJwCr4FY4kadSMdwpRKX3AoSELeomqssq4i26) | `924298f88c94…` | `jTrdpcXNYiWadG5E46dnLAFM3ytUEPq9XiIL_n-Stac` | WIN · +2.68 · reveal_ok=true | `L1a_hEU1KyD-WolCt3ErbPHlxH0_xfZEnRcCv-otcm0` | cli |
+| 73 | 2026-11-10 07:36 | down/0.80/choppy · bracketed_range | [`XcLbfpc2kE…`](https://suiscan.xyz/testnet/tx/XcLbfpc2kELPS8n4F2dY2Ytyo6A1mWEW51CgMxaqyqQ) | `2db887f18f66…` | `UbROZvt3-8_FhhuyINoxm4cNKwGN7y6k0ExXg1Hyatw` | LOSS · -5.00 · reveal_ok=true | `BjqvTQiAQ0r8LgGDR4hwbtInPKhatKNp7b7nVJV8gN0` | cli |
+| 74 | 2026-11-10 07:56 | up/0.85/choppy · bracketed_range | [`FAGZFd4nTv…`](https://suiscan.xyz/testnet/tx/FAGZFd4nTvZLe5ZnKyWeCwP5Jyqhyss5G2ipNVdQgZhw) | `6bbe310439b5…` | `rL_Van8GlmW_gZXEjkwFQOu4sSJLb87dYmjvluJi8tY` | LOSS · -8.00 · reveal_ok=true | `4wUqzKP-Ao1NPWQhMezt6LvUe2abHRBNee5WL018OYA` | cli |
+| 75 | 2026-11-10 08:17 | up/0.80/choppy · bracketed_range | [`B6tHQUWRhn…`](https://suiscan.xyz/testnet/tx/B6tHQUWRhnTPbK5py8QeMs5Rhx11UwggaynQR8dEnqAj) | `dd534990d3e5…` | `1rCmYrFmXl5vgx_pKjJheoqc_GHEiZpAXmLni9tVGE0` | LOSS · -3.00 · reveal_ok=true | `GiriW1mbGLr_OdiR8tjcI3uCvzLaJiYSTu7A5qXUuzU` | cli |
+| 76 | 2026-11-10 08:37 | up/0.85/choppy · bracketed_range | [`Ct3bbKhs6S…`](https://suiscan.xyz/testnet/tx/Ct3bbKhs6SQreysqCAnMCDaVEhmC9tzBPmqaCyRnj11e) | `e50b62585b28…` | `1ntluqZ6s_gNwUa2lMjE4C6Kaw96zYKCeYeqWGMEaNM` | WIN · +4.91 · reveal_ok=true | `P9JSMBm9rroD6I8Obywu4zm0Qv22jY9EkvfqRRT8c84` | cli |
+| 77 | 2026-11-10 08:58 | down/0.35/calm · bracketed_range | [`CDZiS2tdsq…`](https://suiscan.xyz/testnet/tx/CDZiS2tdsqiaw4omCRZ4mebmfHbS8VW6ATk8utJLcrAb) | `abe8c083537c…` | `X0EKAujJOQHchLtJ8OwVfODbET25JmOyWbwA-Rrn8WM` | WIN · +8.17 · reveal_ok=true | `efmxqlaI_sg1O0nYDouGNRNxo04ns7r1LJwwNPovKeU` | cli |
+| 78 | 2026-11-10 09:18 | up/0.85/choppy · bracketed_range | [`GmbxCKMwtm…`](https://suiscan.xyz/testnet/tx/GmbxCKMwtm8BeocA446Mnur5s6Tq2GEYkmrfd8L9Lh2Y) | `cb89282503e0…` | `8etbRzUDEFm9HzzxolwHwZ0Mn2PKIYbg492F9d4jOew` | LOSS · -3.00 · reveal_ok=true | `ew2iTyAXGxEYF2lVwZV1k2nSx0369tZe8CzsNpLJu_k` | cli |
+| 79 | 2026-11-10 10:00 | up/0.85/choppy · directional | [`Dvnu2e8LzZ…`](https://suiscan.xyz/testnet/tx/Dvnu2e8LzZBx3ze7ejp5si2JXWVGnBwhixkH3CAAUpLr) | `53b95155b2bf…` | `UV0FufT4nd15R9TNyHxAnO5raZkMaSY6DNhXBi0JZ38` | LOSS · -8.00 · reveal_ok=true | `T-reZQmuQ7sacOeuSh7rpugoU5G-LVFAE3Aymti_IYw` | cli |
+| 80 | 2026-11-10 10:21 | down/0.30/choppy · bracketed_range | [`3PyGLcRnzm…`](https://suiscan.xyz/testnet/tx/3PyGLcRnzmkHspYaWvUMFxXBZtQve3kzGHmXotM93pjH) | `6a8523cbc543…` | `zsWZBM6R7yIPnp7Ox-_LqV9a6-0tE3A_VtnijaNSuss` | WIN · +2.93 · reveal_ok=true | `Pdr6EPpnVgOeQ_SL1ZZHtke0KmU_CxL1h--XhJDM2rg` | cli |
+| 81 | 2026-11-10 10:42 | up/0.85/choppy · bracketed_range | [`6SKKccFY5y…`](https://suiscan.xyz/testnet/tx/6SKKccFY5y1bRLmRNy1VasrJHj71exc6QsJx4Cvy3w8Q) | `d3bcfa872c7f…` | `FIlibVIAdeQdGRhr4mjoKlywvzC3GjgsJDg6Ni_J-XI` | WIN · +4.92 · reveal_ok=true | `wuxTbJ5M84gDLBozsypPmVYwNhpPand2ie-CUje4pmo` | cli |
+| 82 | 2026-11-10 11:02 | up/0.30/choppy · bracketed_range | [`8QogKW8DRe…`](https://suiscan.xyz/testnet/tx/8QogKW8DRe1EefjauX7gMwLJYNNjx6hnN3jo28afqERX) | `e4e92df9635f…` | `ugo138O0iK-gbZw4Dlv0vtUj_yXjNSD7rSvUUPmhDYs` | LOSS · -8.00 · reveal_ok=true | `fP7AdVYs03dV-R2EQ4jqnqwdEcz3qilA1Nndl1hWtmU` | cli |
+| 83 | 2026-11-10 11:23 | up/0.85/choppy · directional | [`FXhX9YtZGS…`](https://suiscan.xyz/testnet/tx/FXhX9YtZGSAWCpccwPpFuE4jdUodeUQK3xUwSad7rzjn) | `35037f03067e…` | `Ti6QM1IEMvjZDXXIFHPcldMXA4HloIstXWEeDVfAyYA` | WIN · +2.67 · reveal_ok=true | `DH82XnpeldrVOCvrhKjGz-i6OwitesIiP96Be5MJNLw` | cli |
+| 84 | 2026-11-10 11:43 | down/0.85/calm · bracketed_range | [`8xa5EA1rmY…`](https://suiscan.xyz/testnet/tx/8xa5EA1rmYexSJt8JGr9yrJtDFwWuveH3CYKiHaFxtHe) | `9f8e6d4a30ac…` | `MeHwysDx111J9cCwdqmfEpEP8lLUMh-gxHZOqM94o2Q` | WIN · +5.04 · reveal_ok=true | `IT4BNOMjQ3tZ8UKMI1Vhsu1iOKAZFVxNUwk-x5cupE0` | cli |
+| 85 | 2026-11-10 12:04 | up/0.85/choppy · bracketed_range | [`6c1YYK4Yq4…`](https://suiscan.xyz/testnet/tx/6c1YYK4Yq4JCju3TYfY9S3yboWtK1oF1L2RcjG6G4E5q) | `2f501362355c…` | `uGOgc8ZiK9jagaK-nxtHa1u5fUUu-U0IhFP8rNBl-2M` | WIN · +7.84 · reveal_ok=true | `CwM8UXREO4kSOAPJna0GmXnBaHky7d0qpQ4u2an1mBw` | cli |
+| 86 | 2026-11-10 12:45 | up/0.85/choppy · bracketed_range | [`6jWpadyvqD…`](https://suiscan.xyz/testnet/tx/6jWpadyvqDAfina5MyxuDayZc696QGp9t4Mp91rK8shD) | `3a171481b55c…` | `mD1p1bOdPg-pStUQzlNYZCMrYAouMMaYWsGc5HIsbmU` | LOSS · -5.00 · reveal_ok=true | `kAvqOGDM0qix2ADgLE8IwfQ3nooiu1AzRcONl9xUAII` | cli |
+| 87 | 2026-11-10 13:05 | down/0.80/choppy · bracketed_range | [`H3juyL3Gya…`](https://suiscan.xyz/testnet/tx/H3juyL3GyaFxGx5VLyptVwRmMtoLQ3mD3yNkALfENoHk) | `048755099768…` | `Nf_qpnvMzSnKM0wCzCFjqkNTI7PIe5SEzgo9wM5h68g` | LOSS · -8.00 · reveal_ok=true | `VzhW1N49QIWksaJulLKH_j3DQhDSGfzfdNbn2-C67Y0` | cli |
 
 ## 2c. Provenance — every commit counted by origin
 
 | forecaster | namespace | CONVICTION by origin | commits on-chain | hidden | memories |
 |---|---|---|---|---|---|
-| demo trader | `helix-v1-4d922636976d` | cli 77 · browser 3 | 88 | 4 | 330 |
-| agent momentum | `helix-v1-f86dd6bda0c6` | agent:momentum 41 | 42 | 1 | 154 |
-| agent reversion | `helix-v1-b7f54e89048d` | agent:reversion 32 | 32 | 0 | 124 |
-| agent surface | `helix-v1-1d2aef04ef74` | agent:surface 41 | 41 | 0 | 135 |
-| agent crowd | `helix-v1-9d46530e40aa` | agent:crowd 42 | 42 | 0 | 156 |
+| demo trader | `helix-v1-4d922636976d` | cli 84 · browser 3 | 92 | 1 | 368 |
+| agent momentum | `helix-v1-f86dd6bda0c6` | agent:momentum 44 | 45 | 1 | 165 |
+| agent reversion | `helix-v1-b7f54e89048d` | agent:reversion 34 | 34 | 0 | 132 |
+| agent surface | `helix-v1-1d2aef04ef74` | agent:surface 43 | 44 | 0 | 143 |
+| agent crowd | `helix-v1-9d46530e40aa` | agent:crowd 44 | 45 | 0 | 165 |
 
 ## 2d. Proof-of-Forecast — Council, Passport, payments (live)
 
-- **Ticker** (`GET /proof/ticker`, chain events): 256 commits by 15 committers · 256 settled · hidden 5
-- **Council**: 4 agents · weights {"momentum":0.23829840000571728,"reversion":0.19689467390432835,"surface":0.32124841120593506,"crowd":0.24355851488401925} · 42 COUNCIL memories · allocator vetting decisions: 11
-  - momentum `0x92608f0b7b1f5872fa0b3a314b7aba05f228e45b24e19d197914a2e2949f7d31` — 42 commits, 41 settled, 22 won, Brier 0.240
-  - reversion `0xe89018db81101846e5526e56d7c758cf95d8e6099eb664f0386f9282097d5d58` — 32 commits, 32 settled, 12 won, Brier 0.290
-  - surface `0x97dd8db5d9e2c5a88fd64ec36e6bcebecc97a561f265156100b54eed9be2fa3f` — 41 commits, 41 settled, 31 won, Brier 0.178
-  - crowd `0x392a02dbb7829a518da3522feb621a9c2706f8010b0c4822aa29ed9a4df1a746` — 42 commits, 42 settled, 29 won, Brier 0.235
-- **Passport** (`GET /passport/helix-v1-4d922636976d`, Ed25519-signed, key `18a0e77777aa256a62417fa8b6debb559aaa1af1b0754a5252897a46b6116a6f`): committed 88 · shown 84 · hidden 4 · badges Contrarian
-- **Paid Credibility API** (`GET /api/v1`): 0.001 SUI (testnet) per call, treasury `0x29ca7dc45b6ef496e87e3daa317ac55aa66577fcc6c82323bd171f0f8dc4bd36` · paid calls 14 · latest [`8s22h1bois…`](https://suiscan.xyz/testnet/tx/8s22h1boisym63cqtpjp1ou9sKGtRkWfpf3yMfmm16KK), [`8goFm5VCi3…`](https://suiscan.xyz/testnet/tx/8goFm5VCi3ud9xwEq9rWsTiCza8GDZs5WQfNK4nMiWzP), [`8M6EfbpDTH…`](https://suiscan.xyz/testnet/tx/8M6EfbpDTHbR7rsceyvnbgYM3Y3uEhnk8Likjjsq4Xf9)
+- **Ticker** (`GET /proof/ticker`, chain events): 271 commits by 15 committers · 271 settled · hidden 2
+- **Council**: 4 agents · weights {"momentum":0.23702236965298917,"reversion":0.19748298421284152,"surface":0.32302808878240263,"crowd":0.24246655735176667} · 49 COUNCIL memories · allocator vetting decisions: 14
+  - momentum `0x92608f0b7b1f5872fa0b3a314b7aba05f228e45b24e19d197914a2e2949f7d31` — 45 commits, 44 settled, 23 won, Brier 0.241
+  - reversion `0xe89018db81101846e5526e56d7c758cf95d8e6099eb664f0386f9282097d5d58` — 34 commits, 34 settled, 13 won, Brier 0.289
+  - surface `0x97dd8db5d9e2c5a88fd64ec36e6bcebecc97a561f265156100b54eed9be2fa3f` — 44 commits, 43 settled, 33 won, Brier 0.177
+  - crowd `0x392a02dbb7829a518da3522feb621a9c2706f8010b0c4822aa29ed9a4df1a746` — 45 commits, 44 settled, 29 won, Brier 0.235
+- **Passport** (`GET /passport/helix-v1-4d922636976d`, Ed25519-signed, key `18a0e77777aa256a62417fa8b6debb559aaa1af1b0754a5252897a46b6116a6f`): committed 92 · shown 91 · hidden 1 · badges Contrarian
+- **Paid Credibility API** (`GET /api/v1`): 0.001 SUI (testnet) per call, treasury `0x29ca7dc45b6ef496e87e3daa317ac55aa66577fcc6c82323bd171f0f8dc4bd36` · paid calls 17 · latest [`W9WosAGQW3…`](https://suiscan.xyz/testnet/tx/W9WosAGQW3HHvEPGCEjvi9utQMVwzEVkpZQakXdkqAi), [`2JgfaKzsbS…`](https://suiscan.xyz/testnet/tx/2JgfaKzsbS4JBuHWtjiwdr8iy7Wp3jVYhQNy9kf7yn4N), [`8D7ksBY2wj…`](https://suiscan.xyz/testnet/tx/8D7ksBY2wjVt2VEATNVYPkXUznSWvHDGByq2aqqwcVPA)
 
 ## 3. Memory visibly changes the product (L-01 vs L-02)
 
@@ -206,146 +184,14 @@ Same conviction `{"direction":70,"confidence":85,"horizonCode":1,"volView":70,"c
 **Without history** (`0x00000000…`):
 ```json
 {
-  "order": "BTC above $74,356 at expiry",
-  "structure": "directional",
-  "memory": {
-    "n": 0,
-    "message": "No settled history in this setup yet — using the market's view.",
-    "commit": 5,
-    "suggested_commit": 5,
-    "structure_suggestion": null,
-    "lesson_text": null,
-    "gap_you": null,
-    "best_voice": null,
-    "blob_ids": []
-  },
-  "guardian_memory": "Memory: no settled high-confidence bullish calls in choppy BTC yet — HELIX takes this conviction at face value."
+  "error": "no open DeepBook Predict BTC window with enough runway — retry in a few seconds"
 }
 ```
 
 **With history**:
 ```json
 {
-  "order": "BTC above $74,356 at expiry",
-  "structure": "directional",
-  "memory": {
-    "n": 44,
-    "message": "Learned from 44 settled convictions in up/high/choppy.",
-    "commit": 5,
-    "suggested_commit": 1.5,
-    "structure_suggestion": null,
-    "lesson_text": "up/high/choppy: Won 15/44 here; stated confidence runs ~53 points hot. Size down. The HELIX Council has been closer than you (Brier 0.21 vs 0.52).",
-    "gap_you": 0.5251969696969696,
-    "best_voice": "council",
-    "blob_ids": [
-      "eSB1aLVsjDLkTWPa2f1g1ZMg8sw7Yv2EqRcg8IfjrJI",
-      "BgRFIgxElWP9L874_EhQfhP2LFIJpfOo_JhzAOe2jpM",
-      "TRXDsQLlGRiPM8IkSaU0A2xgEDulA27kxxAiXqsXivs",
-      "XqFsGftePOKeXBCuJjBxpkoHDeSM-SBXK1wTHnLER3A",
-      "5lWZbhCNT2GjlkBNKv-RIPpfRumfuuz7zD-TbyKdm08",
-      "2IoZgjKAr6j-QrmupWAKBCV6fvaZFwLGdCcLP1hbAIg",
-      "Nzevybu_Pdgb8pIssnD8w83-zlkkUP9xDPKUW-M6cJc",
-      "Ik3bC3_3veK29HLpKk68Ek-r5xrOZefdTmHvS_6qLdY",
-      "dd4L8cxWtodZkJvE-YAvkE-vwIFEIuYfK6ki4yQZ6QY",
-      "0UceevcbLcxNL64NY2ikEvqYH3QhllZ1NlMunZYzybY",
-      "QdCB8dtqS83Q_dJNxitLAQQza7Klb7wcYbaMs5USUxM",
-      "tuI545aec2AFiiJjs7RdZM7RATgz2jWIdf60t8fA4Pc",
-      "hGpsvI5UdHD_lAuQ1ahRsBx0d3EYPf1M4BwjbuvVqSI",
-      "8KHfTdQUClH-xaCY8sOtOE0-4YoJO0YG9JMCJCqHEOc",
-      "qZfHzG3dPVbpCfLs1jaJppLipzE0uNOj0SzYlxSQ2O0",
-      "BCs9mA3eqI6YkBJJyZckWEnYJfIvzEVgCB_3X8swv2o",
-      "XBLtiRLV9Jc1SSv6Vnsbv5bClv--UJktKY5IG1RqE6Y",
-      "gbFNUpcyMC9_viyQ-WUFDr3rkTW2ajuztt4K8PRn3XU",
-      "igu41jBV2NxZenjvdW3VTS5SCoGLbTBrUxdil8JobjU",
-      "eE6Mk43z2A2kqZLz8p5cbWk-PokG_0vD51zfIUVQ_qU",
-      "b9idG4Vc0xKwMIgloHWlXvc0VSiJNFfrvMjtB6rfWCU",
-      "nMqXkMLzZXtHYWRJ_BZ6lyuwGVOhguqDtwvr_cFnwe0",
-      "BBbTE4NsNh9GYMltCvvlC3TUF_eAJOf4h-8_skvLSi4",
-      "9VTpneZ7-Kqq_6uorAu5rPjCyl4Vzf8SWbjY8O_YYRg",
-      "AvBI1IDaMX0nELArAwuEjYc53hGt-EuHVIOI0VCUCsc",
-      "SIxwa5ZDKcEIqyfvbUiGrvYcGvullAHmUE592XFF_HI",
-      "cBPPZ31gOnhhmECntah4hfhfmCQGf1CuZu7YMirgSbk",
-      "weCCTiT5p1MMPy6T4CpH1xDvxEebeLtR6Vx6EDtscaE",
-      "LD9b4ryMTiOp1uZlUPhmpqa-WVKY2oIzQOVI9r8z2sY",
-      "Ivx4lG6Eoxl11-2RFFGCciVwL_WQlbgyy8apbk5MbD8",
-      "ojlDDeF-46MFQMHqB7dm0OzEIJXkyieInPExpFYQDLE",
-      "0-DOr1e-B9t7entcZ3zJz_BP-Z-JHEzrLTPxGcEBNwk",
-      "A49owUofMMHhUYYkWIZVSDUdyUNSuEywOzyJ97wKmrw",
-      "WziNgS5EpBLUWpmZLA-MEEH00cqfLHxlxleMjDi3OvI",
-      "cC0I95cyASc0q7eznE8c5ammFd5b5SCaRvCtvfAkaow",
-      "PgGXzPmMpurxfMhtJr_8PvhYRZxr8UpQHl52gyCEzX8",
-      "UL79K2AUTqO1sOl33N4Ed2CmeISUEGEq7xDVm0Z8L-w",
-      "LU7PfE6F-mDU_P0RW1Bp_UU5Eq0vhGKXvWYpVy5rOZc",
-      "pNqNOupjhvNc2ggiaAahrwF1Lcdnagi4oASRDMLywck",
-      "FIQP4XUb_yZGABCVt57SCHxPTZoAx4hCGvq4_UQLjzs",
-      "XWlngqFN-OGjvytOuiZCRzT7s2bdf7hwNClF5yqxH5Q",
-      "BqzR3CEEiXvs38rgP0UftRGsh1fVOcnlKzw6_opfTg0",
-      "MUO4-N7lX4xAqX5AKm9ZONuLXamJHmkhNeAzA0gNVUo",
-      "feMBYLARTmL4mPmHOUrJ8AQqxeZawc5Ygojkiio-meg",
-      "MnnRRhT6ca2L7HwKlrg0dOCRRbulOr6f6xsUDgyNz2Y",
-      "r_hbl-8JiRRctLS5n74UHoGssCMozFZ0FO2Z7TGxZ6k",
-      "0pyW0GtlgVhXafLPex_F6kCnbqB2V-YUXW4lcKog0Ho",
-      "_6H5Ne6CXb9ZSD-QhhuhuL2W539aWa8CdzGGBwJpKT4",
-      "1gZDc4DukXXW7FsYemK06cdYD9dsF2lOiBZH22LAKZM",
-      "A7zbJ-lKcx5y-VYRhDVpBYqGtD5ii1D5mYcPH40w-ck",
-      "oYg50EtneVYso-xP5aSzXxfjMRPdm-oihJ4IpsAaLbw",
-      "bXleufd3ZLc_SmXhNDRBPOunVvsCuMgPKafkV9wtS7E",
-      "XgxOuMd16gdeFsMqnqvKGVICv0P6viUUv3pn8oYyxTY",
-      "dyI7gpVVvRPBv-S9pTaZDI-ss3OsXlQIQCTx9ir1qwM",
-      "C3haKP6sBf3xvRsKxMuXIAWeN5HBef5d0VW4USEoNsI",
-      "ngeca2g-XgK2DaI8nC33UWPeVpttudac2nMp8abpsJg",
-      "0Q-2xdt9BURZJX-dAjSfsdRqDkdbQUn5i1uKHPNkHUY",
-      "67LcabJWNkY5KNsbl0JhjEYn2yis9ejBRmKIUl2IU-A",
-      "D5Dso0upFbasOHTIMwbqlqnIdalFoDm_MZV1FJ5gw18",
-      "ky_B4LyjgnjjhVq8E_sZPi_hZfBoAGMDh0miWCKLnL0",
-      "DOPPhWri1Z2AwU6WviC09lXrH6Hp7SpQ5fI71m7Wzg8",
-      "fSL8XKGqPRRHh12dDCNRNNifzscROic8SSq_cZryT4o",
-      "NCeB8Q4pvmKfRi5RPbCseVWKm_jcNja8kq6ET8VmrHk",
-      "tIWHjvMWapzFuihL93tYrosGwfnjA3XRrU_mAwjjBkM",
-      "OfvtBoZozw2t2l3WFuAM_OrN5Fs6Vk3yKrqMNL1SeJY",
-      "NsqRyfk-sAW3OGd0QqQxaWbDNCspV2aseQ3DSoHj62Q",
-      "7VYPM6fyw9aD0QAFaYey1Qyl9XLJhA0M2bGlg0XCoXo",
-      "cgLVRHI0mryYX8W3M2xUYwVWPD62F3rM1xESCBghTz4",
-      "rddh-CLrtRt72QIWDtrOV-fuNUyZDAUBcu3HGPoqWTQ",
-      "9OVZka8mxetRgF_gnzymynpDlvMUsbyiPEoSAKDyKSQ",
-      "bO2Ev5gDRFS2kIA6-wqOfGgGb5A3zs5dg0-XouFFmco",
-      "rJ5Zb6UKFWXnTyBtqvEHSSMw9-ohUmzHZRxyex-jpMQ",
-      "8Gvl1bgGmCxCmfQR83g-DV31851FsChwgGnEW_g45Kg",
-      "H16I4MUABHFoRd9AaBNs026jcvqySP9VBjCWxVAk-Gw",
-      "RlxOjwLjxKAVaOtEDUy4gTmCl8kWvfjrtpghgG_xujU",
-      "aLH8wT2XNxp8Hcghg3WRXMRySlHBZvvQCkL1RXNqWfI",
-      "5P5PCFLbEWMIGU80oRM3CaAgrnKNIPIhEjRgKuRtQVk",
-      "GCBeHztCMmooXFUctmQ2g4T2UX1TkyWxNkW_PvqEERU",
-      "wbGARTGpIzXAcMxIbVCDD5k30bLHqGgOD08OlCD9Xdg",
-      "dhWo9MDYuwmGDgaG1HRdyjzcm7q20b0SQ6tFD45QmmE",
-      "aiQPfAp1ESftr1eqx1kWQuF8W2WmQIwjnMVV_h_9n-0",
-      "mPZ71RIFo-ftX6adWaPSxPyXqRbdllH6-ZlFbrj1BKI",
-      "fwaev7z8q5uHf4LiLvv4ljKFuu_npNTSLWroVP4Mg2I",
-      "SB8EET5CP3SdQOJGE6-q_WiMXP9k6djel56KFM5DX5Q",
-      "oFueYtPVlni9FW501FQr9HM-tIXZWRhNRKSfjC3eaV8",
-      "__wfo3tPars0Nt6-o1_EqyH08HzkUUf4vn1DEo8CBEk",
-      "5DueSogNUkuvLIs47Q3CKfUWCdp0AknbhprVW-z6wMY",
-      "rC2XMNAI71vJgzeZCJWZn-si9z5lirT9NNwy_5BGGhc",
-      "L4yWxds0BJQtEwP7JWs8ruQogXO6BR_xXsbHNCEpP6g",
-      "i375K5lzSdC-341tnOoEOt1KuvG6w45q6kgUhxIn9YQ",
-      "hqrCgKxk67-KWEbh4bN7T2uMw85FcCbEr8-kMxdVRwk",
-      "8yn-QIjZSCxTBjTxj5X3q-NwkVsLIbf8yeEOM3Mbt50",
-      "PBs9YrVxi9QbsnL79s-F39yAnuaRODwzPUmfiS7FrCw",
-      "rL_Van8GlmW_gZXEjkwFQOu4sSJLb87dYmjvluJi8tY",
-      "4wUqzKP-Ao1NPWQhMezt6LvUe2abHRBNee5WL018OYA",
-      "1ntluqZ6s_gNwUa2lMjE4C6Kaw96zYKCeYeqWGMEaNM",
-      "P9JSMBm9rroD6I8Obywu4zm0Qv22jY9EkvfqRRT8c84",
-      "8etbRzUDEFm9HzzxolwHwZ0Mn2PKIYbg492F9d4jOew",
-      "ew2iTyAXGxEYF2lVwZV1k2nSx0369tZe8CzsNpLJu_k",
-      "UV0FufT4nd15R9TNyHxAnO5raZkMaSY6DNhXBi0JZ38",
-      "T-reZQmuQ7sacOeuSh7rpugoU5G-LVFAE3Aymti_IYw",
-      "Ti6QM1IEMvjZDXXIFHPcldMXA4HloIstXWEeDVfAyYA",
-      "DH82XnpeldrVOCvrhKjGz-i6OwitesIiP96Be5MJNLw",
-      "lilC-rY2TmnNMbrmGaXVrZVIUbrw9ak9KO38xjpe2g4",
-      "iD9sY21OI2V9Y9_7_l9D2IivGrJDkIEQSqdafWH7nEM"
-    ]
-  },
-  "guardian_memory": "Memory: last 44 high-confidence bullish calls in choppy BTC — you won 15; your confidence runs ~53 points hot here. The HELIX Council has been most accurate (Brier 0.21)."
+  "error": "no open DeepBook Predict BTC window with enough runway — retry in a few seconds"
 }
 ```
 
@@ -354,22 +200,22 @@ Same conviction `{"direction":70,"confidence":85,"horizonCode":1,"volView":70,"c
 ```json
 {
   "overall": {
-    "n": 80,
-    "wins": 31,
-    "realized": 0.3875,
-    "posterior": 0.39285714285714285,
-    "mean_p_you": 0.8180500000000007,
-    "gap_you": 0.42519285714285787,
+    "n": 87,
+    "wins": 34,
+    "realized": 0.39080459770114945,
+    "posterior": 0.3956043956043956,
+    "mean_p_you": 0.8198965517241384,
+    "gap_you": 0.42429215611974286,
     "brier": {
-      "you": 0.44991100000000006,
-      "market": 0.24008105000000005,
-      "helix": 0.24195102499999996,
+      "you": 0.4447823103448277,
+      "market": 0.24002320689655177,
+      "helix": 0.2429589540229885,
       "crowd": 0.3378583333333333,
-      "council": 0.2529826818181818
+      "council": 0.2559892291666666
     },
     "n_crowd": 12,
-    "n_council": 44,
-    "pnl": -120.85
+    "n_council": 48,
+    "pnl": -129.40999999999997
   },
   "buckets": [
     {
@@ -412,22 +258,22 @@ Same conviction `{"direction":70,"confidence":85,"horizonCode":1,"volView":70,"c
     },
     {
       "bucket": "up/high/choppy",
-      "n": 44,
-      "wins": 15,
-      "realized": 0.3409090909090909,
-      "posterior": 0.3541666666666667,
-      "mean_p_you": 0.8793636363636363,
-      "gap_you": 0.5251969696969696,
+      "n": 49,
+      "wins": 18,
+      "realized": 0.3673469387755102,
+      "posterior": 0.37735849056603776,
+      "mean_p_you": 0.8792653061224492,
+      "gap_you": 0.5019068155564115,
       "brier": {
-        "you": 0.5174187727272727,
-        "market": 0.21796720454545448,
-        "helix": 0.22270718181818186,
+        "you": 0.4964649387755102,
+        "market": 0.22630773469387747,
+        "helix": 0.23195816326530616,
         "crowd": 0.370665,
-        "council": 0.21307849999999995
+        "council": 0.23432649999999994
       },
       "n_crowd": 10,
-      "n_council": 24,
-      "pnl": -96.08999999999999
+      "n_council": 26,
+      "pnl": -88.64999999999998
     },
     {
       "bucket": "down/mid/choppy",
@@ -488,22 +334,22 @@ Same conviction `{"direction":70,"confidence":85,"horizonCode":1,"volView":70,"c
     },
     {
       "bucket": "down/high/choppy",
-      "n": 5,
+      "n": 6,
       "wins": 1,
-      "realized": 0.2,
-      "posterior": 0.3333333333333333,
+      "realized": 0.16666666666666666,
+      "posterior": 0.3,
       "mean_p_you": 0.86,
-      "gap_you": 0.5266666666666666,
+      "gap_you": 0.56,
       "brier": {
-        "you": 0.5955999999999999,
-        "market": 0.16889399999999996,
-        "helix": 0.177918,
+        "you": 0.6195999999999999,
+        "market": 0.15554566666666664,
+        "helix": 0.16619566666666666,
         "crowd": null,
-        "council": 0.18645525000000002
+        "council": 0.1664514
       },
       "n_crowd": 0,
-      "n_council": 4,
-      "pnl": -8.25
+      "n_council": 5,
+      "pnl": -16.25
     },
     {
       "bucket": "down/low/choppy",
@@ -526,22 +372,22 @@ Same conviction `{"direction":70,"confidence":85,"horizonCode":1,"volView":70,"c
     },
     {
       "bucket": "up/low/choppy",
-      "n": 4,
+      "n": 5,
       "wins": 2,
-      "realized": 0.5,
-      "posterior": 0.5,
+      "realized": 0.4,
+      "posterior": 0.4444444444444444,
       "mean_p_you": 0.635,
-      "gap_you": 0.135,
+      "gap_you": 0.1905555555555556,
       "brier": {
-        "you": 0.268225,
-        "market": 0.29167425,
-        "helix": 0.3048635,
+        "you": 0.29522499999999996,
+        "market": 0.2509812,
+        "helix": 0.26527660000000003,
         "crowd": null,
-        "council": 0.367554
+        "council": 0.2984665
       },
       "n_crowd": 0,
-      "n_council": 3,
-      "pnl": 0.8000000000000007
+      "n_council": 4,
+      "pnl": -7.199999999999999
     }
   ],
   "reliability": [
@@ -555,9 +401,9 @@ Same conviction `{"direction":70,"confidence":85,"horizonCode":1,"volView":70,"c
     {
       "lo": 0.6,
       "hi": 0.7,
-      "n": 21,
-      "stated": 0.6486666666666666,
-      "realized": 0.5238095238095238
+      "n": 22,
+      "stated": 0.6480454545454545,
+      "realized": 0.5
     },
     {
       "lo": 0.7,
@@ -569,9 +415,9 @@ Same conviction `{"direction":70,"confidence":85,"horizonCode":1,"volView":70,"c
     {
       "lo": 0.8,
       "hi": 0.9,
-      "n": 59,
-      "stated": 0.878338983050848,
-      "realized": 0.3389830508474576
+      "n": 65,
+      "stated": 0.8780615384615391,
+      "realized": 0.35384615384615387
     },
     {
       "lo": 0.9,
