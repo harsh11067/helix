@@ -179,6 +179,27 @@ const RECALL_QUERIES = [
   'CALIBRATION v1 bucket=up/high/choppy', 'CALIBRATION v1 bucket=down/low/calm', 'CALIBRATION v1 bucket=up/low/calm',
 ];
 const parsedByNs = new Map<string, Map<string, MemRecord | null>>();   // blob_id → record (null = not HELIX)
+
+// ---- memory mirror: every HELIX record this service has ever recalled (blob id + exact text), snapshotted to
+// tee/mirror/memory-mirror.json by scripts/memory-mirror.mjs and preloaded at start. Walrus Memory recall is
+// top-k semantic search whose results vary between calls, so without it a remembered commit could flip to
+// "hidden" after a restart. A mirrored record still has to be LISTED on the account (deleted blobs drop out),
+// and a commit whose memory was never seen stays hidden. MEMORY_MIRROR=0 turns it off.
+type MirrorEntry = { blob_id: string; created_at?: string; text: string };
+let mirror: Record<string, MirrorEntry[]> | null = null, mirrorForced = false;
+function mirrorFor(namespace: string): MirrorEntry[] {
+  if (process.env.MEMORY_MIRROR === '0' || (process.env.OFFLINE === '1' && !mirrorForced)) return [];
+  if (!mirror) {
+    try { mirror = JSON.parse(readFileSync(new URL('../../mirror/memory-mirror.json', import.meta.url), 'utf8')).namespaces ?? {}; }
+    catch { mirror = {}; }
+  }
+  return mirror![namespace] ?? [];
+}
+function seedFromMirror(namespace: string, have: Map<string, MemRecord | null>): void {
+  for (const e of mirrorFor(namespace)) if (!have.has(e.blob_id)) have.set(e.blob_id, parseRecord(e.text, { blob_id: e.blob_id, created_at: e.created_at }));
+}
+/** test hook */
+export function __setMirror(m: Record<string, MirrorEntry[]> | null): void { mirror = m; mirrorForced = !!m; }
 // blobs no capped query has returned (e.g. facts the relayer's analyze stored): retried every 10 min, not every call
 const unfindable = new Map<string, { blobs: Set<string>; at: number }>();
 const inflight = new Map<string, Promise<MemRecord[]>>();
@@ -210,6 +231,7 @@ async function recallIncremental(namespace: string): Promise<MemRecord[]> {
     new Promise<null>((r) => setTimeout(() => r(null), 15_000)),
   ]);
   const have = parsedByNs.get(namespace) ?? new Map<string, MemRecord | null>();
+  seedFromMirror(namespace, have);
   if (listed) for (const b of [...have.keys()]) if (!listed.has(b)) have.delete(b);       // deleted upstream
   const skip = unfindable.get(namespace);
   const skipSet = skip && Date.now() - skip.at < 10 * 60_000 ? skip.blobs : new Set<string>();
@@ -258,6 +280,14 @@ async function recallIncremental(namespace: string): Promise<MemRecord[]> {
 const lookupMiss = new Map<string, number>();
 export async function findRecord(namespace: string, type: 'CONVICTION' | 'OUTCOME', tx: string): Promise<MemRecord | null> {
   const key = `${namespace}|${type}|${tx}`, miss = lookupMiss.get(key);
+  for (const e of mirrorFor(namespace)) {
+    const r = parseRecord(e.text, { blob_id: e.blob_id, created_at: e.created_at });
+    if (r && r.type === type && (str(r, 'tx') === tx || str(r, 'commit_tx') === tx)) {
+      const have = parsedByNs.get(namespace) ?? parsedByNs.set(namespace, new Map()).get(namespace)!;
+      have.set(e.blob_id, r);
+      return r;
+    }
+  }
   if (miss && Date.now() - miss < 10 * 60_000) return null;
   const res: any = await memwal().recall({ query: `${type} v1 | tx=${tx}`, limit: 3, namespace });
   for (const h of res?.results ?? []) {
