@@ -15,7 +15,7 @@ import { snapStrike, getConfig } from '@mysten/deepbook-v3/predict';
 import * as P from '../predict/predict.ts';
 import { gql, recordExecution } from '../shared/tatum.ts';
 import { crowdMarketFor } from '../crowd/polymarket.ts';
-import { commitsBy } from '../memory/commit.ts';
+import { commitsBy, commitsByFresh } from '../memory/commit.ts';
 import { remember, recallAll, recallForAddress } from '../memory/store.ts';
 import { formatRecord, NS_PREFIX, num, str, type MemRecord } from '../memory/format.ts';
 import { bucketStats } from '../memory/calibration.ts';
@@ -133,13 +133,17 @@ export async function tick(now = Date.now()): Promise<void> {
     if (!due) return;
     for (const [i, a] of agents.entries()) {
       if (lastSlot.get(a.name) === slot || into < 60_000 + i * 40_000 || into > 9 * 60_000) continue;
-      const mine = (await commitsBy(a.address).catch(() => [])).some((e) => e.committed_ms >= slot * SLOT_MS);
+      if (council.shuttingDown) return;                                     // a deploy is replacing this instance
+      // straight from the chain: during a deploy overlap the other instance may have committed seconds ago
+      const mine = (await commitsByFresh(a.address).catch(() => commitsBy(a.address).catch(() => []))).some((e) => e.committed_ms >= slot * SLOT_MS);
       if (mine) { lastSlot.set(a.name, slot); continue; }                          // another instance already did it
       const call = calls.find((c) => c.agent === a.name);
       if (!call || !window || !pv) { lastSlot.set(a.name, slot); console.log(`[council] ${a.name} abstains this slot${window ? '' : ' (no window)'}`); continue; }
       lastSlot.set(a.name, slot);
+      council.committing = (council.committing ?? 0) + 1;                 // drained on SIGTERM (commit → memory)
       try { const d = await commitAgent(a, call, window, pv); console.log(`[council] ${a.name} ${call.side} p=${call.pUp.toFixed(3)} → ${d}`); }
       catch (e) { council.lastError = `${a.name}: ${(e as Error).message}`; console.error('[council]', a.name, (e as Error).message); }
+      finally { council.committing--; }
     }
   } catch (e) { council.lastError = (e as Error).message; console.error('[council] tick', (e as Error).message); }
   finally { ticking = false; }

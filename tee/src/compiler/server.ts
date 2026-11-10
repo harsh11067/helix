@@ -255,6 +255,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? process.env.COMPILER_PORT ?? 8081);
   installFetchCounter();
   startUsagePersistence();
+  // Render sends SIGTERM to the old instance when a deploy goes live (then SIGKILL after ~30 s). Stop starting
+  // agent commits and wait for in-flight memory writes, so no commit lands without its memory (10 Nov lesson).
+  process.once('SIGTERM', async () => {
+    council.shuttingDown = true;
+    const { memoryWritesInFlight } = await import('../memory/store.ts');
+    const t0 = Date.now();
+    while ((memoryWritesInFlight() > 0 || (council.committing ?? 0) > 0) && Date.now() - t0 < 25_000) await new Promise((r) => setTimeout(r, 250));
+    console.log(`[compiler] SIGTERM: drained memory writes (${memoryWritesInFlight()} left after ${Date.now() - t0} ms); exiting`);
+    process.exit(0);
+  });
   makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE}, memory=${memMode()}, tatum=${tatumConfigured() ? 'keyed' : 'anonymous'})`));
   startWatcher();
   startCouncil();

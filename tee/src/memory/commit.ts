@@ -104,6 +104,8 @@ export async function commitsBy(owner: string, max = 500): Promise<CommitEvent[]
   if (commitsCache.size > 200) commitsCache.clear();
   return v;
 }
+/** Straight from the chain (no shared log, no cache): for checks that must see a commit made seconds ago. */
+export const commitsByFresh = (owner: string, max = 100) => commitsByUncached(normalizeSuiAddress(owner), max);
 async function commitsByUncached(owner: string, max: number): Promise<CommitEvent[]> {
   const out: CommitEvent[] = [];
   let after: string | null = null;

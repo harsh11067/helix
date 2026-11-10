@@ -108,7 +108,15 @@ export async function writeBudget(now = () => Date.now()): Promise<void> {
 }
 export const writesLastHour = () => { const t = Date.now(); return writesAt.filter((x) => t - x <= 3_600_000).length; };
 
+// in-flight writes, so a deploy's SIGTERM can wait for them instead of losing a memory mid-write
+let writesInFlight = 0;
+export const memoryWritesInFlight = () => writesInFlight;
 export async function remember(namespace: string, text: string, meta: { tx?: string | null; origin?: string | null } = {}):
+  Promise<{ blob_id: string; job_id: string | null }> {
+  writesInFlight++;
+  try { return await rememberInner(namespace, text, meta); } finally { writesInFlight--; }
+}
+async function rememberInner(namespace: string, text: string, meta: { tx?: string | null; origin?: string | null }):
   Promise<{ blob_id: string; job_id: string | null }> {
   const rec = parseRecord(text);
   if (!rec) throw new Error('refusing to write a non-HELIX record');

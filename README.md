@@ -18,7 +18,7 @@
 [![HELIX in 20 seconds](docs/media/helix-launch.jpg)](docs/media/helix-launch.mp4)
 *20-second launch video, made from the live app: [docs/media/helix-launch.mp4](docs/media/helix-launch.mp4)*
 
-**Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
+**Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [Tatum Ops panel](https://helix-app-fovn.onrender.com/ops.html) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
 
 ---
 
@@ -28,12 +28,13 @@ No wallet needed. (The free-tier compiler may take ~50 s to wake on the first re
 
 1. **Open the demo trader:** [helix-app-fovn.onrender.com/app.html?demo=1#/memory](https://helix-app-fovn.onrender.com/app.html?demo=1#/memory) — a real trader's convictions, outcomes, calibration and lessons, recalled live from **Walrus Memory (mainnet)**, read-only.
 2. **Check any memory:** click a blob id → **Walruscan mainnet**; click *verify on mainnet* → the MemWal account read through **Tatum's mainnet gateway** plus the blob from the Walrus mainnet aggregator.
-3. **See memory change the product:** open the **Canvas** (still in demo mode), move the sliders — the compile uses the demo trader's memory: *you set X · memory suggests Y*, the four voices, and the **Memory** line in the risk guardian.
-4. **See Tatum is the chokepoint:** [`/health`](https://helix-compiler.onrender.com/health) shows live testnet + mainnet checkpoints read through Tatum.
-5. **Open a Forecaster Passport:** [the demo trader's](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) — *committed N · shown N · hidden N*, counted from Sui events (its hidden count is not zero, and the passport says why). Press **Verify all**: your browser fetches each commit from Sui itself and re-hashes the remembered call — every row turns green. The same record is a **soulbound passport object on Sui** ([Suiscan](https://suiscan.xyz/testnet/object/0xa8d8500dd363468edaab8e011deeb7243c2f9fcddb20d23f9e858f45c6089790)), signed by HELIX and verified on-chain.
-6. **Check the chain audit:** [`/proof/audit`](https://helix-compiler.onrender.com/proof/audit) — every commit ever made, re-fetched as a transaction through Tatum and checked: it exists, succeeded, was sent by the committer, carries the same hash, and landed **before** its market's expiry (consensus time, not the contract's clock). Re-run every 30 min.
-7. **Watch the Council:** [four agents](https://helix-app-fovn.onrender.com/app.html#/council) commit every half hour with their own keys and memory; their weights move as memory scores them.
-8. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
+3. **Watch it learn:** on the same Memory page, press **▶ Replay** on the *memory time machine*: the page re-renders from only the memories that existed at each moment — the over-confidence gap opening, Brier per voice settling, memory's suggestion tightening. (The Council page has its own time machine for the agents' weights.)
+4. **See memory change the product:** open the **Canvas** (still in demo mode) and set a confident bullish call in a choppy market — *you set X · memory suggests Y*, the five voices, the **Memory** line in the risk guardian, and the demo trader's own **Ulysses rule** turning into a gate: *"Cap my commit at 2 dUSDC when my over-confidence gap in this setup is over 30 points"*. Committing past it takes a typed override, which is remembered (`OVERRIDE v1`) and scored.
+5. **See Tatum is the chokepoint:** the [**Ops panel**](https://helix-app-fovn.onrender.com/ops.html) (click the *sui testnet · tatum* chip in the app) shows calls per hour per Tatum interface (GraphQL and gRPC, testnet and mainnet, plus the rates API), p50/p95 latency, cache hits, the credit runway, and **direct fullnode calls by HELIX: 0** — counted, not promised.
+6. **Open a Forecaster Passport:** [the demo trader's](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) — *committed N · shown N · hidden N*, counted from Sui events (its hidden count is not zero, and the passport says why). Press **Verify all**: your browser fetches each commit from Sui itself and re-hashes the remembered call, and the server confirms the same transaction through **Tatum's gRPC interface** — a row turns ✓✓ *verified via 2 Tatum interfaces* only when both match. Settled rows also show how many independent prices agree with the settlement (*3 price sources agree ✓*: Predict oracle, Pyth, Tatum). The same record is a **soulbound passport object on Sui** ([Suiscan](https://suiscan.xyz/testnet/object/0xa8d8500dd363468edaab8e011deeb7243c2f9fcddb20d23f9e858f45c6089790)), signed by HELIX and verified on-chain.
+7. **Check the chain audit:** [`/proof/audit`](https://helix-compiler.onrender.com/proof/audit) — every commit ever made, re-fetched as a transaction through Tatum and checked: it exists, succeeded, was sent by the committer, carries the same hash, and landed **before** its market's expiry (consensus time, not the contract's clock). Re-run every 30 min.
+8. **Watch the Council:** [four agents](https://helix-app-fovn.onrender.com/app.html#/council) commit every half hour with their own keys and memory; their weights move as memory scores them.
+9. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
 
 ## 🏗️ Architecture
 
@@ -115,6 +116,12 @@ HELIX existed before this hackathon (Move package, DeepBook Predict integration,
 | **Price witness for every asset** — Tatum's exchange-rate API checks the settlement price of BTC (vs DeepBook Predict) and of ETH and SUI (vs Pyth): a guardian line at compile time and `witness_usd` / `witness_bps` on every OUTCOME memory | `tee/src/shared/tatumRates.ts` |
 | **Honest hidden count** — a commit is called hidden only after memory has been searched completely and the record has been looked up by its exact digest; until then the count is *checking*, never a guessed 0 | `memory/store.ts`, `memory/service.ts` |
 | **Fast** — the Sui SDK is vendored as 6 code-split bundles (was ~236 esm.sh modules), the wallet chip appears on approval, the payoff curve follows the commit slider in 4 ms, and the server never makes a compile wait on Tatum for data a few seconds old (stale-while-revalidate) | `tistu/js/vendor/`, `predict.ts`, `store.ts` |
+| **Memory Time Machine** — a scrubber on the Memory and Council pages replays every page from only the memories that existed at a moment (same calibration module in the browser as on the server, bundled from `tee/src/memory/`); key moments marked: first lesson, first n ≥ 3 setup, biggest weight change. At "now" it equals the live page exactly (tested) | `tistu/js/timemachine.js`, `/memory/:address/history` |
+| **Ulysses Rules** — promises to your future self, kept by memory: four rule templates (cap the commit when your gap is high, cool down after losing streaks, justify calls against the market, a daily limit), each a signed `RULE v1` memory. A matching rule turns the guardian line into a gate; committing anyway takes a typed override (`OVERRIDE v1`), and memory scores your overrides (*you broke your own rules N times and won M*) | `tee/src/memory/rules.ts`, `rulesService.ts`, `tistu/js/rules-ui.js` |
+| **Two Tatum interfaces per proof** — Tatum's Sui **gRPC** (`sui-testnet-grpc` / `sui-mainnet-grpc.gateway.tatum.io`, `sui.rpc.v2`) next to GraphQL: Passport *Verify* re-reads each commit via `LedgerService/GetTransaction` (BCS event decoded) and shows ✓✓ only when both interfaces match; memory proofs read the Walrus Memory account via `GetObject` as well (`via: [tatum-graphql-mainnet, tatum-grpc-mainnet]`) | `tee/src/shared/tatumGrpc.ts`, `/verify/:digest/grpc` |
+| **Tatum Ops panel + credit runway** — every call counted at the chokepoint by interface and operation; `/health` projects when the free plan's credits run out; the watcher is expiry-driven, the Council and passports share one incremental event log, and **degrade mode** serves cached reads and pauses writes (with a banner) if Tatum refuses the key — never a silent public fullnode | `tee/src/shared/tatumUsage.ts`, `ops.html`, `/ops/tatum` |
+| **Three price sources per settlement** — BTC outcomes record the Predict oracle's settlement, Pyth's first Hermes price at expiry and Tatum's rate; ETH/SUI record Pyth and Tatum. Passport rows show *3 price sources agree ✓ · ≤X bps*, in red when they don't | `memory/service.ts`, `passport.js` |
+| **Memory mirror** — every record HELIX has recalled (blob id + exact text) is snapshotted and preloaded, so Walrus Memory's top-k search variance can't flip a remembered call to "hidden"; a mirrored record counts only while its blob is still listed on the account | `tee/mirror/`, `scripts/memory-mirror.mjs` |
 | **Fun layer, all from data** — live proof ticker, settlement countdown + hash-verified reveal, humility meter (confidence vs record, n ≥ 3), Beat the Market (today, shared windows only) | `tistu/js/fun.js`, `/proof/ticker` |
 | **W1 Crowd voice** (Polymarket BTC 15-min Up/Down, compared only when windows and strikes match) · **W2 Price witness** (Tatum exchange-rate API) · **W3 Memory dividend** · **W5 MCP server + agent skill** · **W6 opt-in reasoning memory** · **W7 who-to-trust board** | see [WIN_FEATURES.md](./WIN_FEATURES.md) |
 
@@ -139,7 +146,24 @@ Evidence (health output, every memory with its blob id and source tx, before/aft
 | **Sui gateway, testnet (GraphQL)** | Every read the app makes: Predict markets and pricer, wallets' objects and coins, `ConvictionCommitted` events, Pyth's SUI price updates, payment verification for the paid API, and the chain audit. One server-side queue at the free plan's 3 req/s with jittered backoff; the browser reaches Sui only through HELIX's allow-listed `/graphql` proxy, so the key never leaves the server |
 | **Sui gateway, testnet (execute)** | Every transaction HELIX lands: commits, sponsored commits, Predict orders, passport mints, agent and allocator payments (`/tx/execute`, logged with the gateway host) |
 | **Sui gateway, mainnet** | Memory proofs: the Walrus Memory account object read on mainnet next to the blob from the Walrus mainnet aggregator |
+| **Sui gateway, testnet (gRPC)** | The second interface behind every Passport *Verify*: `sui.rpc.v2.LedgerService/GetTransaction` re-reads the commit (BCS event decoded), so a row is ✓✓ only when GraphQL and gRPC agree |
+| **Sui gateway, mainnet (gRPC)** | `LedgerService/GetObject` reads the Walrus Memory account in every memory proof, next to the GraphQL read |
 | **Exchange-rate Data API** | The price witness: BTC, ETH and SUI checked against the oracle at compile time and stamped on every outcome |
+
+Live usage, latency and the credit runway: [Ops panel](https://helix-app-fovn.onrender.com/ops.html) · details in [docs/TATUM.md](./docs/TATUM.md).
+
+### Feature flags (live values on the deployed service)
+
+| Flag | Live | What it gates |
+|---|---|---|
+| `FEATURE_COUNCIL` | on | the four Council agents and the allocator |
+| `FEATURE_PAYMENTS` | on | the paid Credibility API (HTTP 402, MPP on Sui) |
+| `FEATURE_ONCHAIN_PASSPORT` | on | the soulbound passport mint/refresh |
+| `FEATURE_ASK` | on | *Ask your memory* |
+| `FEATURE_ASSETS` | on | ETH and SUI convictions (commit mode, settled on Pyth) |
+| `FEATURE_TIMEMACHINE` | on | the Memory and Council time machines |
+| `FEATURE_RULES` | on | Ulysses Rules and the rule gate |
+| `FEATURE_WITNESS` | on (default) | the Tatum price witness |
 
 ### Honest limits
 
@@ -155,7 +179,8 @@ Evidence (health output, every memory with its blob id and source tx, before/aft
 - The paid Credibility API charges in **testnet SUI** today (we hold no Circle testnet USDC); `PAYMENT_CURRENCY=USDC_TESTNET` switches it to Circle USDC with no code change.
 - *Ask your memory* sends the question and the matching memories (decrypted by the relayer) to the relayer's model; HELIX checks every number in the answer against the cited memories and falls back to stats otherwise.
 - ETH and SUI are commit mode only (no DeepBook Predict market): they settle on Pyth's price, and the market voice is *n/a*. The Council commits on BTC only.
-- Walrus Memory recall is semantic top-k search, so it can't list a large namespace on its own. HELIX pages through `listMemories`, recalls in chunks and looks up any unmatched commit by its exact digest. One memory (commit `2xyqhBAN…`) is listed but never returned by recall, even for an exact query, so HELIX can't verify that call and counts it as hidden, alongside the one commit whose memory was never written.
+- Walrus Memory recall is semantic top-k search, so it can't list a large namespace on its own, and its results drift between calls (on 10 Nov, 35 of the demo trader's 307 listed blobs weren't returned by any query; `restore` saw only 36 candidates because of the relayer's per-owner cap). HELIX pages through `listMemories`, recalls in chunks, looks up unmatched commits by exact digest, and keeps a **mirror** of every record it has ever recalled. The demo trader's passport shows **hidden 2**: one commit whose memory was never written (a server restart between commit and write, since fixed), and one whose CONVICTION memory search stopped returning before the mirror existed — its OUTCOME memory shows the reveal was verified at settlement, but the text itself can't be re-checked, so it stays counted as hidden.
+- The demo trader holds two Ulysses rules; it is a script, so when a rule binds it commits anyway with an override sentence saying exactly that (`origin=cli`), and memory scores those overrides like anyone else's.
 - Hardware TEE attestation remains a labeled dev stub (unchanged).
 
 ---
