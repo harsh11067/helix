@@ -179,7 +179,10 @@ export function viewMemory(ctx) {
           <div class="muted mono" style="font-size:10.5px;margin-top:8px">generated in your browser from the recalled memory above · tags @Tatum_io and @WalrusFoundation</div></div>`;
       });
       if (!t.count) {
-        host.innerHTML = banner + header + `<div class="empty"><h3>No memories yet</h3><p>Commit a conviction on the Canvas. HELIX writes it to Walrus Memory on mainnet, then records the outcome when the market settles — a few minutes later.</p><a class="btn-solid" href="#/canvas" data-cursor>Open the Canvas</a></div>`;
+        // rules are promises to your future self: settable before the first call
+        const rp0 = rules ? rulesPanelHTML(rules, { readOnly: !!ctx.readOnly, canSign: !!ctx.signPersonalMessage && !ctx.readOnly }) : '';
+        host.innerHTML = banner + header + `<div class="empty"><h3>No memories yet</h3><p>Commit a conviction on the Canvas. HELIX writes it to Walrus Memory on mainnet, then records the outcome when the market settles — a few minutes later.</p><a class="btn-solid" href="#/canvas" data-cursor>Open the Canvas</a></div>` + (rp0 ? `<div style="margin-top:18px">${rp0}</div>` : '');
+        if (rules) mountRulesPanel(host, rules, { api, address: addr, readOnly: !!ctx.readOnly, signPersonalMessage: ctx.signPersonalMessage, onChange: () => window.dispatchEvent(new Event('hashchange')) });
         return;
       }
       const rel = (t.reliability || []).some(b => b.n > 0)
