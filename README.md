@@ -20,7 +20,7 @@
 
 **Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [Tatum Ops panel](https://helix-app-fovn.onrender.com/ops.html) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
 
-> **Judging snapshot:** git tag [`v1.0.2-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.2-total-recall) is the final version from the build window (every change before the 10 Nov 22:30 IST deadline; `v1.0-total-recall` and `v1.0.1-total-recall` mark earlier points that day); the live services run it. Numbers in this README, the blog and the video are as of **10 Nov 2026, 16:50 IST**; the live pages keep counting.
+> **Judging snapshot:** git tag [`v1.0.3-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.3-total-recall) is the final version from the build window (every change before the 10 Nov 22:30 IST deadline; `v1.0`–`v1.0.2-total-recall` mark earlier points that day); the live services run it. Numbers in this README, the blog and the video are as of **10 Nov 2026, 16:50 IST**; the live pages keep counting.
 
 ---
 
@@ -395,9 +395,9 @@ helix/
 
 ## 🚦 Project Status
 
-Submitted to **Total Recall (Tatum × Walrus Memory)** on 10 Nov 2026 — final build-window tag [`v1.0.2-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.2-total-recall).
+Submitted to **Total Recall (Tatum × Walrus Memory)** on 10 Nov 2026 — final build-window tag [`v1.0.3-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.3-total-recall).
 
-* **Live:** commit on Sui (testnet), remember on Walrus Memory (mainnet), settle and score every voice, learn (lessons, suggestions, rules, the time machine), and prove it (passport, chain audit, ✓✓ verify over two Tatum interfaces, signed reports frozen on Walrus).
+* **Live:** commit on Sui (testnet), remember on Walrus Memory (mainnet), settle and score every voice, learn (lessons, suggestions, rules, the time machine, rematch), and prove it (passport, chain audit, ✓✓ verify over two Tatum interfaces, signed reports frozen on Walrus, `verify-all`). A 60-second guided tour walks a first-time visitor through it.
 * **Agents:** four Council agents and an allocator commit, learn and pay on their own keys.
 * **Tests:** Move, TEE (`cd tee && OFFLINE=1 npm test`), indexer and frontend suites run in CI on every push.
 * **Next:** real positions when DeepBook Predict reaches mainnet, user-owned memory spaces, history import from Polymarket and Predict, third-party agents in the Council ([PRODUCT.md](./PRODUCT.md)).
