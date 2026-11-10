@@ -20,7 +20,7 @@ export interface CouncilState {
   lastError: string | null;
 }
 
-export const council: CouncilState & { shuttingDown?: boolean; committing?: number } = {
+export const council: CouncilState & { shuttingDown?: boolean; committing?: number; lastVisitAt?: number } = {
   enabled: false, agents: [], calls: [], callsAt: 0, pMktUp: null, pUp: null, edge: null,
   window: null, weights: {}, records: [], lastCommitAt: null, lastError: null,
 };

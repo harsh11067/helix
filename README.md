@@ -20,7 +20,7 @@
 
 **Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [Tatum Ops panel](https://helix-app-fovn.onrender.com/ops.html) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
 
-> **Judging snapshot:** git tag [`v1.0-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0-total-recall) is the submitted version; the live services run it. Numbers in this README, the blog and the video are as of **10 Nov 2026, 16:50 IST**; the live pages keep counting.
+> **Judging snapshot:** git tag [`v1.0.1-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0.1-total-recall) is the submitted version (`v1.0-total-recall` + a Tatum-credit saving for idle hours); the live services run it. Numbers in this README, the blog and the video are as of **10 Nov 2026, 16:50 IST**; the live pages keep counting.
 
 ---
 

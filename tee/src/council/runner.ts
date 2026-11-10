@@ -128,7 +128,10 @@ export async function tick(now = Date.now()): Promise<void> {
     const due = agents.some((a, i) => lastSlot.get(a.name) !== slot && into >= 60_000 + i * 40_000 && into <= 9 * 60_000);
     const { tatumDegraded } = await import('../shared/tatum.ts');
     if (tatumDegraded()) return;                                                       // writes paused
-    if (!due && now - council.callsAt < CALLS_REFRESH_MS) return;
+    // the live page only needs fresh calls while someone is looking (any app request marks a visit); idle hours
+    // during judging then cost no Tatum credits beyond the agents' own commits
+    const watched = now - (council.lastVisitAt ?? 0) < 10 * 60_000;
+    if (!due && (now - council.callsAt < CALLS_REFRESH_MS || !watched)) return;
     const { window, pv, calls } = await refreshCalls(now);
     if (!due) return;
     for (const [i, a] of agents.entries()) {

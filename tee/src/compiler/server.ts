@@ -129,6 +129,7 @@ export function makeServer() {
   return jsonServer({
     // ---------------------------------------------------------------- compile
     'POST /compile': async (b) => {
+      council.lastVisitAt = Date.now();
       const conv = asConviction(b);
       if (offline()) return compileOffline(conv, Number(b.currentEpoch ?? 0));
       return liveCompile(conv, { address: addr(b.address), currentEpoch: Number(b.currentEpoch ?? 0) });
@@ -234,6 +235,7 @@ export function makeServer() {
     ...passportRoutes(),
     // F1 live proof ticker, from chain events
     'GET /proof/ticker': async () => {
+      council.lastVisitAt = Date.now();                     // the app polls this while it is open
       const a = lastAudit();
       const d = tatumDegraded();
       return { ...(await ticker()), audit: a ? { ok: a.ok, audited: a.audited, at_ms: a.finished_ms } : null,
