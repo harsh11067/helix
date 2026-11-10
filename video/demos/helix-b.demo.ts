@@ -23,12 +23,12 @@ test('helix-b', async ({ page, narration }) => {
   narration.mark('memory');
   let t0 = Date.now(), dur = narration.durationFor('memory');
   await withOverlay(page, 'memory', async () => {
-    await sleep(Math.min(2500, dur * 0.18));
-    const tl = await yOf(page, 'timeline');
-    if (tl != null) { await scrollToY(page, tl - 110, 1800); await sleep(1800); await scrollToY(page, tl + 380, 2000); }   // the blob-id timeline
-    await sleep(700);
+    await sleep(Math.min(4500, dur * 0.3));                       // "N memories on Walrus", the time machine, the suggestion
     const hm = await yOf(page, '#tm-fun');
-    if (hm != null) await scrollToY(page, hm - 100, 1500);        // humility meter + Brier per voice
+    if (hm != null) await scrollToY(page, hm - 100, 2200);        // humility meter + Brier per voice
+    await sleep(Math.min(4000, dur * 0.25));
+    const vo = await yOf(page, '#tm-voices');
+    if (vo != null) await scrollToY(page, vo - 120, 1600);
     await holdUntil(t0, dur + 200);
   });
 

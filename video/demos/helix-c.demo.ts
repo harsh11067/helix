@@ -41,21 +41,20 @@ test('helix-c', async ({ page, narration }) => {
   await holdUntil(t0, dur + 300);
 
   // ---------------------------------------------------------------- ask (answers cite the blobs they used)
-  await page.goto(`${APP}/app.html?demo=1#/memory`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${APP}/app.html?demo=1#/council`, { waitUntil: 'domcontentloaded' });   // load before the scene starts
+  let ask = await page.waitForSelector('#ask-open', { timeout: 25_000 }).catch(() => null);
+  if (!ask) { await page.reload({ waitUntil: 'domcontentloaded' }); ask = await page.waitForSelector('#ask-open', { timeout: 25_000 }).catch(() => null); }
   narration.mark('ask');
   t0 = Date.now(); dur = narration.durationFor('ask');
-  let ask = await page.waitForSelector('#ask-open', { timeout: 20_000 }).catch(() => null);
-  if (!ask) { await page.reload({ waitUntil: 'domcontentloaded' }); ask = await page.waitForSelector('#ask-open', { timeout: 25_000 }).catch(() => null); }
-  await sleep(400);
-  if (ask) await page.click('#ask-open');
-  else await page.evaluate(async () => { const api = (p: string, b?: any) => fetch('https://helix-compiler.onrender.com' + p, b ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) } : undefined).then((r) => r.json());
-    const sugg = await api('/ask/suggestions').catch(() => ({ questions: ['When am I most overconfident?'] }));
-    const m = await import('/js/ask.js' as any); m.openAskPanel({ api, address: '0x16a384bb220c70d4590425b14563118b7a05b5fa00dfe55757dba315663c8884', readOnly: true, suggestions: sugg }); });
-  await page.waitForSelector('[data-ask]', { timeout: 20_000 }).catch(() => {});
-  await sleep(500);
-  await page.click('[data-ask]').catch(() => {});
-  await page.waitForFunction(() => /walruscan|·\s*\w{6}/i.test(document.querySelector('[data-out]')?.innerHTML || ''), null, { timeout: 45_000 }).catch(() => {});
-  await holdUntil(t0, Math.max(dur + 1800, 5000));
+  if (ask) {
+    await page.click('#ask-open');
+    await page.waitForSelector('[data-ask]', { timeout: 15_000 }).catch(() => {});
+    await sleep(600);
+    const chip = page.locator('[data-ask]', { hasText: 'trust in choppy' }).first();
+    if (await chip.count()) await chip.click(); else await page.click('[data-ask]').catch(() => {});
+    await page.waitForFunction(() => /walruscan/i.test(document.querySelector('[data-out]')?.innerHTML || ''), null, { timeout: 16_000 }).catch(() => {});
+  }
+  await holdUntil(t0, dur + 2200);
 
   // ---------------------------------------------------------------- ops (every Sui call through Tatum)
   await page.goto(`${APP}/ops.html`, { waitUntil: 'domcontentloaded' });

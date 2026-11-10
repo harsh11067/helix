@@ -15,10 +15,12 @@
 > **HELIX is Proof-of-Forecast: a track record of judgment you can't fake, that learns, and that people and agents can pay to trust.**
 > Every call is hashed onto Sui before its market settles, remembered on **Walrus Memory (mainnet)**, settled against DeepBook Predict through **Tatum**, and scored — for you, the market, a model, the crowd and a Council of agents. Nothing can be backdated, and no losing call can be hidden.
 
-[![HELIX in 20 seconds](docs/media/helix-launch.jpg)](docs/media/helix-launch.mp4)
-*20-second launch video, made from the live app: [docs/media/helix-launch.mp4](docs/media/helix-launch.mp4)*
+[![HELIX demo — 2:58](docs/media/helix-demo.jpg)](docs/media/helix-demo.mp4)
+*The 2:58 demo, recorded from the live site with every number pulled from production at recording time (10 Nov, 16:51 IST): [docs/media/helix-demo.mp4](docs/media/helix-demo.mp4) · captions [helix-demo.srt](docs/media/helix-demo.srt) · 20-second teaser [helix-launch.mp4](docs/media/helix-launch.mp4). How it was made: [`video/`](./video) (Argo + Playwright + Kokoro TTS + ffmpeg).*
 
 **Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [Tatum Ops panel](https://helix-app-fovn.onrender.com/ops.html) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
+
+> **Judging snapshot:** git tag [`v1.0-total-recall`](https://github.com/harsh11067/helix/releases/tag/v1.0-total-recall) is the submitted version; the live services run it. Numbers in this README, the blog and the video are as of **10 Nov 2026, 16:50 IST**; the live pages keep counting.
 
 ---
 

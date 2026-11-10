@@ -9,7 +9,7 @@
   },
   {
     "scene": "ask",
-    "text": "Ask your memory a question, and the answer cites the exact Walrus blobs it used."
+    "text": "Ask your memory a question in plain words. The answer comes from Walrus Memory, and it cites the exact blobs it used."
   },
   {
     "scene": "ops",

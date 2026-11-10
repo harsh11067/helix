@@ -37,7 +37,7 @@ const A = [
   { scene: 'commit', text: 'Commit, and a hash of your call lands on Sui before the market settles. This is a brand new test wallet with zero SUI. HELIX sponsors the gas. The call can\'t be backdated, and it can\'t be quietly deleted.' },
 ];
 const B = [
-  { scene: 'memory', text: `The full call is remembered on Walrus Memory, on mainnet. At settlement, HELIX re-hashes it, checks the chain, and scores every voice. Our demo trader says ${L.stated} percent, and wins ${L.realized} percent of the time.`, overlay: lower(`${L.memories} memories on Walrus mainnet · Brier you ${L.brier_you} vs market ${L.brier_market}`) },
+  { scene: 'memory', text: `The full call is remembered on Walrus Memory, on mainnet. At settlement, HELIX re-hashes it, checks the chain, and scores every voice. Our demo trader says ${L.stated} percent, and wins ${L.realized} percent of the time.`, overlay: lower(`Every memory on Walrus mainnet · Brier you ${L.brier_you} vs market ${L.brier_market}`) },
   { scene: 'learn', text: 'Scrub back in time and watch memory learn. The gap opens, the evidence grows, and the advice tightens.' },
   { scene: 'effect', text: `So memory changes the next call. In this setup the trader runs ${L.gap} points hot, so HELIX suggests a smaller commit. And the trader's own rule now binds the call: break it, and the override is remembered and scored.` },
   { scene: 'passport', text: `Every forecaster gets a passport: ${L.committed} calls committed, ${L.hidden} hidden, counted from the chain, not from our database. Verify any row: your browser re-hashes the memory, and Tatum confirms the commit through two separate interfaces, GraphQL and g R P C.` },
@@ -45,7 +45,7 @@ const B = [
 const C = [
   { scene: 'council', text: `Four rule-based agents commit around the clock, each with its own wallet and its own memory. Memory decides whom to trust: ${L.top_agent} now carries ${L.top_weight} percent. And an allocator agent paid to read our demo trader's record, and rejected it.` },
   { scene: 'paid', text: 'Because a record you can verify is worth paying for. H T T P 402, pay a cent in USDC on Sui, and get the record with a receipt.' },
-  { scene: 'ask', text: 'Ask your memory a question, and the answer cites the exact Walrus blobs it used.' },
+  { scene: 'ask', text: 'Ask your memory a question in plain words. The answer comes from Walrus Memory, and it cites the exact blobs it used.' },
   { scene: 'ops', text: `And every Sui call goes through Tatum. Measured, not promised: ${L.fullnode === 0 ? 'zero' : L.fullnode} direct fullnode calls, and all ${L.audited} commits re-verified on chain.` },
   { scene: 'outro', text: 'HELIX. Proof of Forecast. A track record you can\'t fake, that learns, and that people and agents can trust.' },
 ];

@@ -4,7 +4,7 @@
     "text": "The full call is remembered on Walrus Memory, on mainnet. At settlement, HELIX re-hashes it, checks the chain, and scores every voice. Our demo trader says 82 percent, and wins 37 percent of the time.",
     "overlay": {
       "type": "lower-third",
-      "text": "313 memories on Walrus mainnet · Brier you 0.46 vs market 0.23",
+      "text": "Every memory on Walrus mainnet \u00b7 Brier you 0.46 vs market 0.23",
       "placement": "bottom-center",
       "motion": "fade-in"
     }
