@@ -138,6 +138,7 @@ export function makeServer() {
         selected: r.selected, candidates: r.candidates,
         spot: r.spot, ivAtm: r.ivAtm, plpUtilizationBps: r.plpUtilizationBps,
         predict: r.predict, voices: r.voices, memory: r.memory, guardian: r.guardian, regime: r.regime,
+        rules_triggered: r.rules_triggered ?? [],   // N2
       };
     },
     'GET /health': () => health(),
@@ -147,9 +148,9 @@ export function makeServer() {
     // ---------------------------------------------------------------- transactions (Predict v4 via Tatum)
     'POST /tx/fund': (b) => buildFund({ address: needAddr(b.address), amount: Number(b.amount) }),
     // Commit mode (no capital): journal::commit(sha256(conviction), market, expiry) — gas only
-    'POST /tx/commit': (b) => buildCommit({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser', reason: b.reason }),
+    'POST /tx/commit': (b) => buildCommit({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser', reason: b.reason, override: b.override }),
     'POST /memory/conviction': (b) => recordCommit({ address: needAddr(b.address), text: String(b.text ?? ''), digest: String(b.digest ?? ''), origin: b.origin === 'cli' ? 'cli' : 'browser' }),
-    'POST /tx/mint': (b) => buildMint({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser', reason: b.reason }),
+    'POST /tx/mint': (b) => buildMint({ address: needAddr(b.address), compileId: String(b.compileId ?? ''), commit: b.commit, useMemoryStructure: !!b.useMemoryStructure, origin: b.origin === 'cli' ? 'cli' : 'browser', reason: b.reason, override: b.override }),
     'POST /tx/execute': async (b) => {
       const txBytes = String(b.txBytes ?? '');
       const sigs: string[] = Array.isArray(b.signatures) ? b.signatures : b.signature ? [b.signature] : [];
