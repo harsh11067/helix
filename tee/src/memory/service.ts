@@ -28,30 +28,9 @@ import { councilProbability } from '../council/ensemble.ts';
 export const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
 
 // ---------------------------------------------------------------- settled rows from memory
-export function settledRows(recs: MemRecord[]): SettledRow[] {
-  const outcomes = new Map<string, MemRecord>();
-  for (const r of recs) if (r.type === 'OUTCOME' && str(r, 'tx')) outcomes.set(str(r, 'tx')!, r);
-  const rows: SettledRow[] = [];
-  for (const c of recs) {
-    if (c.type !== 'CONVICTION') continue;
-    const tx = str(c, 'tx'); const o = tx ? outcomes.get(tx) : undefined;
-    const res = str(o, 'result');
-    if (!o || (res !== 'WIN' && res !== 'LOSS')) continue;
-    const pyou = num(c, 'p_you'), pm = num(c, 'p_mkt'), ph = num(c, 'p_hlx');
-    // BTC rows need every voice (unchanged); ETH/SUI have no Predict market and may lack the HELIX voice (P5)
-    if (pyou == null || (assetOf(c) === 'BTC' && (pm == null || ph == null))) continue;
-    rows.push({
-      tx: tx!, won: res === 'WIN' ? 1 : 0, p_you: pyou, p_mkt: pm, p_hlx: ph, p_crowd: num(c, 'p_crowd'), p_council: num(c, 'p_council'),
-      structure: str(c, 'structure') ?? 'directional', regime: str(c, 'regime'),
-      commit: num(c, 'commit') ?? 0, payoff: num(o, 'payoff'), ts: num(c, 'ts') ?? 0,
-    });
-  }
-  return rows;
-}
-const bucketOfRow = (recs: MemRecord[], tx: string) => {
-  const c = recs.find((r) => r.type === 'CONVICTION' && str(r, 'tx') === tx);
-  return c ? bucketOfConviction(c) : null;
-};
+// The CONVICTION ⋈ OUTCOME join lives in rows.ts (pure, also bundled for the browser's Time Machine, N1).
+import { settledRows, bucketOfRow } from './rows.ts';
+export { settledRows };
 
 // ---------------------------------------------------------------- compile with memory
 export interface MemoryBlock {

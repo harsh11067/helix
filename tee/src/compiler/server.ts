@@ -28,6 +28,8 @@ import { paidRoutes } from '../agents/paid.ts';
 import { passportOnchainRoutes } from '../passport/onchain/routes.ts';
 import { askRoutes } from '../ask/routes.ts';
 import { assetsRoutes } from '../assets/routes.ts';
+import { timemachineRoutes } from '../memory/timemachine.ts';
+import { rulesRoutes } from '../memory/rulesService.ts';
 import { boardFor } from '../memory/board.ts';
 import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts';
 import { councilRoutes } from '../council/routes.ts';
@@ -232,6 +234,8 @@ export function makeServer() {
     ...paymentRoutes(),
     ...askRoutes(),
     ...assetsRoutes(),
+    ...timemachineRoutes(),   // N1 (FEATURE_TIMEMACHINE)
+    ...rulesRoutes(),         // N2 (FEATURE_RULES)
   });
 }
 
