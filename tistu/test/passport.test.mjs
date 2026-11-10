@@ -52,3 +52,13 @@ test('T2 Verify: ✓✓ only when GraphQL AND gRPC both match; a gRPC outage is 
     assert.match(verifyResultHTML(v), /✗ gRPC hash differs/);
   } finally { globalThis.fetch = orig; }
 });
+
+test('T3 price chip: settlement vs every independent source, honest when they disagree', async () => {
+  const { priceChipHTML } = await import('../js/passport.js');
+  const p = { settle: 74000, oracle: 'DeepBook Predict oracle', sources: [{ name: 'Tatum', usd: 74010, bps: 1.4 }, { name: 'Pyth', usd: 73990, bps: -1.4 }] };
+  assert.match(priceChipHTML(p), /3 price sources agree ✓ · ≤1\.4 bps/);
+  assert.match(priceChipHTML({ ...p, sources: [{ name: 'Tatum', usd: 2127, bps: 19 }] }), /2 price sources agree ✓ · ≤19 bps/);
+  assert.match(priceChipHTML({ ...p, sources: [{ name: 'Tatum', usd: 75000, bps: 135 }] }), /differ by 135 bps/);
+  assert.equal(priceChipHTML(null), '');
+  assert.equal(priceChipHTML({ ...p, sources: [] }), '');
+});

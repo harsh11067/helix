@@ -57,6 +57,17 @@ function countdown(ms) {
   return s <= 0 ? 'settling…' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** T3: "3 sources agree ✓" — the settlement price vs every independent price recorded with it (pure, tested). */
+export function priceChipHTML(p, limitBps = 50) {
+  if (!p || !p.sources?.length) return '';
+  const worst = Math.max(...p.sources.map(x => Math.abs(x.bps)));
+  const n = p.sources.length + 1;
+  const title = `Settled at ${p.settle} (${p.oracle}); ` + p.sources.map(x => `${x.name} ${x.usd} (${x.bps >= 0 ? '+' : ''}${x.bps} bps)`).join(', ');
+  return worst <= limitBps
+    ? `<div class="mono" style="font-size:10.5px;margin-top:3px;color:var(--ink-3)" title="${esc(title)}">${n} price sources agree ✓ · ≤${worst.toFixed(worst < 10 ? 1 : 0)} bps</div>`
+    : `<div class="mono" style="font-size:10.5px;margin-top:3px;color:var(--coral)" title="${esc(title)}">price sources differ by ${worst.toFixed(0)} bps</div>`;
+}
+
 function commitRow(c) {
   const when = new Date(c.committed_ms).toISOString().slice(5, 16).replace('T', ' ');
   const call = c.call ? `${esc(c.call.dir)} · conf ${esc(c.call.conf)} · ${esc(c.call.structure)}${c.call.origin ? ` <span class="muted">· ${esc(c.call.origin)}</span>` : ''}` : '<span class="muted">—</span>';
@@ -67,7 +78,7 @@ function commitRow(c) {
   return `<tr>
     <td class="mono" style="font-size:11.5px;white-space:nowrap">${when}</td>
     <td style="font-size:12.5px">${call}</td>
-    <td style="font-size:12.5px">${status}</td>
+    <td style="font-size:12.5px">${status}${c.status === 'settled' ? priceChipHTML(c.prices) : ''}</td>
     <td style="font-size:11.5px;white-space:nowrap">
       ${c.digest ? `<a class="mono" style="color:var(--accent-deep)" href="${SUISCAN(c.digest)}" target="_blank" rel="noopener">commit ↗</a>` : ''}
       ${c.conviction_blob ? ` · <a class="mono" style="color:var(--accent-deep)" href="${WALRUSCAN(c.conviction_blob)}" target="_blank" rel="noopener">memory ↗</a>` : ''}

@@ -42,6 +42,7 @@ export interface PassportCommit {
   status: 'settled' | 'pending' | 'recording' | 'hidden';
   call?: { dir: string | null; conf: number | null; structure: string | null; order: string | null; p_you: number | null; p_mkt: number | null; origin: string | null };
   conviction_blob?: string; outcome_blob?: string; result?: string | null; payoff?: number | null; reveal_ok?: string | null;
+  prices?: { settle: number | null; oracle: string; sources: { name: string; usd: number; bps: number }[] } | null;
   text?: string;                       // the remembered CONVICTION line — the browser re-hashes it against the chain
 }
 
@@ -95,7 +96,8 @@ export async function passportFor(address: string, opts: { commits?: number } = 
         call: { dir: str(c, 'dir'), conf: num(c, 'conf'), structure: str(c, 'structure'), order: str(c, 'order'), p_you: num(c, 'p_you'), p_mkt: num(c, 'p_mkt'), origin: str(c, 'origin') },
         conviction_blob: c.blob_id, text: commitBody(c.text),
       } : {}),
-      ...(o ? { outcome_blob: o.blob_id, result: str(o, 'result'), payoff: num(o, 'payoff'), reveal_ok: str(o, 'reveal_ok') } : {}),
+      ...(o ? { outcome_blob: o.blob_id, result: str(o, 'result'), payoff: num(o, 'payoff'), reveal_ok: str(o, 'reveal_ok'),
+        prices: priceSources(c, o) } : {}),
     };
   });
 
@@ -112,4 +114,17 @@ export async function passportFor(address: string, opts: { commits?: number } = 
     memory_count: recs.length, commits,
     issued_ms: now, attestor_pubkey_hex: pubkeyHex(),
   };
+}
+
+/** T3: every independent price recorded at settlement, as bps from the settlement price (from the OUTCOME memory). */
+export function priceSources(conv: MemRecord | undefined, o: MemRecord) {
+  const settle = num(o, 'settle_px');
+  if (settle == null || str(o, 'result') === 'VOID') return null;
+  const asset = (conv && str(conv, 'asset')) || 'BTC';
+  const oracle = asset === 'BTC' ? 'DeepBook Predict oracle' : 'Pyth';
+  const sources: { name: string; usd: number; bps: number }[] = [];
+  const add = (name: string, usd: number | null, bps: number | null) => { if (usd != null && bps != null) sources.push({ name, usd, bps }); };
+  add('Tatum', num(o, 'witness_usd'), num(o, 'witness_bps'));
+  if (asset === 'BTC') add('Pyth', num(o, 'pyth_usd'), num(o, 'pyth_bps'));
+  return { settle, oracle, sources };
 }

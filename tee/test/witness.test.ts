@@ -37,3 +37,15 @@ test('witness: per-asset Tatum rate vs the oracle, in bps, with the price age; o
     }
   }
 });
+
+test('T3 passport price sources come only from the OUTCOME memory (none invented)', async () => {
+  const { priceSources } = await import('../src/passport/offchain/summary.ts');
+  const { parseRecord } = await import('../src/memory/format.ts');
+  const o = parseRecord('OUTCOME v1 | tx=T | result=WIN | settle_px=74000.00 | witness_usd=74010.00 | witness_bps=1.4 | pyth_usd=73990.00 | pyth_bps=-1.4 | ts=1')!;
+  const c = parseRecord('CONVICTION v1 | tx=T | asset=BTC | ts=1')!;
+  assert.deepEqual(priceSources(c, o), { settle: 74000, oracle: 'DeepBook Predict oracle', sources: [{ name: 'Tatum', usd: 74010, bps: 1.4 }, { name: 'Pyth', usd: 73990, bps: -1.4 }] });
+  const old = parseRecord('OUTCOME v1 | tx=T | result=LOSS | settle_px=74000.00 | ts=1')!;
+  assert.deepEqual(priceSources(c, old)?.sources, [], 'older outcomes without a witness show no chip');
+  const eth = parseRecord('OUTCOME v1 | tx=E | result=LOSS | settle_px=2122.96 | witness_usd=2123.1 | witness_bps=0.7 | pyth_usd=na | ts=1')!;
+  assert.equal(priceSources(parseRecord('CONVICTION v1 | tx=E | asset=ETH | ts=1')!, eth)?.oracle, 'Pyth');
+});

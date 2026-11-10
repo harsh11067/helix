@@ -26,3 +26,11 @@ tee/data/
 
 # /brag launch video renders (large binaries)
 brag-output*/
+
+# demo video pipeline (large / generated)
+video/node_modules/
+video/out/
+video/.argo/
+video/recordings/
+video/videos/
+video/caps/

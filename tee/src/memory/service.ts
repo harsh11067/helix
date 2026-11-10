@@ -562,11 +562,15 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
     ]);
   } else {
     const w = await witnessBtc(s.price).catch(() => null);
+    // T3: a third, independent source for BTC — Pyth's first price published at/after expiry (Hermes)
+    const py = await btcPythAt(expiry).catch(() => null);
+    const pyBps = py ? Math.round(((py.price - s.price) / s.price) * 100_000) / 10 : null;
     text = formatRecord('OUTCOME', [
       ['tx', tx], ['mode', mode], ['reveal_ok', reveal_ok], ['result', won ? 'WIN' : 'LOSS'], ['payout', p2(payout)], ['cost', p2(costPaid)], ['payoff', signed2(payoff)],
       ['settle_px', p2(s.price)], ['strike_px', strikeTxt],
       ['witness_usd', w?.status === 'ok' ? p2(w.tatum_usd) : 'na'],
       ['witness_bps', w?.status === 'ok' && w.diff_bps != null ? String(w.diff_bps) : 'na'],
+      ['pyth_usd', py ? p2(py.price) : 'na'], ['pyth_bps', pyBps != null ? String(pyBps) : 'na'],
       ['alt_payoff', signed2(alt_payoff)], ['memory_pnl', signed2(memory_pnl)], ['mem_n', memN],
       ['ts', expiry],
     ]);
@@ -608,6 +612,15 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
     }
   }
   return { status: 'resolved', outcome: won ? 'WIN' : 'LOSS' };
+}
+
+/** Pyth BTC/USD at/after a settlement time (Hermes, key-gated); null without a key or an update. */
+const PYTH_BTC = '0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43';
+async function btcPythAt(expirySec: number) {
+  if (!process.env.PYTH_API_KEY || process.env.OFFLINE === '1') return null;
+  const { hermesPriceAt } = await import('../assets/pyth.ts');
+  const p = await hermesPriceAt(PYTH_BTC, expirySec);
+  return p && p.publish_time - expirySec <= 60 ? p : null;      // the same moment, or no third source
 }
 
 // A resolution writes up to three memories (~20s each), longer than the tick interval:
