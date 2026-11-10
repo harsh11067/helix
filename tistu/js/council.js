@@ -6,6 +6,8 @@
    ============================================================ */
 import { api } from './sui.js';
 import { walruscanBlobUrl } from './share.js';
+import { keyMoments } from './vendor/memory.js';
+import { scrubberHTML, mountScrubber, stepForTs } from './timemachine.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (p) => (p == null || !Number.isFinite(p) ? '—' : (p * 100).toFixed(1) + '%');
@@ -48,20 +50,31 @@ function agentCard(a, explorer) {
   const bar = call ? `<div style="height:8px;border-radius:6px;background:var(--bg-2);overflow:hidden;margin-top:8px"><div style="height:100%;width:${(call.p_up * 100).toFixed(1)}%;background:${up ? 'var(--alive)' : 'var(--coral)'}"></div></div>` : '';
   return `<div class="panel" style="display:flex;flex-direction:column;gap:10px">
     <div class="row spread"><b style="font-size:1.15rem;color:${COLOR[a.name]}">${NAME[a.name] ?? esc(a.name)}</b>
-      <span class="badge" title="share of the Council vote, from memory">weight ${a.weight == null ? '—' : Math.round(a.weight * 100) + '%'}</span></div>
+      <span class="badge" title="share of the Council vote, from memory" data-weight="${esc(a.name)}">weight ${a.weight == null ? '—' : Math.round(a.weight * 100) + '%'}</span></div>
     <div class="muted" style="font-size:12.5px;line-height:1.5">${esc(a.blurb)}</div>
     <div><div class="row spread"><span class="mono" style="font-size:12px">${call ? `now: <b style="color:${up ? 'var(--alive)' : 'var(--coral)'}">${up ? 'UP' : 'DOWN'}</b> · P(up) ${pct(call.p_up)}` : '<span class="muted">abstaining — no signal right now</span>'}</span></div>${bar}
       ${call ? `<div class="muted mono" style="font-size:10.5px;margin-top:6px;line-height:1.45">${esc(call.reason)}</div>` : ''}</div>
     <div class="row" style="gap:14px;flex-wrap:wrap;font-size:12.5px">
-      <span><span class="muted">settled</span> <b class="mono">${rec?.n ?? 0}</b></span>
-      <span><span class="muted">won</span> <b class="mono">${rec?.wins ?? 0}</b></span>
-      <span><span class="muted">Brier</span> <b class="mono">${rec?.n ? b3(rec.brier) : '—'}</b></span>
+      <span><span class="muted">settled</span> <b class="mono" data-rec="${esc(a.name)}-n">${rec?.n ?? 0}</b></span>
+      <span><span class="muted">won</span> <b class="mono" data-rec="${esc(a.name)}-wins">${rec?.wins ?? 0}</b></span>
+      <span><span class="muted">Brier</span> <b class="mono" data-rec="${esc(a.name)}-brier">${rec?.n ? b3(rec.brier) : '—'}</b></span>
       <span><span class="muted">commits</span> <b class="mono">${a.commits ?? 0}</b></span></div>
     <div class="row spread" style="font-size:11.5px;flex-wrap:wrap;gap:8px">
       ${a.last_commit ? `<a class="mono" style="color:var(--accent-deep)" href="${explorer(a.last_commit.digest)}" target="_blank" rel="noopener">last commit ↗</a>
         <span class="mono muted" data-countdown="${a.last_commit.expiry_ms}">${countdown(a.last_commit.expiry_ms)}</span>` : '<span class="muted">no commits yet</span>'}
       <a style="color:var(--accent-deep)" href="#/memory/${a.address}">memory →</a></div>
     <div class="mono muted" style="font-size:10px">${shortA(a.address)} · ${esc(a.namespace)}</div></div>`;
+}
+
+// N1: the Time Machine is on when GET /timemachine answers (FEATURE_TIMEMACHINE); probed once per page load
+let tmProbe = null;
+const timeMachineOn = () => (tmProbe ??= api('/timemachine').then(r => !!r?.enabled).catch(() => false));
+
+/** Re-render the weights chart and every agent's weight/record from the COUNCIL snapshots up to `at`. */
+export function councilAt(history, at) {
+  const upTo = history.filter(h => h.ts <= at);
+  const last = upTo.at(-1) || null;
+  return { history: upTo, weights: last?.weights || {}, n: last?.n || {}, brier: last?.brier || {}, settled: Object.values(last?.n || {}).reduce((a, b) => a + b, 0) };
 }
 
 export function viewCouncil({ $, explorer }) {
@@ -94,9 +107,9 @@ export function viewCouncil({ $, explorer }) {
         <div class="grid-2 reveal d1" style="margin-top:18px;align-items:start;gap:18px">
           <div class="panel"><div class="row spread"><div class="section-title" style="margin:0">weights over time · from memory</div>
             <span class="badge" style="color:${c.weights_equal ? 'var(--ink-3)' : 'var(--alive)'}">${c.weights_equal ? 'still equal (n < 5)' : 'learning'}</span></div>
-            ${c.history?.length ? weightsChartSVG(c.history, names) + `<div class="row" style="gap:12px;flex-wrap:wrap;margin-top:6px">${names.map(n => `<span class="mono" style="font-size:11px;color:${COLOR[n]}">● ${NAME[n]}</span>`).join('')}</div>
+            <div id="council-chart">${c.history?.length ? weightsChartSVG(c.history, names) : ''}</div>${c.history?.length ? `<div class="row" style="gap:12px;flex-wrap:wrap;margin-top:6px">${names.map(n => `<span class="mono" style="font-size:11px;color:${COLOR[n]}">● ${NAME[n]}</span>`).join('')}</div>
               <div class="muted mono" style="font-size:10.5px;margin-top:6px">${c.history.length} COUNCIL memor${c.history.length === 1 ? 'y' : 'ies'} on Walrus · latest <a style="color:var(--accent-deep)" href="${walruscanBlobUrl(c.history.at(-1).blob_id)}" target="_blank" rel="noopener">blob ↗</a></div>`
-              : '<div class="muted" style="margin-top:12px">No settled Council windows yet — the chart appears after the agents\' first calls settle.</div>'}</div>
+              : '<div class="muted" style="margin-top:12px">No settled Council windows yet — the chart appears after the agents\' first calls settle.</div>'}<div id="council-tm"></div></div>
           <div class="panel"><div class="section-title" style="margin:0 0 10px">Council vs you vs market</div>
             ${sb && sb.n ? `<div class="muted" style="font-size:12.5px;margin-bottom:10px">Brier on the <b>same ${sb.n} settled window${sb.n === 1 ? '' : 's'}</b> where the Council voice was live when ${shortA(sb.address)} committed — lower is better.</div>
               ${['council', 'market', 'you'].map(k => `<div class="row spread" style="padding:9px 0;border-bottom:1px solid var(--line)"><span>${k === 'you' ? 'You' : k === 'market' ? 'Predict market' : 'The Council'}</span><span class="mono">${b3(sb.brier?.[k])}</span></div>`).join('')}`
@@ -108,6 +121,28 @@ export function viewCouncil({ $, explorer }) {
             <span class="mono" style="font-size:11px">${v.payment ? `<a style="color:var(--accent-deep)" href="${explorer(v.payment)}" target="_blank" rel="noopener">payment ↗</a>` : ''}${v.blob_id ? ` · <a style="color:var(--accent-deep)" href="${walruscanBlobUrl(v.blob_id)}" target="_blank" rel="noopener">memory ↗</a>` : ''}</span></div>`).join('')
             : '<div class="muted">No vetting yet — the allocator runs every few hours.</div>'}</div>` : ''}
         ${c.last_error ? `<div class="muted mono" style="font-size:11px;margin-top:12px">last runner note: ${esc(c.last_error)}</div>` : ''}`;
+      // N1: scrub the Council's memory — weights and records re-render from the snapshots that existed then
+      if (c.history?.length >= 2 && await timeMachineOn()) {
+        const steps = [...new Set(c.history.map(h => h.ts))].sort((a, b) => a - b);
+        const moments = keyMoments([], c.history).map(m => ({ ...m, step: stepForTs(steps, m.ts) }));
+        const firstLearn = c.history.find(h => Object.values(h.weights || {}).some((w, _, arr) => Math.abs(w - 1 / arr.length) > 1e-6));
+        if (firstLearn) moments.push({ ts: firstLearn.ts, kind: 'first_unequal', label: 'weights stop being equal', step: stepForTs(steps, firstLearn.ts) });
+        const tmHost = $('#council-tm', host);
+        if (!tmHost) return;
+        tmHost.innerHTML = scrubberHTML(steps, moments.sort((a, b) => a.ts - b.ts), { title: 'council time machine', id: 'ctm' });
+        tmHost.querySelector('.tm').style.margin = '14px 0 0';
+        const liveWins = Object.fromEntries(names.map(n => [n, host.querySelector(`[data-rec="${n}-wins"]`)?.textContent ?? '—']));   // snapshots carry n and Brier, not wins
+        mountScrubber(host, steps, { id: 'ctm', moments, onStep: (at) => {
+          const s = councilAt(c.history, at);
+          $('#council-chart', host).innerHTML = s.history.length ? weightsChartSVG(s.history, names) : '<div class="muted" style="margin-top:12px">Before the Council\'s first settled window.</div>';
+          for (const n of names) {
+            const w = host.querySelector(`[data-weight="${n}"]`); if (w) w.textContent = `weight ${s.weights[n] == null ? '—' : Math.round(s.weights[n] * 100) + '%'}`;
+            const set = (k, v) => { const el = host.querySelector(`[data-rec="${n}-${k}"]`); if (el) el.textContent = v; };
+            set('n', s.n[n] ?? 0); set('wins', at === Infinity ? liveWins[n] : '—'); set('brier', s.n[n] ? b3(s.brier[n]) : '—');
+          }
+          return { n: s.settled };
+        } });
+      }
     } catch (e) {
       host.innerHTML = `<div class="empty"><h3>Couldn't reach the Council</h3><p class="mono">${esc(e.message)}</p></div>`;
     }
