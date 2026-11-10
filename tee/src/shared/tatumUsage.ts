@@ -11,7 +11,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-export type UsageNet = 'testnet' | 'mainnet' | 'rates';
+export type UsageNet = 'testnet' | 'mainnet' | 'rates' | 'grpc-testnet' | 'grpc-mainnet';
 interface Call { t: number; net: UsageNet; op: string; ms: number; ok: boolean; status: number }
 
 const WINDOW_MS = 3 * 3_600_000;
@@ -127,7 +127,7 @@ export function usage(now = Date.now()) {
     credits_limit: CREDITS_LIMIT(),
     projected_exhaustion_iso: exhaustion,
     cache_hit_rate: reads ? Math.round((cacheHits.length / reads) * 1000) / 1000 : null,
-    interfaces: { testnet: byNet('testnet'), mainnet: byNet('mainnet'), rates: byNet('rates') },
+    interfaces: { testnet: byNet('testnet'), mainnet: byNet('mainnet'), 'grpc-testnet': byNet('grpc-testnet'), 'grpc-mainnet': byNet('grpc-mainnet'), rates: byNet('rates') },
     hourly: [...hourly].sort((a, b) => a[0] - b[0]).slice(-6).map(([h, b]) => ({ hour: new Date(h * 3_600_000).toISOString(), calls: b.calls })),
     other_hosts: Object.fromEntries([...hosts].filter(([h]) => !/gateway\.tatum\.io$|api\.tatum\.io$/.test(h)).sort((a, b) => b[1] - a[1])),
     direct_fullnode_calls: directFullnodeCalls(),

@@ -94,5 +94,20 @@ export function passportRoutes() {
       new RawResponse(passportCardSVG(await passportCached(await ownerOr404(p.id))), 'image/svg+xml; charset=utf-8', { 'cache-control': 'public, max-age=60' }),
     'GET /passport/:id/attestation': (_b: any, u: URL, p: Record<string, string>) => attestationResponse(p.id, (u.searchParams.get('owner') ?? '').toLowerCase()),
     'GET /verify/:digest': (_b: any, _u: URL, p: Record<string, string>) => verifyCommit(p.digest),
+    // T2: the same commit through Tatum's second interface (testnet gRPC, LedgerService/GetTransaction)
+    'GET /verify/:digest/grpc': (_b: any, _u: URL, p: Record<string, string>) => verifyGrpc(p.digest),
   };
+}
+
+// ---------------------------------------------------------------- T2: dual-interface verification
+const grpcCache = new Map<string, any>();       // a landed transaction never changes
+async function verifyGrpc(digest: string) {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(digest)) throw new Error('invalid digest');
+  const hit = grpcCache.get(digest); if (hit) return hit;
+  const { getTransaction, GRPC_HOSTS } = await import('../../shared/tatumGrpc.ts');
+  const t = await getTransaction(digest, 'testnet');
+  const v = { via: 'tatum-grpc-testnet', host: GRPC_HOSTS.testnet, method: 'sui.rpc.v2.LedgerService/GetTransaction', ...t };
+  if (grpcCache.size > 1000) grpcCache.clear();
+  grpcCache.set(digest, v);
+  return v;
 }

@@ -33,7 +33,23 @@ export async function verifyCommitInBrowser(base, digest, text) {
   const h = ev.contents.json.hash;
   const chainHex = Array.isArray(h) ? h.map(b => Number(b).toString(16).padStart(2, '0')).join('') : /^[0-9a-f]{64}$/i.test(h) ? h.toLowerCase() : b64ToHex(h);
   const memHex = await sha256Hex(commitBody(text));
-  return { ok: chainHex === memHex, chainHex, memHex, owner: r.data.transaction.sender?.address };
+  const owner = r.data.transaction.sender?.address;
+  // T2: the same transaction through Tatum's second interface (gRPC, read by the server: Tatum gRPC isn't grpc-web).
+  // Never a faked second check: if gRPC can't answer, the row says "1 interface".
+  let grpc = { ok: false, reason: 'unavailable' };
+  try {
+    const g = await fetch(base + '/verify/' + encodeURIComponent(digest) + '/grpc').then(x => x.ok ? x.json() : null);
+    const e = g?.events?.[0];
+    if (g && e) grpc = { ok: e.hash === memHex && g.success === true && (!owner || String(g.sender).toLowerCase() === String(owner).toLowerCase()), hash: e.hash, checkpoint: g.checkpoint, reason: e.hash === memHex ? (g.success ? 'sender differs' : 'tx failed') : 'hash differs' };
+  } catch (err) { /* stays unavailable */ }
+  return { ok: chainHex === memHex, chainHex, memHex, owner, grpc, interfaces: chainHex === memHex ? (grpc.ok ? 2 : 1) : 0 };
+}
+/** Row text for a verification result (pure, tested). */
+export function verifyResultHTML(v) {
+  if (!v.ok) return `<span style="color:var(--coral)">✗ ${esc(v.reason || 'mismatch')}</span>${v.chainHex ? ` <span class="muted">chain ${v.chainHex.slice(0, 10)}… · memory ${v.memHex.slice(0, 10)}…</span>` : ''}`;
+  if (v.grpc?.ok) return `<span style="color:var(--alive)">✓✓ match</span> <span class="muted">sha256 ${v.memHex.slice(0, 10)}… = on-chain · verified via 2 Tatum interfaces (GraphQL + gRPC)</span>`;
+  if (v.grpc && v.grpc.reason !== 'unavailable') return `<span style="color:var(--coral)">✓ GraphQL match · ✗ gRPC ${esc(v.grpc.reason)}</span>`;
+  return `<span style="color:var(--alive)">✓ match</span> <span class="muted">sha256 ${v.memHex.slice(0, 10)}… = on-chain · 1 Tatum interface (gRPC unavailable)</span>`;
 }
 
 function countdown(ms) {
@@ -144,9 +160,7 @@ export async function renderPassport(host, id, { base, embed = false, onMount } 
     out.innerHTML = '<span class="muted">checking Sui…</span>';
     try {
       const v = await verifyCommitInBrowser(base, digest, rows.get(digest).text);
-      out.innerHTML = v.ok
-        ? `<span style="color:var(--alive)">✓ match</span> <span class="muted">sha256 ${v.memHex.slice(0, 10)}… = on-chain</span>`
-        : `<span style="color:var(--coral)">✗ ${esc(v.reason || 'mismatch')}</span>${v.chainHex ? ` <span class="muted">chain ${v.chainHex.slice(0, 10)}… · memory ${v.memHex.slice(0, 10)}…</span>` : ''}`;
+      out.innerHTML = verifyResultHTML(v);
     } catch (e) { out.innerHTML = `<span style="color:var(--coral)">couldn't reach Sui (${esc(e.message)})</span>`; }
   };
   host.addEventListener('click', (e) => {

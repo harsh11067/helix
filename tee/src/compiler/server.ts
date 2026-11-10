@@ -13,6 +13,7 @@ import { MOCK_TEE } from '../shared/attestation.ts';
 import type { Conviction } from '../shared/types.ts';
 import { gql, latestCheckpoint, stats as tatumStats, checkProxyQuery, recordExecution, tatumConfigured, tatumDegraded, TATUM_URLS } from '../shared/tatum.ts';
 import { usage as tatumUsage, installFetchCounter, startUsagePersistence } from '../shared/tatumUsage.ts';
+import { GRPC_HOSTS } from '../shared/tatumGrpc.ts';
 import { handleRpc } from '../shared/rpcFacade.ts';
 import * as P from '../predict/predict.ts';
 import {
@@ -146,7 +147,7 @@ export function makeServer() {
     // T1: the Ops panel — every number computed from the chokepoint's counters, none invented
     'GET /ops/tatum': () => ({ ...tatumUsage(), plan: tatumStats.plan, degraded: tatumDegraded(), requests_total: tatumStats.requests,
       retries: tatumStats.retries, rate_limited: tatumStats.rateLimited, last_latency_ms: tatumStats.lastLatencyMs,
-      hosts: { testnet: new URL(TATUM_URLS.testnet).host, mainnet: new URL(TATUM_URLS.mainnet).host },
+      hosts: { testnet: new URL(TATUM_URLS.testnet).host, mainnet: new URL(TATUM_URLS.mainnet).host, 'grpc-testnet': GRPC_HOSTS.testnet, 'grpc-mainnet': GRPC_HOSTS.mainnet },
       recent_executions: tatumStats.executed.slice(0, 5) }),
 
     // ---------------------------------------------------------------- transactions (Predict v4 via Tatum)

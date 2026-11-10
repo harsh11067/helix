@@ -68,6 +68,9 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
   return run.then(job);
 }
 
+/** The same per-key queue for Tatum's other interfaces (gRPC): the 3 req/s limit is per key, not per protocol. */
+export const tatumQueued = <T>(job: () => Promise<T>): Promise<T> => enqueue(job);
+
 const cache = new Map<string, { at: number; status: number; body: string; headers: [string, string][] }>();
 const isWrite = (body: string) => /\bmutation\b/.test(body) && /executeTransaction/i.test(body);
 const isCacheable = (body: string) =>

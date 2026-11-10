@@ -10,6 +10,7 @@
 
 import { createHash } from 'node:crypto';
 import { gql, latestCheckpoint, TATUM_URLS } from '../shared/tatum.ts';
+import { getObject as grpcObject, GRPC_HOSTS } from '../shared/tatumGrpc.ts';
 import { agentPublicKey } from './store.ts';
 import { recallForAddress } from './store.ts';
 import { namespaceFor } from './format.ts';
@@ -43,6 +44,9 @@ export async function memoryProof(address: string, blobId: string) {
   } catch (e) { blob = { fetched: false, error: (e as Error).message.slice(0, 80) }; }
 
   const checkpoint = await latestCheckpoint('mainnet').catch(() => null);
+  // T2: the same account object through Tatum's second interface (mainnet gRPC) — must agree with GraphQL
+  const g = accountId ? await grpcObject(accountId, 'mainnet').catch((e) => ({ error: (e as Error).message.slice(0, 120) })) : null;
+  const grpcOk = !!g && !('error' in g) && g.object_id === obj?.address && g.object_type === obj?.asMoveObject?.contents?.type?.repr;
   return {
     blob_id: blobId,
     namespace: namespaceFor(address),
@@ -57,6 +61,8 @@ export async function memoryProof(address: string, blobId: string) {
       our_delegate_listed: delegateListed,
     } : null,
     read_via: { gateway: new URL(TATUM_URLS.mainnet).host, network: 'sui-mainnet', checkpoint },
+    via: grpcOk ? ['tatum-graphql-mainnet', 'tatum-grpc-mainnet'] : ['tatum-graphql-mainnet'],
+    grpc: g ? { host: GRPC_HOSTS.mainnet, agrees: grpcOk, ...g } : null,
     verdict: !!rec && blob.fetched && delegateListed ? 'verified' : 'incomplete',
   };
 }

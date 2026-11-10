@@ -18,6 +18,8 @@ export function runwayText(o, now = Date.now()) {
 const IFACE = {
   testnet: { name: 'Sui testnet · GraphQL', what: 'every read the app makes, event queries, the chain audit, and every transaction executed' },
   mainnet: { name: 'Sui mainnet · GraphQL', what: 'Walrus Memory proofs: the memory account object read on mainnet' },
+  'grpc-testnet': { name: 'Sui testnet · gRPC', what: 'second-interface check behind every Passport "Verify": the commit transaction read via LedgerService/GetTransaction' },
+  'grpc-mainnet': { name: 'Sui mainnet · gRPC', what: 'second-interface read of the Walrus Memory account in every memory proof' },
   rates: { name: 'Exchange-rate Data API', what: 'the price witness for BTC, ETH and SUI settlements' },
 };
 

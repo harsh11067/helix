@@ -31,3 +31,24 @@ test('share links tag Tatum and Walrus; embed shows hidden count and no invented
   const e = passportEmbedHTML({ ...p, n_settled: 0, brier: null });
   assert.match(e, /hidden 0/); assert.match(e, /Brier<\/span> <b class="mono">—/);
 });
+
+test('T2 Verify: ✓✓ only when GraphQL AND gRPC both match; a gRPC outage is shown as 1 interface, never faked', async () => {
+  const { verifyCommitInBrowser, verifyResultHTML, sha256Hex: sh, commitBody: cb } = await import('../js/passport.js');
+  const text = 'CONVICTION v1 | dir=up | conf=80 | hash=abc | tx=D1';
+  const memHex = await sh(cb(text));
+  const owner = '0x' + 'ab'.repeat(32);
+  const gqlBody = { data: { transaction: { sender: { address: owner }, effects: { events: { nodes: [{ contents: { type: { repr: '0x1::journal::ConvictionCommitted' }, json: { hash: memHex } } }] } } } } };
+  const orig = globalThis.fetch;
+  const mock = (grpc) => { globalThis.fetch = async (url) => ({ ok: grpc !== 'down' || !String(url).includes('/grpc'), json: async () => String(url).includes('/grpc') ? grpc : gqlBody }); };
+  try {
+    mock({ success: true, sender: owner, checkpoint: 7, events: [{ hash: memHex }] });
+    let v = await verifyCommitInBrowser('http://x', 'D1', text);
+    assert.equal(v.interfaces, 2); assert.match(verifyResultHTML(v), /✓✓ match.*2 Tatum interfaces/);
+    mock('down');
+    v = await verifyCommitInBrowser('http://x', 'D1', text);
+    assert.equal(v.interfaces, 1); assert.match(verifyResultHTML(v), /1 Tatum interface \(gRPC unavailable\)/); assert.doesNotMatch(verifyResultHTML(v), /✓✓/);
+    mock({ success: true, sender: owner, checkpoint: 7, events: [{ hash: 'ff'.repeat(32) }] });
+    v = await verifyCommitInBrowser('http://x', 'D1', text);
+    assert.match(verifyResultHTML(v), /✗ gRPC hash differs/);
+  } finally { globalThis.fetch = orig; }
+});
