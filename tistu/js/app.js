@@ -31,6 +31,7 @@ import { voicesHTML, memoryBlockHTML, viewMemory } from './memory-ui.js';
 import { mountAssetSwitch, renderAssetCompiled, assetCommitControl, assetErrorHTML } from './assets.js';
 import { demoRequested, viewingAddress, isReadOnly, demoHref, DEMO_BANNER } from './demo.js';
 import { viewCouncil } from './council.js';
+import { rulesGateHTML, applyGate, overrideOk } from './rules-ui.js';   // N2 Ulysses Rules gate
 import { renderPassport } from './passport.js';
 import { tickerText } from './fun.js';
 import { viewApiDocs } from './api-docs.js';
@@ -68,6 +69,7 @@ const state = {
   conv: null,            // last conviction
   chosen: { commit: null, useMemoryStructure: false },  // explicit memory acceptances (never silent)
   demo: null,            // Judge Mode: read-only demo trader address (?demo=1 → GET /demo)
+  overrideText: '',      // N2: the typed override when one of your rules binds the current conviction
   busy: false,
 };
 // The demo trader is shown read-only; a connected wallet always takes precedence.
@@ -421,8 +423,14 @@ function mountCanvas(el) {
   const onWallet = () => { if (!el.isConnected) return window.removeEventListener('helix:wallet', onWallet); const b = $('#demo-banner', el); if (b) b.innerHTML = demoBannerHTML(); doCompile(); };
   const onAcct = () => {
     if (!el.isConnected) return window.removeEventListener('helix:acct', onAcct);
-    const m = $('#mint-ctl', el); if (m && state.compile && state.conv) m.innerHTML = mintControl(state.chosen.commit ?? state.conv.capital);
+    const m = $('#mint-ctl', el); if (m && state.compile && state.conv) { m.innerHTML = mintControl(state.chosen.commit ?? state.conv.capital); applyGate(el, state.compile.rules_triggered, state.overrideText); }
   };
+  // N2: typing the override opens the gate without re-rendering the compile
+  el.addEventListener('input', (e) => {
+    if (!e.target.closest('#override-text')) return;
+    state.overrideText = e.target.value;
+    applyGate(el, state.compile?.rules_triggered, state.overrideText);
+  });
   window.addEventListener('helix:wallet', onWallet); window.addEventListener('helix:acct', onAcct);
   el.addEventListener('click', (e) => {
     if (e.target.closest('#commit')) onCommit(el);
@@ -500,8 +508,10 @@ function renderCompiled(el, r, conv) {
       </div>
     </div>
 
+    <div id="rules-gate">${rulesGateHTML(r.rules_triggered, state.overrideText)}</div>
     <div style="margin-top:22px">${deployControl(commit)}</div>
     <div id="deploy-out" style="margin-top:14px"></div>`;
+  applyGate(box, r.rules_triggered, state.overrideText);   // N2: commit/mint stay disabled until the override is typed
   if (!reduce) { box.style.animation = 'none'; void box.offsetWidth; box.style.animation = ''; } // replay cFade
 }
 function thesisBlock() {
@@ -518,8 +528,8 @@ function thesisBlock() {
 // appears only when the wallet holds Predict v4's test USDC.
 function deployControl(commit) {
   if (!state.account && isReadOnly(state))
-    return `<button class="btn-solid" id="commit" disabled aria-disabled="true" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed">Commit conviction — read-only demo</button>
-      <button class="btn-soft" id="deploy" disabled aria-disabled="true" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed;margin-left:8px">Bring to life — mint</button>
+    return `<button class="btn-solid" id="commit" disabled aria-disabled="true" data-readonly="1" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed">Commit conviction — read-only demo</button>
+      <button class="btn-soft" id="deploy" disabled aria-disabled="true" data-readonly="1" title="${DEMO_BANNER}" style="opacity:.45;cursor:not-allowed;margin-left:8px">Bring to life — mint</button>
       <button class="btn-soft" id="wallet-inline" data-cursor style="margin-top:10px">Connect a wallet to commit as yourself ${arrow()}</button>`;
   if (!state.account)
     return `<button class="btn-solid" id="wallet-inline" data-cursor>Connect a wallet to commit this conviction ${arrow()}</button>`;
@@ -577,8 +587,15 @@ async function onFund(el) {
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)"><b style="color:var(--coral)">Not funded</b><div class="muted" style="margin-top:6px">${e.message || 'rejected'}</div></div>`;
   } finally { state.busy = false; }
 }
+// N2: a bound conviction only proceeds with a typed override, which travels with the commit/mint request
+function overrideFor(r) {
+  if (!r?.rules_triggered?.length) return undefined;
+  if (!overrideOk(state.overrideText)) throw new Error('your rule binds this call — type an override of at least 10 characters first');
+  return { text: state.overrideText.trim() };
+}
 async function onCommit(el) {
   if (!state.account || isReadOnly(state)) return;   // the demo trader is read-only
+  if (state.compile?.rules_triggered?.length && !overrideOk(state.overrideText)) return;   // gate closed
   if (state.busy) return; state.busy = true;
   compileCache.clear();   // your memory is about to change: never serve a pre-commit compile
   const out = $('#deploy-out', el); const btn = $('#commit', el);
@@ -589,9 +606,10 @@ async function onCommit(el) {
   try {
     const thesisText = ($('#thesis', el)?.value || '').trim();
     const reason = $('#reason-optin', el)?.checked && thesisText ? { text: thesisText, optIn: true } : undefined;
-    const c = await api('/tx/commit', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure, reason }, { timeoutMs: 60000 });
+    const override = overrideFor(r);
+    const c = await api('/tx/commit', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure, reason, override }, { timeoutMs: 60000 });
     const settles = new Date(c.market.expiryMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: commit <span class="mono">sha256 ${c.hash.slice(0, 10)}…</span> of “${escapeHtml(c.order.label)}” to <span class="mono">helix::journal</span> — before the window settles at ${settles}. ${c.sponsored ? 'Gas is sponsored by HELIX — no SUI or USDC needed.' : 'Gas only; no USDC.'}</div></div>`;
+    out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: commit <span class="mono">sha256 ${c.hash.slice(0, 10)}…</span> of “${escapeHtml(c.order.label)}” to <span class="mono">helix::journal</span> — before the window settles at ${settles}. ${c.sponsored ? 'Gas is sponsored by HELIX — no SUI or USDC needed.' : 'Gas only; no USDC.'}${c.override ? ' <b style="color:var(--coral)">This commit overrides your rule</b> — the override sentence is remembered and scored.' : ''}</div></div>`;
     const res = await signAndExecuteBytes(c.txBytes, { commitId: c.commitId });
     if (!res.success) throw new Error(res.error || 'transaction failed');
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--alive) 45%,transparent);background:var(--alive-soft)">
@@ -600,7 +618,8 @@ async function onCommit(el) {
       <a class="btn-soft" style="margin-top:12px" href="${CFG.EXPLORER(res.digest)}" target="_blank" rel="noopener" data-cursor>View commit on Suiscan ${arrow()}</a>
       <div class="mono muted" style="font-size:11px;margin-top:10px;word-break:break-all">${res.digest} · sha256 ${c.hash}</div>
       <div id="mem-out" class="muted" style="margin-top:12px"><span class="sdot pending"></span> verifying the commit and writing a CONVICTION memory to Walrus (mainnet)…</div></div>`;
-    toast('Conviction committed', 'hash on Sui · executed via Tatum', 'alive');
+    toast('Conviction committed', c.override ? 'hash on Sui · rule overridden — remembered' : 'hash on Sui · executed via Tatum', 'alive');
+    if (c.override) state.overrideText = '';
     pollConvictionMemory($('#mem-out', el), res.digest, c.market.expiryMs, c.text);
   } catch (e) {
     out.innerHTML = `<div class="panel" style="border-color:color-mix(in srgb,var(--coral) 45%,transparent)">
@@ -612,6 +631,7 @@ async function onCommit(el) {
 async function onDeploy(el) {
   compileCache.clear();
   if (!state.account || isReadOnly(state)) return;   // the demo trader is read-only
+  if (state.compile?.rules_triggered?.length && !overrideOk(state.overrideText)) return;   // N2 gate closed
   if (state.busy) return; state.busy = true;
   const out = $('#deploy-out', el); const btn = $('#deploy', el);
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
@@ -621,7 +641,7 @@ async function onDeploy(el) {
   try {
     const thesisText = ($('#thesis', el)?.value || '').trim();
     const reason = $('#reason-optin', el)?.checked && thesisText ? { text: thesisText, optIn: true } : undefined;
-    const m = await api('/tx/mint', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure, reason }, { timeoutMs: 60000 });
+    const m = await api('/tx/mint', { address: state.account.address, compileId: r.compileId, commit, useMemoryStructure: state.chosen.useMemoryStructure, reason, override: overrideFor(r) }, { timeoutMs: 60000 });
     out.innerHTML = `<div class="panel"><div class="muted" style="line-height:1.6"><span class="sdot pending"></span> Confirm in your wallet: pay <b class="mono">${fmt(m.plan.totalDebit, 2)}</b> dUSDC (incl. ${fmt(m.plan.orderFee, 2)} order fee) → <b class="mono">${fmt(m.plan.potentialPayout, 2)}</b> dUSDC if ${m.order.label.replace(/^BTC /, 'BTC is ')}. Filled ~1s after landing at Pyth's price (or refunded).</div></div>`;
     const res = await signAndExecuteBytes(m.txBytes, { mintId: m.mintId });
     if (!res.success) throw new Error(res.error || 'transaction failed');
