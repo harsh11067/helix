@@ -33,12 +33,13 @@ export function renderOps(o, now = Date.now()) {
       <td class="mono">${n(v.calls_last_hour)}</td><td class="mono">${ms(v.p50_ms)} / ${ms(v.p95_ms)}</td><td class="mono">${pct(v.error_rate)}</td>
       <td style="font-size:12.5px">${ops || '<span class="muted">no calls this hour</span>'}</td></tr>`;
   }).join('');
-  const others = Object.entries(o.other_hosts ?? {}).map(([h, c]) => `<span class="mono">${esc(h)}</span> ${n(c)}`).join(' · ');
+  const memwalSui = Object.entries(o.memwal_sdk_sui_calls ?? {});
+  const others = Object.entries(o.other_hosts ?? {}).filter(([h]) => !(o.memwal_sdk_sui_calls ?? {})[h]).map(([h, c]) => `<span class="mono">${esc(h)}</span> ${n(c)}`).join(' · ');
   const hourly = (o.hourly ?? []).map((h) => `<span class="mono">${new Date(h.hour).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</span> ${n(h.calls)}`).join(' · ');
   return `${banner}
   <div class="grid-4" style="margin-bottom:18px">
     <div class="stat"><div class="k">Tatum calls · last hour</div><div class="v">${n(o.calls_last_hour)}</div></div>
-    <div class="stat"><div class="k">Direct fullnode calls</div><div class="v" data-fullnode>${n(o.direct_fullnode_calls)}</div></div>
+    <div class="stat"><div class="k">Direct fullnode calls by HELIX</div><div class="v" data-fullnode>${n(o.direct_fullnode_calls)}</div></div>
     <div class="stat"><div class="k">Read cache hit rate</div><div class="v">${pct(o.cache_hit_rate)}</div></div>
     <div class="stat"><div class="k">Credit runway (est.)</div><div class="v" style="font-size:1.05rem;line-height:1.35">${esc(runwayText(o, now))}</div></div>
   </div>
@@ -55,6 +56,7 @@ export function renderOps(o, now = Date.now()) {
     <div class="panel"><div class="section-title" style="margin:0 0 8px">Not Sui, so not through Tatum</div>
       <p class="muted" style="margin:0 0 8px;font-size:13.5px">Other services HELIX talks to, counted by host at the same process: the DeepBook Predict server, Pyth, Polymarket, the Walrus Memory relayer and Walrus aggregator.</p>
       <div style="font-size:13px;word-break:break-word">${others || '<span class="muted">none yet</span>'}</div>
+      ${memwalSui.length ? `<p class="muted" style="margin:10px 0 0;font-size:12.5px">The Walrus Memory SDK opens its Seal session against the mainnet Sui endpoint its relayer advertises, and offers no way to pass our own client: ${memwalSui.map(([h, c]) => `<span class="mono">${esc(h)}</span> ${n(c)}`).join(' · ')}. Those calls belong to the memory layer, not to HELIX's Sui access.</p>` : ''}
     </div>
   </div>
   ${(o.recent_executions ?? []).length ? `<div class="panel" style="margin-top:18px"><div class="section-title" style="margin:0 0 8px">Latest transactions executed through Tatum</div>

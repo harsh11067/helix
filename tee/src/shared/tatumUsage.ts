@@ -59,7 +59,10 @@ export function recordCacheHit(now = Date.now()): void { cacheHits.push(now); pr
 
 // ---- every other outbound host (Predict server, Pyth, Polymarket, the memory relayer, …)
 const hosts = new Map<string, number>();
-const FULLNODE = /(^|\.)fullnode\.(testnet|mainnet|devnet)\.sui\.io$|^rpc\.(testnet|mainnet)\.sui\.io$|sui-rpc\.|^(testnet|mainnet)\.suiet\.app$/i;
+const FULLNODE = /(^|\.)fullnode\.(testnet|mainnet|devnet)\.sui\.io(:\d+)?$|^(mysten-)?rpc[.-](testnet|mainnet)\.sui\.io(:\d+)?$|^rpc-(testnet|mainnet)\.suiscan\.xyz$|sui-rpc\.|^(testnet|mainnet)\.suiet\.app$/i;
+// The Walrus Memory SDK opens its Seal session with the Sui endpoint the relayer advertises in GET /config
+// (no option to inject a client), so those calls are the memory layer's, attributed by host — not HELIX's.
+const MEMWAL_SUI_HOSTS = new Set((process.env.MEMWAL_SUI_HOSTS ?? 'mysten-rpc.mainnet.sui.io,rpc-mainnet.suiscan.xyz').split(',').map((h) => h.trim()).filter(Boolean));
 export function installFetchCounter(): void {
   const g = globalThis as any;
   if (g.__helixFetchCounted) return;
@@ -75,8 +78,11 @@ export function installFetchCounter(): void {
 }
 export function directFullnodeCalls(): number {
   let n = 0;
-  for (const [h, c] of hosts) if (FULLNODE.test(h)) n += c;
+  for (const [h, c] of hosts) if (FULLNODE.test(h) && !MEMWAL_SUI_HOSTS.has(h)) n += c;
   return n;
+}
+export function memwalSdkSuiCalls(): Record<string, number> {
+  return Object.fromEntries([...hosts].filter(([h]) => MEMWAL_SUI_HOSTS.has(h)));
 }
 
 const pct = (xs: number[], p: number) => {
@@ -125,6 +131,7 @@ export function usage(now = Date.now()) {
     hourly: [...hourly].sort((a, b) => a[0] - b[0]).slice(-6).map(([h, b]) => ({ hour: new Date(h * 3_600_000).toISOString(), calls: b.calls })),
     other_hosts: Object.fromEntries([...hosts].filter(([h]) => !/gateway\.tatum\.io$|api\.tatum\.io$/.test(h)).sort((a, b) => b[1] - a[1])),
     direct_fullnode_calls: directFullnodeCalls(),
+    memwal_sdk_sui_calls: memwalSdkSuiCalls(),
   };
 }
 

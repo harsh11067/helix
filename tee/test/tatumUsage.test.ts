@@ -78,3 +78,22 @@ test('degrade mode: a quota/auth refusal serves the cached read, pauses writes, 
     assert.equal(tatumDegraded(), null, 'recovers on the next successful call');
   } finally { __setTatumTransport(null); __setDegraded(null); }
 });
+
+test('fullnode calls are attributed by host: HELIX vs the memory SDK\'s Seal session', async () => {
+  const { installFetchCounter, usage: u2, __resetUsage: reset } = await import('../src/shared/tatumUsage.ts');
+  const g = globalThis as any, orig = g.fetch;
+  g.fetch = async () => new Response('{}');
+  g.__helixFetchCounted = false;
+  try {
+    installFetchCounter();
+    reset();
+    await fetch('https://mysten-rpc.mainnet.sui.io/sui.rpc.v2.LedgerService/GetServiceInfo');
+    await fetch('https://relayer.memory.walrus.xyz/config');
+    let o = u2();
+    assert.equal(o.direct_fullnode_calls, 0);
+    assert.deepEqual(o.memwal_sdk_sui_calls, { 'mysten-rpc.mainnet.sui.io': 1 });
+    await fetch('https://fullnode.testnet.sui.io:443');
+    o = u2();
+    assert.equal(o.direct_fullnode_calls, 1, 'a call HELIX made to a public fullnode would show');
+  } finally { g.fetch = orig; g.__helixFetchCounted = false; reset(); }
+});

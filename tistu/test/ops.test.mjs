@@ -36,3 +36,9 @@ test('T0 degrade mode is shown as a banner', () => {
   assert.match(html, /does not fall back to a public fullnode/);
   assert.match(renderOps(null), /unavailable/);
 });
+
+test('T1 the memory SDK\'s own Sui calls are shown apart from HELIX\'s, never hidden', () => {
+  const html = renderOps({ ...sample, other_hosts: { ...sample.other_hosts, 'mysten-rpc.mainnet.sui.io': 2 }, memwal_sdk_sui_calls: { 'mysten-rpc.mainnet.sui.io': 2 } });
+  assert.match(html, /Direct fullnode calls by HELIX/);
+  assert.match(html, /Walrus Memory SDK opens its Seal session.*mysten-rpc\.mainnet\.sui\.io<\/span> 2/s);
+});

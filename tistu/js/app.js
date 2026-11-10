@@ -366,7 +366,16 @@ function mountCanvas(el) {
     updatePredictPayoff($('#payoff', el), activeOrder(r), r.predict.forward, readConv(s).capital);
     box.classList.add('updating');
   }
-  function schedule() { labels(); instant(); clearTimeout(timer); timer = setTimeout(doCompile, 140); }
+  // Latest-wins pipeline (not a debounce): while a slider moves, exactly one compile is in flight and the
+  // next one leaves the moment it lands, so the curve keeps re-pricing DURING the drag (~0.4 s per step,
+  // tweened in between) instead of freezing until the hand stops. A cache hit renders at once.
+  let inflight = false, dirty = false;
+  async function pump() {
+    if (inflight || !dirty) return;
+    dirty = false; inflight = true;
+    try { await doCompile(); } finally { inflight = false; if (dirty) setTimeout(pump, 0); }
+  }
+  function schedule() { labels(); instant(); dirty = true; clearTimeout(timer); timer = setTimeout(pump, inflight ? 0 : 40); }
   let seq = 0;
   const convKey = (conv) => JSON.stringify([conv, state.asset || 'BTC', viewingAddress(state) || '']);
   function applyCompile(r, conv) {

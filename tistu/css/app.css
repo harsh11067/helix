@@ -152,7 +152,7 @@
 /* soften the readout panel swap on each recompile */
 #compiled { animation: cFade var(--d-base) var(--e-out); transition: opacity 160ms var(--e-out); }
 /* a slider moved: the readout is being re-priced on the server (the payoff already follows the commit size) */
-#compiled.updating { opacity: .55; pointer-events: none; }
+#compiled.updating { opacity: .78; pointer-events: none; }   /* re-pricing mid-drag: readable, never a flash */
 @keyframes cFade { from { opacity: 0.55; } to { opacity: 1; } }
 
 /* wallet picker (matches the deep-ink card identity) */
