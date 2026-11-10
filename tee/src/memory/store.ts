@@ -110,6 +110,11 @@ export const writesLastHour = () => { const t = Date.now(); return writesAt.filt
 
 // in-flight writes, so a deploy's SIGTERM can wait for them instead of losing a memory mid-write
 let writesInFlight = 0;
+// blobs this service wrote: listMemories lags a fresh write, so a refresh right after a write must not mistake
+// "not listed yet" for "deleted upstream" (that silently dropped fresh memories from view — 10 Nov)
+const ownWrites = new Map<string, number>();
+const OWN_WRITE_GRACE_MS = 6 * 3_600_000;
+const isOwnRecentWrite = (blob: string, now = Date.now()) => { const t = ownWrites.get(blob); return t != null && now - t < OWN_WRITE_GRACE_MS; };
 export const memoryWritesInFlight = () => writesInFlight;
 export async function remember(namespace: string, text: string, meta: { tx?: string | null; origin?: string | null } = {}):
   Promise<{ blob_id: string; job_id: string | null }> {
@@ -123,6 +128,8 @@ async function rememberInner(namespace: string, text: string, meta: { tx?: strin
   await writeBudget();
   const r = await memwal().rememberAndWait(text, namespace, { timeoutMs: 120_000, dedupe: true });
   const out = { blob_id: String(r.blob_id), job_id: r.job_id ? String(r.job_id) : (r.id ? String(r.id) : null) };
+  ownWrites.set(out.blob_id, Date.now());
+  if (ownWrites.size > 5000) for (const [b, t] of ownWrites) if (Date.now() - t > OWN_WRITE_GRACE_MS) ownWrites.delete(b);
   appendLedger({
     type: rec.type, namespace, blob_id: out.blob_id, job_id: out.job_id, tx: meta.tx ?? null,
     ts: Math.floor(Date.now() / 1000), origin: meta.origin ?? null, text, network: offline() ? 'mock' : 'walrus-mainnet',
@@ -240,7 +247,7 @@ async function recallIncremental(namespace: string): Promise<MemRecord[]> {
   ]);
   const have = parsedByNs.get(namespace) ?? new Map<string, MemRecord | null>();
   seedFromMirror(namespace, have);
-  if (listed) for (const b of [...have.keys()]) if (!listed.has(b)) have.delete(b);       // deleted upstream
+  if (listed) for (const b of [...have.keys()]) if (!listed.has(b) && !isOwnRecentWrite(b)) have.delete(b);   // deleted upstream (not a write the listing hasn't caught up with)
   const skip = unfindable.get(namespace);
   const skipSet = skip && Date.now() - skip.at < 10 * 60_000 ? skip.blobs : new Set<string>();
   const missing = () => (listed ? [...listed].filter((b) => !have.has(b) && !skipSet.has(b)).length : Infinity);

@@ -28,3 +28,19 @@ test('mirror: a listed blob that search no longer returns is still known; a deli
     assert.ok(!after.some((r) => r.blob_id === 'B1'), 'a delisted blob is never served from the mirror');
   } finally { __setMirror(null); __resetMemwal(); }
 });
+
+test('a fresh write survives a refresh that runs before listMemories lists it', async () => {
+  const { remember } = await import('../src/memory/store.ts');
+  const ns = namespaceFor('0x' + 'ce'.repeat(32));
+  const text = formatRecord('REPORT', [['blob', 'R1'], ['ts', 9]]);
+  __resetMemwal({
+    rememberAndWait: async () => ({ blob_id: 'FRESH1', job_id: null }),
+    listMemories: async () => ({ memories: [], has_more: false }),     // the listing hasn't caught up yet
+    recall: async () => ({ results: [] }),                             // and search doesn't return it yet
+  });
+  try {
+    await remember(ns, text);
+    const recs = await recallAll(ns, { fresh: true });
+    assert.ok(recs.some((r) => r.blob_id === 'FRESH1'), 'own recent write kept');
+  } finally { __resetMemwal(); }
+});
