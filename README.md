@@ -1,6 +1,6 @@
 # 🧬 HELIX
 
-### A Living Ecosystem of Composable Financial Convictions on Sui
+### Proof-of-Forecast on Sui: a track record of judgment that can't be faked, remembered on Walrus, verified through Tatum
 
 ---
 
@@ -15,7 +15,7 @@
 > **HELIX is Proof-of-Forecast: a track record of judgment you can't fake, that learns, and that people and agents can pay to trust.**
 > Every call is hashed onto Sui before its market settles, remembered on **Walrus Memory (mainnet)**, settled against DeepBook Predict through **Tatum**, and scored — for you, the market, a model, the crowd and a Council of agents. Nothing can be backdated, and no losing call can be hidden.
 
-**Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [where this goes](./PRODUCT.md)
+**Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
 
 ---
 
@@ -27,9 +27,10 @@ No wallet needed. (The free-tier compiler may take ~50 s to wake on the first re
 2. **Check any memory:** click a blob id → **Walruscan mainnet**; click *verify on mainnet* → the MemWal account read through **Tatum's mainnet gateway** plus the blob from the Walrus mainnet aggregator.
 3. **See memory change the product:** open the **Canvas** (still in demo mode), move the sliders — the compile uses the demo trader's memory: *you set X · memory suggests Y*, the four voices, and the **Memory** line in the risk guardian.
 4. **See Tatum is the chokepoint:** [`/health`](https://helix-compiler.onrender.com/health) shows live testnet + mainnet checkpoints read through Tatum.
-5. **Open a Forecaster Passport:** [the demo trader's](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) — *committed N · shown N · hidden 0*, counted from Sui events. Press **Verify all**: your browser fetches each commit from Sui itself and re-hashes the remembered call — every row turns green. The same record is a **soulbound passport object on Sui** ([Suiscan](https://suiscan.xyz/testnet/object/0xa8d8500dd363468edaab8e011deeb7243c2f9fcddb20d23f9e858f45c6089790)), signed by HELIX and verified on-chain.
-6. **Watch the Council:** [four agents](https://helix-app-fovn.onrender.com/app.html#/council) commit every half hour with their own keys and memory; their weights move as memory scores them.
-7. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
+5. **Open a Forecaster Passport:** [the demo trader's](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) — *committed N · shown N · hidden N*, counted from Sui events (its hidden count is not zero, and the passport says why). Press **Verify all**: your browser fetches each commit from Sui itself and re-hashes the remembered call — every row turns green. The same record is a **soulbound passport object on Sui** ([Suiscan](https://suiscan.xyz/testnet/object/0xa8d8500dd363468edaab8e011deeb7243c2f9fcddb20d23f9e858f45c6089790)), signed by HELIX and verified on-chain.
+6. **Check the chain audit:** [`/proof/audit`](https://helix-compiler.onrender.com/proof/audit) — every commit ever made, re-fetched as a transaction through Tatum and checked: it exists, succeeded, was sent by the committer, carries the same hash, and landed **before** its market's expiry (consensus time, not the contract's clock). Re-run every 30 min.
+7. **Watch the Council:** [four agents](https://helix-app-fovn.onrender.com/app.html#/council) commit every half hour with their own keys and memory; their weights move as memory scores them.
+8. **Commit as yourself:** connect a wallet (or Google/zkLogin) and press **Commit conviction** — no USDC needed, and if your address has no testnet SUI, HELIX sponsors the gas for that one `journal::commit`. The demo is read-only, so committing and minting unlock only for your own address.
 
 ## 🏗️ Architecture
 
@@ -107,6 +108,10 @@ HELIX existed before this hackathon (Move package, DeepBook Predict integration,
 | **Credibility API, paid per call** — the Passport's per-setup detail behind HTTP **402** with the Machine Payments Protocol on Sui (`@suimpp/mpp` + `mppx`): pay → sign the proof → retry → 200 + receipt. Verification re-reads the payment **through Tatum**; replay-proof across restarts. The Council's **allocator** agent pays to read a human forecaster's record and decides whether to admit them (Brier ≤ 0.22, n ≥ 8) — memory buys memory | `tee/src/payments/`, `#/api`, `/api/v1/credibility/:id` |
 | **Ask your memory** — Walrus Memory's own `ask` (called from Node with HELIX's delegate key), with a deterministic stats fallback; every number in an answer must appear in the memories it cites, which are linked to Walruscan | `tee/src/ask/`, header button |
 | **More than BTC** — ETH and SUI convictions in commit mode, resolved by **Pyth**: the first price at or after expiry from Pyth's Hermes API (VOID past 300 s), with Pyth's signed on-chain updates on Sui (read through Tatum) as the keyless fallback for SUI. Voices that don't exist for an asset show *n/a*; buckets are asset-scoped so BTC history is untouched. DeepBook Predict v4 lists only BTC (checked on-chain) | `tee/src/assets/`, Canvas asset switcher |
+| **Chain audit through Tatum** — every `ConvictionCommitted` ever emitted is re-fetched as its own transaction (20 per batched GraphQL request) and checked independently of the event index: found, succeeded, sender = committer (sponsored commits included), same hash / market / expiry, checkpoint time before expiry, Move Clock within 60 s. Runs every 30 min; the ticker shows *audited N/N* | `tee/src/fun/audit.ts`, `/proof/audit` |
+| **Price witness for every asset** — Tatum's exchange-rate API checks the settlement price of BTC (vs DeepBook Predict) and of ETH and SUI (vs Pyth): a guardian line at compile time and `witness_usd` / `witness_bps` on every OUTCOME memory | `tee/src/shared/tatumRates.ts` |
+| **Honest hidden count** — a commit is called hidden only after memory has been searched completely and the record has been looked up by its exact digest; until then the count is *checking*, never a guessed 0 | `memory/store.ts`, `memory/service.ts` |
+| **Fast** — the Sui SDK is vendored as 6 code-split bundles (was ~236 esm.sh modules), the wallet chip appears on approval, the payoff curve follows the commit slider in 4 ms, and the server never makes a compile wait on Tatum for data a few seconds old (stale-while-revalidate) | `tistu/js/vendor/`, `predict.ts`, `store.ts` |
 | **Fun layer, all from data** — live proof ticker, settlement countdown + hash-verified reveal, humility meter (confidence vs record, n ≥ 3), Beat the Market (today, shared windows only) | `tistu/js/fun.js`, `/proof/ticker` |
 | **W1 Crowd voice** (Polymarket BTC 15-min Up/Down, compared only when windows and strikes match) · **W2 Price witness** (Tatum exchange-rate API) · **W3 Memory dividend** · **W5 MCP server + agent skill** · **W6 opt-in reasoning memory** · **W7 who-to-trust board** | see [WIN_FEATURES.md](./WIN_FEATURES.md) |
 
@@ -118,10 +123,20 @@ curl -s $C/health | jq '{tatum_testnet_checkpoint, tatum_mainnet_checkpoint, mem
 curl -s -X POST $C/rpc -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"unsafe_transferSui","params":[]}'   # 403 — allowlisted
 curl -s $C/memory/<address> | jq '.timeline[] | {type, blob_id}'            # recalled from Walrus Memory (mainnet)
 curl -s $C/memory/<address>/proof/<blob_id> | jq .verdict                   # read back through Tatum mainnet
+curl -s $C/proof/audit | jq '{audited, ok, passed, min_lead_s, tatum_requests}' # every commit re-verified through Tatum
 cd tee && node --env-file=../.env scripts/verify-ledger.mjs                 # every memory → a SUCCESS tx + a mainnet blob
 ```
 
 Evidence (health output, every memory with its blob id and source tx, before/after compile): [TOTAL_RECALL_EVIDENCE.md](./TOTAL_RECALL_EVIDENCE.md).
+
+### How HELIX uses Tatum
+
+| Tatum product | What HELIX does with it |
+|---|---|
+| **Sui gateway, testnet (GraphQL)** | Every read the app makes: Predict markets and pricer, wallets' objects and coins, `ConvictionCommitted` events, Pyth's SUI price updates, payment verification for the paid API, and the chain audit. One server-side queue at the free plan's 3 req/s with jittered backoff; the browser reaches Sui only through HELIX's allow-listed `/graphql` proxy, so the key never leaves the server |
+| **Sui gateway, testnet (execute)** | Every transaction HELIX lands: commits, sponsored commits, Predict orders, passport mints, agent and allocator payments (`/tx/execute`, logged with the gateway host) |
+| **Sui gateway, mainnet** | Memory proofs: the Walrus Memory account object read on mainnet next to the blob from the Walrus mainnet aggregator |
+| **Exchange-rate Data API** | The price witness: BTC, ETH and SUI checked against the oracle at compile time and stamped on every outcome |
 
 ### Honest limits
 
@@ -137,6 +152,7 @@ Evidence (health output, every memory with its blob id and source tx, before/aft
 - The paid Credibility API charges in **testnet SUI** today (we hold no Circle testnet USDC); `PAYMENT_CURRENCY=USDC_TESTNET` switches it to Circle USDC with no code change.
 - *Ask your memory* sends the question and the matching memories (decrypted by the relayer) to the relayer's model; HELIX checks every number in the answer against the cited memories and falls back to stats otherwise.
 - ETH and SUI are commit mode only (no DeepBook Predict market): they settle on Pyth's price, and the market voice is *n/a*. The Council commits on BTC only.
+- Walrus Memory recall is semantic top-k search, so it can't list a large namespace on its own. HELIX pages through `listMemories`, recalls in chunks and looks up any unmatched commit by its exact digest. One memory (commit `2xyqhBAN…`) is listed but never returned by recall, even for an exact query, so HELIX can't verify that call and counts it as hidden, alongside the one commit whose memory was never written.
 - Hardware TEE attestation remains a labeled dev stub (unchanged).
 
 ---

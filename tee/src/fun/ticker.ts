@@ -10,7 +10,7 @@ import { commitLedger } from '../memory/service.ts';
 let all: CommitEvent[] = [];
 let cursor: string | null = null;
 let hiddenBySender = new Map<string, number | null>();
-let at = 0, hiddenAt = 0;
+let at = 0, hiddenAt = 0, hiddenSynced = false;   // hidden is unknown until one full check has finished
 
 /** All ConvictionCommitted events, fetched incrementally (forward pages from the last cursor). */
 async function syncEvents(): Promise<void> {
@@ -35,6 +35,7 @@ async function syncHidden(): Promise<void> {
   }
   hiddenBySender = next;
   hiddenAt = Date.now();
+  hiddenSynced = true;
 }
 
 /** Every ConvictionCommitted event ever emitted (synced incrementally through Tatum, at most every 30s). */
@@ -54,9 +55,9 @@ export async function ticker(now = Date.now()) {
     commits: all.length, settled: settled.length, pending: all.length - settled.length, committers,
     last_settled_ms: lastSettled || null, last_commit_ms: lastCommit || null,
     // null until every committer's memory has been checked at least once
-    hidden: hiddenAt && [...hiddenBySender.values()].every((v) => typeof v === 'number')
+    hidden: hiddenSynced && hiddenBySender.size && [...hiddenBySender.values()].every((v) => typeof v === 'number')
       ? [...hiddenBySender.values()].reduce((a: number, b) => a + (b as number), 0) : null,
-    hidden_checked_ms: hiddenAt || null,
+    hidden_checked_ms: hiddenSynced ? hiddenAt : null,
     source: 'helix::journal ConvictionCommitted events on Sui testnet (via Tatum) · hidden from each committer\'s Walrus Memory',
   };
 }
