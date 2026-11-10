@@ -53,7 +53,12 @@ async function once(i: number): Promise<string> {
   const conv = { address, ...g, horizonCode: 1 + (i % 3), capital: [3, 5, 8][i % 3] };
   const c = await call('/compile', conv);
   const o = c.predict.order;
-  const cm = await call('/tx/commit', { address, compileId: c.compileId, commit: conv.capital, origin: 'cli', useMemoryStructure: false });
+  // N2: when one of the trader's own Ulysses rules binds, this scripted trader says so and commits anyway;
+  // the override is remembered (OVERRIDE v1) and scored, so memory learns whether breaking the rule pays
+  const gate = (c.rules_triggered ?? [])[0];
+  const override = gate ? { text: `Scripted demo trader (origin=cli): committing ${conv.capital} anyway to test whether breaking "${gate.sentence}" pays.` } : undefined;
+  if (gate) log(`#${i} rule binds: ${gate.sentence} → override recorded`);
+  const cm = await call('/tx/commit', { address, compileId: c.compileId, commit: conv.capital, origin: 'cli', useMemoryStructure: false, ...(override ? { override } : {}) });
   const { signature } = await kp.signTransaction(Uint8Array.from(Buffer.from(cm.txBytes, 'base64')));
   const ex = await call('/tx/execute', { txBytes: cm.txBytes, signatures: [signature] });
   if (!ex.success) throw new Error(`commit tx failed: ${ex.error}`);
