@@ -15,6 +15,9 @@
 > **HELIX is Proof-of-Forecast: a track record of judgment you can't fake, that learns, and that people and agents can pay to trust.**
 > Every call is hashed onto Sui before its market settles, remembered on **Walrus Memory (mainnet)**, settled against DeepBook Predict through **Tatum**, and scored — for you, the market, a model, the crowd and a Council of agents. Nothing can be backdated, and no losing call can be hidden.
 
+[![HELIX in 20 seconds](docs/media/helix-launch.jpg)](docs/media/helix-launch.mp4)
+*20-second launch video, made from the live app: [docs/media/helix-launch.mp4](docs/media/helix-launch.mp4)*
+
 **Live now:** [app](https://helix-app-fovn.onrender.com/app.html) · [demo trader's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the Council](https://helix-app-fovn.onrender.com/app.html#/council) · [live proof ticker](https://helix-compiler.onrender.com/proof/ticker) · [chain audit](https://helix-compiler.onrender.com/proof/audit) · [the story (blog)](./blog.md) · [where this goes](./PRODUCT.md)
 
 ---

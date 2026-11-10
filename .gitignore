@@ -23,3 +23,6 @@ contracts/traces/
 toss.env
 *.secret.env
 tee/data/
+
+# /brag launch video renders (large binaries)
+brag-output*/

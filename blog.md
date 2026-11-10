@@ -14,6 +14,8 @@ So I built **HELIX**, a system where every call becomes evidence, and the eviden
 
 This is how it works, what the data says after two days of live use, and what I learned building it on Sui, Walrus Memory and Tatum.
 
+> **Watch it in 20 seconds:** [the launch video](https://github.com/harsh11067/helix/blob/main/docs/media/helix-launch.mp4), made from the live app.
+>
 > **Try it, no wallet needed:** [the app](https://helix-app-fovn.onrender.com/app.html?demo=1#/memory) · [a real forecaster's passport](https://helix-app-fovn.onrender.com/passport.html?id=helix-v1-4d922636976d) · [the live chain audit](https://helix-compiler.onrender.com/proof/audit) · [the code](https://github.com/harsh11067/helix)
 
 ---
