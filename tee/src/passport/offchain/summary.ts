@@ -114,6 +114,9 @@ export async function passportFor(address: string, opts: { commits?: number } = 
     brier: st.brier.you, brier_by_voice: st.brier, gap_you: st.gap_you,
     best_setup: setups[0] ?? null, worst_setup: setups.length > 1 ? setups.at(-1)! : null, setups,
     latest_lesson: latestLesson ? { text: str(latestLesson, 'text'), bucket: str(latestLesson, 'bucket'), blob_id: latestLesson.blob_id } : null,
+    // N3: signed snapshots of this passport frozen on Walrus (newest first)
+    reports: recs.filter((r) => r.type === 'REPORT' && str(r, 'blob')).sort((a, b) => (num(b, 'ts') ?? 0) - (num(a, 'ts') ?? 0)).slice(0, 3)
+      .map((r) => ({ blob_id: str(r, 'blob'), network: str(r, 'network'), ts: num(r, 'ts'), committed: num(r, 'committed'), hidden: num(r, 'hidden'), memory_blob: r.blob_id })),
     committed: ledger?.onchain ?? evs.length, shown: ledger?.with_memory ?? null, hidden, ledger_ok: hidden != null, recording: ledger?.recording ?? 0,
     badges, badge_names: badgeNames(badges),
     memory_count: recs.length, commits,

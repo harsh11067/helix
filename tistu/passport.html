@@ -36,14 +36,17 @@
     <div id="pp"><div class="muted">loading…</div></div>
   </div>
 <script type="module">
-  import { renderPassport } from './js/passport.js';
+  import { renderPassport, renderReport } from './js/passport.js';
   const q = new URLSearchParams(location.search);
   const embed = q.get('embed') === '1';
   if (embed) document.body.classList.add('embed');
   const base = (window.HELIX_COMPILER_URL || 'http://localhost:8081').replace(/\/+$/, '');
   const id = q.get('id') || '';
   const host = document.getElementById('pp');
-  if (!id) {
+  const report = q.get('report');
+  if (report) {
+    renderReport(host, report, { base }).then((d) => { if (d) document.title = 'Signed forecaster report · HELIX'; });
+  } else if (!id) {
     host.innerHTML = '<div class="empty"><h3>Which forecaster?</h3><p>Open <span class="mono">passport.html?id=&lt;Sui address or namespace&gt;</span>, or start from the <a href="app.html?demo=1#/memory">demo trader</a>.</p></div>';
   } else {
     renderPassport(host, id, { base, embed }).then((p) => { if (p && !embed) document.title = `${p.kind === 'agent' ? 'Council agent ' + p.agent : 'Forecaster'} · HELIX Passport`; });

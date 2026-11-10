@@ -15,6 +15,7 @@ import { namespaceFor, str } from '../../memory/format.ts';
 import { passportFor, resolveOwner } from './summary.ts';
 import { passportCardSVG } from './card.ts';
 import { signJson, signAttestation, pubkeyHex, BADGES } from './attest.ts';
+import { createReport } from './report.ts';
 import { setAttestationProvider } from '../onchain/routes.ts';
 
 const enabled = () => process.env.FEATURE_PASSPORT !== '0';
@@ -94,6 +95,11 @@ export function passportRoutes() {
       new RawResponse(passportCardSVG(await passportCached(await ownerOr404(p.id))), 'image/svg+xml; charset=utf-8', { 'cache-control': 'public, max-age=60' }),
     'GET /passport/:id/attestation': (_b: any, u: URL, p: Record<string, string>) => attestationResponse(p.id, (u.searchParams.get('owner') ?? '').toLowerCase()),
     'GET /verify/:digest': (_b: any, _u: URL, p: Record<string, string>) => verifyCommit(p.digest),
+    // N3: freeze a signed snapshot of this passport as a Walrus blob (+ a REPORT memory pointing at it)
+    'POST /passport/:id/report': async (_b: any, _u: URL, p: Record<string, string>) => {
+      const owner = await ownerOr404(p.id);
+      return createReport(owner, async (o) => { cache.delete(o); return passportCached(o); });
+    },
     // T2: the same commit through Tatum's second interface (testnet gRPC, LedgerService/GetTransaction)
     'GET /verify/:digest/grpc': (_b: any, _u: URL, p: Record<string, string>) => verifyGrpc(p.digest),
   };

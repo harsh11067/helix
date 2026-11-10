@@ -14,6 +14,8 @@ export const RECORD_TYPES = [
   'CONVICTION', 'OUTCOME', 'CALIBRATION', 'LESSON', 'REASON', 'VETTING', 'USER', 'COUNCIL', 'PAYMENT',
   // N2 Ulysses Rules: a promise to your future self, its retirement, and every time you broke one
   'RULE', 'RULE_REMOVED', 'OVERRIDE',
+  // N3: a signed passport snapshot frozen as a Walrus blob
+  'REPORT',
 ]         ;
 
                                            

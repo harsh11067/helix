@@ -68,6 +68,56 @@ export function priceChipHTML(p, limitBps = 50) {
     : `<div class="mono" style="font-size:10.5px;margin-top:3px;color:var(--coral)" title="${esc(title)}">price sources differ by ${worst.toFixed(0)} bps</div>`;
 }
 
+/** N3: signed snapshots of this passport frozen on Walrus, and the button that makes one (pure, tested). */
+export function reportsHTML(p) {
+  const rows = (p.reports || []).map(r => `<div class="mono" style="font-size:11.5px;margin-top:4px;overflow-wrap:anywhere">
+      <a href="passport.html?report=${encodeURIComponent(r.blob_id)}" style="color:var(--accent-deep)">report ${esc(String(r.blob_id).slice(0, 12))}…</a>
+      <span class="muted">· ${r.ts ? new Date(r.ts * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : ''} · committed ${esc(r.committed ?? '—')} · hidden ${esc(r.hidden ?? '—')} · ${esc(r.network || 'walrus')}</span></div>`).join('');
+  return `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+      <div class="row spread" style="gap:10px;flex-wrap:wrap"><div class="muted" style="font-size:12.5px;max-width:420px">Freeze a <b>signed</b> copy of this passport as a Walrus blob: anyone can verify it later, even without HELIX.</div>
+        <button class="btn-soft" id="freeze-report" data-cursor>Freeze a signed copy on Walrus</button></div>
+      <div id="report-out" class="mono" style="font-size:11.5px;margin-top:6px;overflow-wrap:anywhere"></div>${rows}</div>`;
+}
+
+/** Verify a frozen report in the browser: raw Ed25519 over canonical JSON (WebCrypto). null = not supported here. */
+export async function verifyReportSignature(doc) {
+  const canonical = (v) => v === null || typeof v !== 'object' ? JSON.stringify(v ?? null)
+    : Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
+    : `{${Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => `${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`;
+  try {
+    const hex = doc.signature.pubkey_hex, raw = new Uint8Array(hex.match(/../g).map(h => parseInt(h, 16)));
+    const key = await crypto.subtle.importKey('raw', raw, { name: 'Ed25519' }, false, ['verify']);
+    const sig = Uint8Array.from(atob(doc.signature.sig_b64), c => c.charCodeAt(0));
+    return await crypto.subtle.verify({ name: 'Ed25519' }, key, sig, new TextEncoder().encode(canonical(doc.report)));
+  } catch (e) { return null; }
+}
+
+/** passport.html?report=<blob>: the frozen passport, fetched from a Walrus aggregator and verified in the browser. */
+export async function renderReport(host, blobId, { base, aggregator = 'https://aggregator.walrus-testnet.walrus.space' } = {}) {
+  host.innerHTML = `<div class="muted"><span class="sdot pending"></span> reading the report from Walrus…</div>`;
+  let doc;
+  try {
+    const r = await fetch(`${aggregator}/v1/blobs/${encodeURIComponent(blobId)}`);
+    if (!r.ok) throw new Error(`Walrus aggregator HTTP ${r.status}`);
+    doc = await r.json();
+    if (doc?.report?.kind !== 'helix-forecaster-report') throw new Error('not a HELIX forecaster report');
+  } catch (e) { host.innerHTML = `<div class="empty"><h3>Report not found</h3><p>${esc(e.message)}</p></div>`; return null; }
+  let wk = null; try { wk = await fetch(`${base}/.well-known/helix-attestation.json`).then(x => x.json()); } catch (e) {}
+  const ok = await verifyReportSignature(doc);
+  const keyMatch = wk ? wk.pubkey_hex === doc.signature.pubkey_hex : null;
+  const verdict = ok === true && keyMatch !== false
+    ? `<b style="color:var(--alive)">✓ signature valid</b> — Ed25519 by the HELIX attestor${keyMatch ? ' (matches the published key)' : ''}`
+    : ok === false ? `<b style="color:var(--coral)">✗ signature invalid</b> — this copy was altered`
+    : keyMatch === false ? `<b style="color:var(--coral)">✗ signed by an unknown key</b>`
+    : `<span class="muted">this browser can't check Ed25519 — run <span class="mono">node tee/scripts/verify-report.mjs ${esc(blobId)}</span></span>`;
+  const banner = `<div class="panel" style="margin-bottom:18px;border-color:color-mix(in srgb,var(--accent) 45%,transparent)">
+    <div class="section-title" style="margin:0 0 6px">frozen forecaster report · ${esc(doc.report.walrus_network)}</div>
+    <div style="font-size:14px">Issued ${esc(doc.report.issued_at.slice(0, 16).replace('T', ' '))} UTC · ${verdict}</div>
+    <div class="mono muted" style="font-size:11px;margin-top:6px;overflow-wrap:anywhere">blob <a href="${aggregator}/v1/blobs/${esc(blobId)}" target="_blank" rel="noopener">${esc(blobId)}</a> · key ${esc(doc.signature.pubkey_hex.slice(0, 16))}… · <a href="passport.html?id=${encodeURIComponent(doc.report.passport.namespace)}">today's live passport →</a></div></div>`;
+  host.innerHTML = banner + passportHTML(doc.report.passport, base, doc.signature);
+  return doc;
+}
+
 function commitRow(c) {
   const when = new Date(c.committed_ms).toISOString().slice(5, 16).replace('T', ' ');
   const call = c.call ? `${esc(c.call.dir)} · conf ${esc(c.call.conf)} · ${esc(c.call.structure)}${c.call.origin ? ` <span class="muted">· ${esc(c.call.origin)}</span>` : ''}` : '<span class="muted">—</span>';
@@ -142,6 +192,7 @@ export function passportHTML(p, base, signature) {
         <div class="muted" style="font-size:12px;margin-top:10px">Embed this passport anywhere:</div>
         <textarea class="hx-textarea mono" rows="3" readonly style="font-size:11px;margin-top:6px;width:100%">${esc(share.embed)}</textarea>
         ${signature ? `<div class="muted mono" style="font-size:10.5px;margin-top:6px;overflow-wrap:anywhere">signed ed25519 · key ${esc(signature.pubkey_hex.slice(0, 16))}… · sig ${esc(signature.sig_b64.slice(0, 22))}…</div>` : ''}
+        ${reportsHTML(p)}
         <div id="onchain-passport" style="margin-top:12px"></div></div></div>
     <div class="panel reveal d2" style="margin-top:18px;padding:0;overflow:auto">
       <div class="row spread" style="padding:18px 22px"><div class="section-title" style="margin:0">every commit · one click from proof</div>
@@ -178,6 +229,16 @@ export async function renderPassport(host, id, { base, embed = false, onMount } 
   host.addEventListener('click', (e) => {
     const b = e.target.closest('[data-verify]'); if (b) verify(b.dataset.verify);
     if (e.target.closest('#verify-all')) [...rows.keys()].filter(d => d && rows.get(d).text).forEach((d, i) => setTimeout(() => verify(d), i * 400));
+    const fr = e.target.closest('#freeze-report');
+    if (fr) {
+      const out = host.querySelector('#report-out');
+      fr.disabled = true; out.innerHTML = '<span class="muted">signing this passport and uploading it to Walrus…</span>';
+      fetch(`${base}/passport/${encodeURIComponent(p.namespace)}/report`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+        .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`); return j; }))
+        .then(j => { out.innerHTML = `<span style="color:var(--alive)">✓ frozen on ${esc(j.walrus_network)}</span> · <a href="passport.html?report=${encodeURIComponent(j.blob_id)}">open the signed report</a> · <a href="${esc(j.aggregator_url)}" target="_blank" rel="noopener">raw blob</a>${j.reused ? ' <span class="muted">(made in the last 10 min)</span>' : ''}`; })
+        .catch(err => { out.innerHTML = `<span style="color:var(--coral)">${esc(err.message)}</span>`; })
+        .finally(() => { fr.disabled = false; });
+    }
   });
   const timer = setInterval(() => {
     if (!host.isConnected) { clearInterval(timer); return; }

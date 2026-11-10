@@ -62,3 +62,18 @@ test('T3 price chip: settlement vs every independent source, honest when they di
   assert.equal(priceChipHTML(null), '');
   assert.equal(priceChipHTML({ ...p, sources: [] }), '');
 });
+
+test('N3 report: listed from REPORT memories, and the browser check accepts a genuine signature and rejects an edit', async () => {
+  const { reportsHTML, verifyReportSignature } = await import('../js/passport.js');
+  const html = reportsHTML({ reports: [{ blob_id: 'BLOB123456789abc', ts: 1794300000, committed: 89, hidden: 3, network: 'walrus-testnet' }] });
+  assert.match(html, /passport\.html\?report=BLOB123456789abc/); assert.match(html, /hidden 3/); assert.match(html, /freeze-report/);
+  const { webcrypto } = await import('node:crypto');
+  const kp = await webcrypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const raw = new Uint8Array(await webcrypto.subtle.exportKey('raw', kp.publicKey));
+  const report = { kind: 'helix-forecaster-report', v: 1, passport: { namespace: 'ns', hidden: 3, b: [2, 1] } };
+  const canonical = '{"kind":"helix-forecaster-report","passport":{"b":[2,1],"hidden":3,"namespace":"ns"},"v":1}';
+  const sig = new Uint8Array(await webcrypto.subtle.sign({ name: 'Ed25519' }, kp.privateKey, new TextEncoder().encode(canonical)));
+  const doc = { report, signature: { pubkey_hex: Buffer.from(raw).toString('hex'), sig_b64: Buffer.from(sig).toString('base64') } };
+  assert.equal(await verifyReportSignature(doc), true);
+  assert.equal(await verifyReportSignature({ ...doc, report: { ...report, passport: { ...report.passport, hidden: 0 } } }), false, 'hiding a call breaks the signature');
+});
