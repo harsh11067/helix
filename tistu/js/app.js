@@ -1344,7 +1344,7 @@ function build() {
         <div class="page-h"><span class="eyebrow" id="page-sub">express a belief</span><h1 id="page-title">Conviction Canvas</h1></div>
         <div class="right">
           <a class="chip" id="proof-ticker" href="#/passport" style="display:none;text-decoration:none" title="Counted from helix::journal ConvictionCommitted events on Sui (via Tatum); hidden = commits with no memory"></a>
-          <span class="chip" title="Sui reads + execution via Tatum · memory on Walrus mainnet"><span class="live"></span> sui testnet · tatum</span>
+          <a class="chip" id="tatum-chip" href="ops.html" style="text-decoration:none" title="Every Sui read and transaction goes through Tatum · memory on Walrus mainnet — open the live Ops panel"><span class="live"></span> sui testnet · tatum</a>
           <div class="theme-toggle" role="radiogroup" aria-label="Theme" id="theme-toggle">
             <span class="tt-pill" id="tt-pill"></span>
             <button role="radio" data-theme-val="light" aria-label="Light" data-cursor><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
@@ -1365,6 +1365,14 @@ function proofTicker() {
     try {
       const t = await api('/proof/ticker'); const s = tickerText(t);
       if (s) { n.textContent = s; n.style.display = ''; }
+      // T0 degrade mode: Tatum refused the key (quota/auth) — say so instead of pretending to be live
+      let b = $('#degrade-banner');
+      if (t?.degraded) {
+        if (!b) { b = document.createElement('div'); b.id = 'degrade-banner'; b.setAttribute('role', 'status');
+          b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;padding:8px 16px;text-align:center;font:500 13px/1.4 var(--sans,system-ui);background:var(--ink);color:var(--bg)';
+          document.body.appendChild(b); }
+        b.textContent = `${t.degraded.banner} · commits are paused until Tatum recovers`;
+      } else if (b) b.remove();
       if (t?.audit) n.title = `Counted from helix::journal ConvictionCommitted events on Sui (via Tatum); hidden = commits with no memory. Chain audit: every commit re-fetched as a transaction through Tatum and checked (sender, event, success, checkpoint time before expiry), ${new Date(t.audit.at_ms).toLocaleTimeString()} — full report at /proof/audit`;
     } catch (e) {}
   };

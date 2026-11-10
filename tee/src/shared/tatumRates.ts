@@ -4,6 +4,8 @@
 // and stamped into every OUTCOME memory at settlement. The free plan can lag a few minutes, so the age is
 // always reported next to the number. Kill switch: FEATURE_WITNESS=0.
 
+import { recordCall } from './tatumUsage.ts';
+
 export type WitnessSymbol = 'BTC' | 'ETH' | 'SUI';
 // TATUM_RATE_URL (legacy, BTC only) is still honoured; {SYM} in TATUM_RATE_URL_TEMPLATE is the symbol.
 const rateUrl = (sym: WitnessSymbol) =>
@@ -34,7 +36,9 @@ export const getBtcUsd = () => getUsd('BTC');
 async function fetchUsd(sym: WitnessSymbol): Promise<Rate> {
   const c = new AbortController(); const t = setTimeout(() => c.abort(), 6000);
   try {
+    const t0 = Date.now();
     const r = await transport(rateUrl(sym), { headers: { 'x-api-key': (process.env.TATUM_API_KEY ?? '').trim() }, signal: c.signal });
+    recordCall('rates', `rate/${sym}`, Date.now() - t0, r.status);
     if (!r.ok) throw new Error(`tatum rate HTTP ${r.status}`);
     const j: any = await r.json();
     const usd = Number(j.value);

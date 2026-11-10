@@ -12,6 +12,7 @@
 // The API key is server-side only and never reaches the browser.
 
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
+import { opOf, recordCall, recordCacheHit } from './tatumUsage.ts';
 
 export type Net = 'testnet' | 'mainnet';
 
@@ -44,6 +45,16 @@ export function __setTatumTransport(f: Fetch | null): void { transport = f ?? ((
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// ---- degrade mode (FINAL_PUSH T0.5): Tatum refused the key (auth or quota). Reads fall back to the
+// last cached answer, writes pause, and the UI says so. Never a silent switch to a public fullnode.
+export interface Degraded { since: number; status: number; message: string }
+let degraded: Degraded | null = null;
+export const tatumDegraded = (): Degraded | null => degraded;
+const QUOTA_STATUS = new Set([401, 402, 403]);
+export class TatumPausedError extends Error {}
+/** test hook */
+export function __setDegraded(d: Degraded | null): void { degraded = d; }
+
 // One global FIFO queue: the rate limit is per key, across both networks.
 let chain: Promise<unknown> = Promise.resolve();
 let lastStart = 0;
@@ -58,6 +69,7 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
 }
 
 const cache = new Map<string, { at: number; status: number; body: string; headers: [string, string][] }>();
+const isWrite = (body: string) => /\bmutation\b/.test(body) && /executeTransaction/i.test(body);
 const isCacheable = (body: string) =>
   !/\bmutation\b/.test(body) && !/simulateTransaction|executeTransaction|dryRun/i.test(body);
 
@@ -79,8 +91,10 @@ export function tatumFetch(net: Net): Fetch {
     const key = `${net}|${body}`;
     if (body && isCacheable(body)) {
       const hit = cache.get(key);
-      if (hit && Date.now() - hit.at < CACHE_MS) return new Response(hit.body, { status: hit.status, headers: hit.headers });
+      if (hit && Date.now() - hit.at < CACHE_MS) { recordCacheHit(); return new Response(hit.body, { status: hit.status, headers: hit.headers }); }
     }
+    if (degraded && isWrite(body)) throw new TatumPausedError('Live chain writes paused: Tatum refused the request (quota or key). Showing cached data.');
+    const op = body ? opOf(body) : 'unknown';
     const headers = new Headers(init.headers);
     const k = apiKey();
     if (k) headers.set('x-api-key', k);
@@ -97,8 +111,19 @@ export function tatumFetch(net: Net): Fetch {
         const res = await enqueue(() => transport(url, { ...init, headers }));
         stats.requests++;
         stats.lastLatencyMs[net] = Date.now() - t0;
+        recordCall(net, op, Date.now() - t0, res.status);
         const plan = res.headers.get('x-ttm-plan');
         if (plan) stats.plan = plan;
+        if (QUOTA_STATUS.has(res.status)) {
+          const msg = (await res.text().catch(() => '')).slice(0, 200);
+          if (!degraded) console.error(`[tatum] ${net} HTTP ${res.status}: entering degrade mode (${msg})`);
+          degraded = { since: degraded?.since ?? Date.now(), status: res.status, message: msg };
+          const stale = body && isCacheable(body) ? cache.get(key) : undefined;
+          if (stale) { recordCacheHit(); return new Response(stale.body, { status: stale.status, headers: [...stale.headers, ['x-helix-stale', '1']] }); }
+          stats.errors++;
+          throw new TatumPausedError(`tatum ${net} HTTP ${res.status}: live chain reads paused (${msg.slice(0, 80)})`);
+        }
+        if (res.ok && degraded) { console.log('[tatum] recovered; leaving degrade mode'); degraded = null; }
         if (res.status === 429 || res.status >= 500) {
           if (res.status === 429) stats.rateLimited++;
           lastErr = new Error(`tatum ${net} HTTP ${res.status}`);
@@ -111,6 +136,7 @@ export function tatumFetch(net: Net): Fetch {
         }
         return new Response(text, { status: res.status, headers: res.headers });
       } catch (e) {
+        if (e instanceof TatumPausedError) throw e;
         lastErr = e;                                   // network error → retry
       }
     }

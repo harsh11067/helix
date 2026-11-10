@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-accent="gold">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HELIX Ops · Tatum</title>
+<meta name="description" content="How HELIX reaches Sui: every call through Tatum, measured at one chokepoint — calls per hour, latency, errors, cache hits, credit runway, and direct fullnode calls (zero)." />
+<link rel="stylesheet" href="css/helix.css" />
+<link rel="stylesheet" href="css/app.css" />
+<style>
+  body { background: var(--bg); margin: 0; }
+  .pp-wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+  .pp-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .pp-brand { font-family: var(--serif); font-size: 1.5rem; color: var(--ink); text-decoration: none; }
+  .table td, .table th { vertical-align: top; }
+  .table tr, .table tbody tr { cursor: default; }
+  @media (max-width: 760px) { .grid-4, .grid-2 { grid-template-columns: 1fr 1fr; } .table th:nth-child(5), .table td:nth-child(5) { display: none; } }
+  @media (max-width: 480px) { .grid-4, .grid-2 { grid-template-columns: 1fr; } }
+</style>
+<script>
+  (function () { try { var t = localStorage.getItem('helix-theme'); if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {} })();
+  window.HELIX_COMPILER_URL = 'https://helix-compiler.onrender.com';
+</script>
+</head>
+<body>
+  <div class="pp-wrap">
+    <div class="pp-top">
+      <a class="pp-brand" href="app.html">Heli<b>x</b> · Ops</a>
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <a class="btn-soft" href="app.html?demo=1#/memory">Demo trader</a>
+        <a class="btn-soft" href="https://helix-compiler.onrender.com/proof/audit" target="_blank" rel="noopener">Chain audit</a>
+        <a class="btn-solid" href="app.html#/canvas">Open the app</a>
+      </div>
+    </div>
+    <p class="muted" style="margin:0 0 18px;max-width:760px">HELIX reaches Sui only through Tatum. These numbers are counted at that one chokepoint on the server and refresh every 30 seconds.</p>
+    <div id="ops"><div class="muted">loading…</div></div>
+  </div>
+<script type="module">
+  import { renderOps } from './js/ops.js';
+  const base = (window.HELIX_COMPILER_URL || 'http://localhost:8081').replace(/\/+$/, '');
+  const host = document.getElementById('ops');
+  const load = async () => {
+    try { const r = await fetch(base + '/ops/tatum'); host.innerHTML = renderOps(r.ok ? await r.json() : null); }
+    catch { host.innerHTML = renderOps(null); }
+  };
+  load(); setInterval(load, 30_000);
+</script>
+</body>
+</html>

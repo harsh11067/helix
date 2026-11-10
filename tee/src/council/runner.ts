@@ -25,7 +25,11 @@ import { councilWeights, councilPUp, weightsEqual, type AgentRecord } from './en
 import { council, onResolved } from './state.ts';
 
 export const COUNCIL_NS = `${NS_PREFIX}-council`;
-const SLOT_MS = 30 * 60_000;
+// one commit per agent per slot; COUNCIL_INTERVAL_MIN (default 30) stretches it to save Tatum credits during judging
+export const SLOT_MS = Math.max(15, Number(process.env.COUNCIL_INTERVAL_MIN ?? 30) || 30) * 60_000;
+// T0: the agents' calls are recomputed when an agent is about to commit, else every 4.5 min (the
+// Council voice stays live: CALLS_FRESH_MS is 5 min) — not every minute
+const CALLS_REFRESH_MS = 270_000;
 const MIN_AGENT_MIST = 4_000_000n;
 const PREDICT_TYPES = (getConfig('testnet') as any).predict?.packages?.predictV1 ?? (getConfig('testnet') as any).packages?.predictV1;
 
@@ -120,8 +124,13 @@ export async function tick(now = Date.now()): Promise<void> {
   if (ticking) return;
   ticking = true;
   try {
-    const { window, pv, calls } = await refreshCalls(now);
     const slot = Math.floor(now / SLOT_MS), into = now % SLOT_MS;
+    const due = agents.some((a, i) => lastSlot.get(a.name) !== slot && into >= 60_000 + i * 40_000 && into <= 9 * 60_000);
+    const { tatumDegraded } = await import('../shared/tatum.ts');
+    if (tatumDegraded()) return;                                                       // writes paused
+    if (!due && now - council.callsAt < CALLS_REFRESH_MS) return;
+    const { window, pv, calls } = await refreshCalls(now);
+    if (!due) return;
     for (const [i, a] of agents.entries()) {
       if (lastSlot.get(a.name) === slot || into < 60_000 + i * 40_000 || into > 9 * 60_000) continue;
       const mine = (await commitsBy(a.address).catch(() => [])).some((e) => e.committed_ms >= slot * SLOT_MS);
@@ -226,6 +235,6 @@ export function startCouncil(): void {
     setTimeout(() => { void runVet(); setInterval(() => { void runVet(); }, 4 * 3_600_000).unref?.(); }, 10 * 60_000).unref?.();
   }
   // keep GET /council warm for visitors (its recalls and chain reads take ~10s cold)
-  setTimeout(() => { import('./routes.ts').then((m) => { void m.warmCouncil(); setInterval(() => { void m.warmCouncil(); }, 45_000).unref?.(); }); }, 20_000).unref?.();
+  setTimeout(() => { import('./routes.ts').then((m) => { void m.warmCouncil(); setInterval(() => { void m.warmCouncil(); }, 240_000).unref?.(); }); }, 20_000).unref?.();
 }
 

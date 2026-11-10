@@ -11,7 +11,8 @@ import { jsonServer, HttpError } from '../shared/http.ts';
 import { compileOffline } from './compiler.ts';
 import { MOCK_TEE } from '../shared/attestation.ts';
 import type { Conviction } from '../shared/types.ts';
-import { gql, latestCheckpoint, stats as tatumStats, checkProxyQuery, recordExecution, tatumConfigured, TATUM_URLS } from '../shared/tatum.ts';
+import { gql, latestCheckpoint, stats as tatumStats, checkProxyQuery, recordExecution, tatumConfigured, tatumDegraded, TATUM_URLS } from '../shared/tatum.ts';
+import { usage as tatumUsage, installFetchCounter, startUsagePersistence } from '../shared/tatumUsage.ts';
 import { handleRpc } from '../shared/rpcFacade.ts';
 import * as P from '../predict/predict.ts';
 import {
@@ -67,7 +68,7 @@ const RUNNING_COMMIT = (process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT 
 // G-06: gas for every signer HELIX runs (judge sponsor, Council agents, allocator, operator), low below 0.05 SUI
 let gasCache: { at: number; v: any } | null = null;
 async function gasHealth() {
-  if (gasCache && Date.now() - gasCache.at < 60_000) return gasCache.v;
+  if (gasCache && Date.now() - gasCache.at < 5 * 60_000) return gasCache.v;   // T0: balances move slowly
   const signers: Record<string, string | null> = { sponsor: sponsorAddress(), operator: process.env.DEMO_ADDRESS?.trim() ?? null };
   for (const a of council.agents) signers[`agent:${a.name}`] = a.address;
   const alloc = (await import('../council/allocator.ts').catch(() => null))?.allocatorKey()?.toSuiAddress();
@@ -85,7 +86,7 @@ async function gasHealth() {
 }
 
 async function health() {
-  if (healthCache && Date.now() - healthCache.at < 15_000) return healthCache.v;
+  if (healthCache && Date.now() - healthCache.at < 60_000) return { ...healthCache.v, tatum: { ...healthCache.v.tatum, usage: tatumUsage(), degraded: tatumDegraded() } };
   const base: any = { ok: true, agent: 'compiler', commit: RUNNING_COMMIT, gas_sponsor: sponsorAddress(), mockTee: MOCK_TEE, offline: offline(),
     council: { enabled: council.enabled, agents: council.agents.length, last_error: council.lastError },
     council_last_commit_age_s: council.lastCommitAt ? Math.round((Date.now() - council.lastCommitAt) / 1000) : null,
@@ -111,6 +112,7 @@ async function health() {
       testnet: { url: new URL(TATUM_URLS.testnet).host, checkpoint: tn }, mainnet: { url: new URL(TATUM_URLS.mainnet).host, checkpoint: mn },
       requests: tatumStats.requests, retries: tatumStats.retries, rate_limited: tatumStats.rateLimited,
       recent_executions: tatumStats.executed.slice(0, 5),
+      usage: tatumUsage(), degraded: tatumDegraded(),
     },
     memwal: mw.status, memwal_detail: mw, memory_network: memMode() === 'mainnet' ? 'walrus-mainnet' : memMode(),
     watcher: { pending: pendingCount() },
@@ -140,7 +142,12 @@ export function makeServer() {
     },
     'GET /health': () => health(),
     // dependency-free liveness for the host's health checker / keep-alive (no Tatum credits)
-    'GET /healthz': () => ({ ok: true, agent: 'compiler', commit: RUNNING_COMMIT, uptime_s: Math.round(process.uptime()) }),
+    'GET /healthz': () => ({ ok: true, agent: 'compiler', commit: RUNNING_COMMIT, uptime_s: Math.round(process.uptime()), tatum_degraded: !!tatumDegraded() }),
+    // T1: the Ops panel — every number computed from the chokepoint's counters, none invented
+    'GET /ops/tatum': () => ({ ...tatumUsage(), plan: tatumStats.plan, degraded: tatumDegraded(), requests_total: tatumStats.requests,
+      retries: tatumStats.retries, rate_limited: tatumStats.rateLimited, last_latency_ms: tatumStats.lastLatencyMs,
+      hosts: { testnet: new URL(TATUM_URLS.testnet).host, mainnet: new URL(TATUM_URLS.mainnet).host },
+      recent_executions: tatumStats.executed.slice(0, 5) }),
 
     // ---------------------------------------------------------------- transactions (Predict v4 via Tatum)
     'POST /tx/fund': (b) => buildFund({ address: needAddr(b.address), amount: Number(b.amount) }),
@@ -224,7 +231,9 @@ export function makeServer() {
     // F1 live proof ticker, from chain events
     'GET /proof/ticker': async () => {
       const a = lastAudit();
-      return { ...(await ticker()), audit: a ? { ok: a.ok, audited: a.audited, at_ms: a.finished_ms } : null };
+      const d = tatumDegraded();
+      return { ...(await ticker()), audit: a ? { ok: a.ok, audited: a.audited, at_ms: a.finished_ms } : null,
+        degraded: d ? { since_ms: d.since, banner: 'Live chain reads paused — showing cached data' } : null };
     },
     // continuous chain audit: every commit re-fetched as a transaction through Tatum and checked independently
     'GET /proof/audit': () => latestAudit(),
@@ -238,6 +247,8 @@ export function makeServer() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   // Render (and most PaaS) inject PORT; prefer it, then COMPILER_PORT, then local default.
   const port = Number(process.env.PORT ?? process.env.COMPILER_PORT ?? 8081);
+  installFetchCounter();
+  startUsagePersistence();
   makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE}, memory=${memMode()}, tatum=${tatumConfigured() ? 'keyed' : 'anonymous'})`));
   startWatcher();
   startCouncil();

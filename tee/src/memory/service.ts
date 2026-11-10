@@ -619,15 +619,34 @@ export async function resolveOnce(tx: string, ns: string, rec: MemRecord): Promi
   resolving.add(tx);
   try { return await resolveConviction(ns, rec); } finally { resolving.delete(tx); }
 }
-export async function watcherTick(): Promise<void> {
+// T0: expiry-driven. Nothing is read before a conviction's expiry + grace; after that, a market that
+// hasn't settled yet is re-checked with backoff (15s → 30s → … → 5 min), never on a fixed short poll.
+const SETTLE_GRACE_MS = 20_000;
+const nextTry = new Map<string, { at: number; n: number }>();
+export function watcherDue(now = Date.now()): { tx: string; at: number }[] {
+  return [...pending].map(([tx, { rec }]) => {
+    const exp = num(rec, 'expiry');
+    const at = Math.max(nextTry.get(tx)?.at ?? 0, exp ? exp * 1000 + SETTLE_GRACE_MS : 0);
+    return { tx, at };
+  }).filter((d) => d.at <= now);
+}
+export async function watcherTick(now = Date.now()): Promise<void> {
   if (ticking) return;
   ticking = true;
   try {
-    for (const [tx, { ns, rec }] of [...pending]) {
+    for (const { tx } of watcherDue(now)) {
+      const p = pending.get(tx);
+      if (!p) continue;
+      let status = 'error';
       try {
-        const r = await resolveOnce(tx, ns, rec);
+        const r = await resolveOnce(tx, p.ns, p.rec);
+        status = r.status;
         if (r.status === 'resolved') console.log(`[watcher] ${tx} → ${r.outcome}`);
       } catch (e) { console.error('[watcher]', tx, (e as Error).message); }
+      if (['not_settled', 'not_expired', 'error', 'in_progress'].includes(status)) {
+        const n = (nextTry.get(tx)?.n ?? 0) + 1;
+        nextTry.set(tx, { at: Date.now() + Math.min(300_000, 15_000 * 2 ** (n - 1)), n });
+      } else nextTry.delete(tx);
     }
   } finally { ticking = false; }
 }

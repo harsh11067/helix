@@ -40,12 +40,12 @@ async function syncHidden(): Promise<void> {
 
 /** Every ConvictionCommitted event ever emitted (synced incrementally through Tatum, at most every 30s). */
 export async function commitEvents(now = Date.now()): Promise<CommitEvent[]> {
-  if (now - at > 30_000 || !all.length) { at = now; await syncEvents(); }
+  if (now - at > 60_000 || !all.length) { at = now; await syncEvents(); }
   return all.slice();
 }
 
 export async function ticker(now = Date.now()) {
-  if (now - at > 30_000) { at = now; await syncEvents().catch((e) => console.warn('[ticker]', (e as Error).message)); }
+  if (now - at > 60_000) { at = now; await syncEvents().catch((e) => console.warn('[ticker]', (e as Error).message)); }
   if (now - hiddenAt > 5 * 60_000) { hiddenAt = now; void syncHidden().catch((e) => console.warn('[ticker] hidden', (e as Error).message)); }
   const settled = all.filter((e) => e.expiry_ms <= now);
   const lastSettled = settled.reduce((m, e) => Math.max(m, e.expiry_ms), 0);

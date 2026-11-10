@@ -88,6 +88,17 @@ const commitsCache = new Map<string, { at: number; v: CommitEvent[] }>();
 export async function commitsBy(owner: string, max = 500): Promise<CommitEvent[]> {
   const key = normalizeSuiAddress(owner), hit = commitsCache.get(key);
   if (hit && Date.now() - hit.at < 15_000) return hit.v;
+  // T0: one incremental log of every ConvictionCommitted (fun/ticker) serves every committer, so the
+  // Council, passports and ledgers cost no extra Tatum calls; per-sender paging is the fallback.
+  if (process.env.COMMITS_FROM_LOG !== '0') {
+    try {
+      const { commitEvents } = await import('../fun/ticker.ts');
+      const v = (await commitEvents()).filter((e) => e.owner === key).slice(0, max);
+      commitsCache.set(key, { at: Date.now(), v });
+      if (commitsCache.size > 200) commitsCache.clear();
+      return v;
+    } catch { /* fall through to the direct query */ }
+  }
   const v = await commitsByUncached(key, max);
   commitsCache.set(key, { at: Date.now(), v });
   if (commitsCache.size > 200) commitsCache.clear();
