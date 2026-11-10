@@ -17,7 +17,7 @@ import {
 } from './calibration.ts';
 import { remember, recallAll, recallForAddress, registerNamespace, registeredNamespaces, recallCoverage, mode as memMode } from './store.ts';
 import { crowdVoice, type CrowdView } from '../crowd/polymarket.ts';
-import { witnessBtc } from '../shared/tatumRates.ts';
+import { witness, witnessBtc, type WitnessSymbol } from '../shared/tatumRates.ts';
 import { classifyReason } from './reasons.ts';
 import { memwal } from './store.ts';
 import { commitBody, commitMemoryText, commitTx, commitEventsOf, checkCommit, commitsBy, sha256hex, verifyReveal, JOURNAL_PKG, sponsorAddress, SPONSOR_GAS_BUDGET } from './commit.ts';
@@ -549,19 +549,24 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
   const strikeTxt = order.side === 'range' ? `${order.lower}-${order.upper}` : String(order.strike);
   let text: string;
   if (pyth) {
+    const pw = await witness(asset as WitnessSymbol, s.price).catch(() => null);
     // the Pyth price, its publish time and feed id are the evidence; the tx is the on-chain verification (pyth-sui)
     text = formatRecord('OUTCOME', [
       ['tx', tx], ['mode', mode], ['asset', asset], ['reveal_ok', reveal_ok], ['result', won ? 'WIN' : 'LOSS'], ['payout', 'na'], ['cost', p2(costPaid)], ['payoff', 'na'],
       ['settle_px', String(+Number(s.price).toPrecision(9))], ['strike_px', strikeTxt],
       ['oracle', 'pyth'], ['price_source', s.source], ['feed_id', s.feed_id], ['publish_time', s.publish_time], ['lag_s', s.lag_s], ['price_tx', s.digest ?? 'na'],
+      // Tatum price witness: an independent price for the same asset at settlement time, and its gap to Pyth
+      ['witness_usd', pw?.status === 'ok' ? String(+Number(pw.tatum_usd).toPrecision(9)) : 'na'],
+      ['witness_bps', pw?.status === 'ok' && pw.diff_bps != null ? String(pw.diff_bps) : 'na'],
       ['mem_n', memN], ['ts', expiry],
     ]);
   } else {
-    const witness = await witnessBtc(s.price).catch(() => null);
+    const w = await witnessBtc(s.price).catch(() => null);
     text = formatRecord('OUTCOME', [
       ['tx', tx], ['mode', mode], ['reveal_ok', reveal_ok], ['result', won ? 'WIN' : 'LOSS'], ['payout', p2(payout)], ['cost', p2(costPaid)], ['payoff', signed2(payoff)],
       ['settle_px', p2(s.price)], ['strike_px', strikeTxt],
-      ['witness_usd', witness?.status === 'ok' ? p2(witness.tatum_usd) : 'na'],
+      ['witness_usd', w?.status === 'ok' ? p2(w.tatum_usd) : 'na'],
+      ['witness_bps', w?.status === 'ok' && w.diff_bps != null ? String(w.diff_bps) : 'na'],
       ['alt_payoff', signed2(alt_payoff)], ['memory_pnl', signed2(memory_pnl)], ['mem_n', memN],
       ['ts', expiry],
     ]);

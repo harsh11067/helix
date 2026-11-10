@@ -7,6 +7,8 @@ test('F1 ticker text is built only from the counts', () => {
   const now = 1_794_240_000_000;
   assert.equal(tickerText({ commits: 40, settled: 37, hidden: 0, last_settled_ms: now - 180_000 }, now), '40 commits on Sui · 37 settled · last settled 3 min ago · hidden 0');
   assert.equal(tickerText(null), '');
+  assert.equal(tickerText({ commits: 139, settled: 137, hidden: 1, last_settled_ms: now - 60_000, audit: { ok: 139, audited: 139 } }, now), '139 commits on Sui · 137 settled · last settled 1 min ago · hidden 1 · audited 139/139 ✓');
+  assert.match(tickerText({ commits: 2, settled: 2, hidden: 0, last_settled_ms: now, audit: { ok: 1, audited: 2 } }, now), /audited 1\/2 ✗$/);
   assert.equal(ago(now - 30_000, now), '30s ago');
 });
 

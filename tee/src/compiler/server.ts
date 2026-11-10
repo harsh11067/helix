@@ -33,6 +33,7 @@ import { sponsorRefusal, sponsorSign, sponsorAddress } from '../memory/commit.ts
 import { councilRoutes } from '../council/routes.ts';
 import { passportRoutes } from '../passport/offchain/routes.ts';
 import { ticker } from '../fun/ticker.ts';
+import { latestAudit, lastAudit, startAudit } from '../fun/audit.ts';
 import { paymentRoutes } from '../payments/routes.ts';
 import { startCouncil } from '../council/runner.ts';
 import { council } from '../council/state.ts';
@@ -221,7 +222,12 @@ export function makeServer() {
     ...councilRoutes(),
     ...passportRoutes(),
     // F1 live proof ticker, from chain events
-    'GET /proof/ticker': () => ticker(),
+    'GET /proof/ticker': async () => {
+      const a = lastAudit();
+      return { ...(await ticker()), audit: a ? { ok: a.ok, audited: a.audited, at_ms: a.finished_ms } : null };
+    },
+    // continuous chain audit: every commit re-fetched as a transaction through Tatum and checked independently
+    'GET /proof/audit': () => latestAudit(),
     ...passportOnchainRoutes(),
     ...paymentRoutes(),
     ...askRoutes(),
@@ -235,6 +241,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   makeServer().listen(port, '0.0.0.0', () => console.log(`[compiler] listening on :${port} (mockTee=${MOCK_TEE}, memory=${memMode()}, tatum=${tatumConfigured() ? 'keyed' : 'anonymous'})`));
   startWatcher();
   startCouncil();
+  startAudit();
   // warm the parsed-memory cache for what judges open first (demo trader, Council, agents)
   if (!offline() && process.env.WATCHER !== '0') setTimeout(() => {
     const demo = process.env.DEMO_ADDRESS?.trim();

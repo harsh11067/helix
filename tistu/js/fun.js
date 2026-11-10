@@ -17,7 +17,9 @@ export function ago(ms, now = Date.now()) {
 /** F1 — "N commits · M settled · last settled 3 min ago · hidden 0" */
 export function tickerText(t, now = Date.now()) {
   if (!t || t.commits == null) return '';
-  return `${t.commits} commits on Sui · ${t.settled} settled · last settled ${ago(t.last_settled_ms, now)} · hidden ${t.hidden}`;
+  // chain audit (server re-fetches every commit through Tatum): shown only once an audit has completed
+  const a = t.audit && t.audit.audited ? ` · audited ${t.audit.ok}/${t.audit.audited}${t.audit.ok === t.audit.audited ? ' ✓' : ' ✗'}` : '';
+  return `${t.commits} commits on Sui · ${t.settled} settled · last settled ${ago(t.last_settled_ms, now)} · hidden ${t.hidden}${a}`;
 }
 
 /** F3 — a plain-words roast from the real gap (positive = more sure than right). */

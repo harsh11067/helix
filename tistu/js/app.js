@@ -1362,7 +1362,11 @@ function build() {
 function proofTicker() {
   const run = async () => {
     const n = $('#proof-ticker'); if (!n) return;
-    try { const t = await api('/proof/ticker'); const s = tickerText(t); if (s) { n.textContent = s; n.style.display = ''; } } catch (e) {}
+    try {
+      const t = await api('/proof/ticker'); const s = tickerText(t);
+      if (s) { n.textContent = s; n.style.display = ''; }
+      if (t?.audit) n.title = `Counted from helix::journal ConvictionCommitted events on Sui (via Tatum); hidden = commits with no memory. Chain audit: every commit re-fetched as a transaction through Tatum and checked (sender, event, success, checkpoint time before expiry), ${new Date(t.audit.at_ms).toLocaleTimeString()} — full report at /proof/audit`;
+    } catch (e) {}
   };
   run(); setInterval(run, 60_000);
 }

@@ -7,6 +7,7 @@
 // when Polymarket's window matches) · Market: n/a for this asset. Nothing is invented.
 
 import { randomBytes } from 'node:crypto';
+import { witness } from '../shared/tatumRates.ts';
 import type { Conviction } from '../shared/types.ts';
 import { formatRecord, namespaceFor, bucketKey, bucketOfConviction, dirWord, volWord, pYou, p2, p3, str, type MemRecord } from '../memory/format.ts';
 import { bucketStats, bestVoice, MIN_N, VOICE_LABEL, type SettledRow } from '../memory/calibration.ts';
@@ -114,6 +115,14 @@ export async function assetCompile(conv: Conviction, asset: PythAsset, address: 
       : { cls: 'time', bad: false, t: `Resolves at ${expiryTxt}, in ${window.minutesLeft.toFixed(0)} min.` },
     { cls: 'mode', bad: false, t: `${ASSET_NAME[asset]} has no DeepBook Predict market: this is a commit-mode call (its hash goes on Sui before expiry), scored against the first Pyth price at or after expiry${ref.source === 'pyth-sui' ? ' (on-chain Pyth updates land every ~2 min; the lag is recorded)' : ''}.` },
   ];
+  // Tatum price witness: an independent USD price for the same asset from Tatum's exchange-rate API
+  const w = await witness(asset, ref.price).catch(() => null);
+  if (w?.status === 'ok' && w.diff_bps != null) {
+    const lim = Number(process.env.WITNESS_BPS ?? 50);
+    guardian.push(Math.abs(w.diff_bps) > lim
+      ? { cls: 'witness', bad: true, t: `Price sources disagree by ${Math.abs(w.diff_bps).toFixed(0)} bps: Pyth $${fmtUsd(ref.price)} vs Tatum $${fmtUsd(w.tatum_usd!)} (Tatum price ${w.tatum_age_s}s old).` }
+      : { cls: 'witness', bad: false, t: `Independent check: Tatum ${asset}/USD $${fmtUsd(w.tatum_usd!)} is within ${Math.abs(w.diff_bps).toFixed(0)} bps of Pyth (${w.tatum_age_s}s old).` });
+  }
   if ((memory as any).guardian) guardian.push({ cls: 'memory', bad: memory.n >= MIN_N && ((memory as any).gap_you ?? 0) > 0.1, t: (memory as any).guardian });
   if (crowd.status === 'ok' && helix != null && Math.abs(helix - crowd.p) >= 0.15)
     guardian.push({ cls: 'crowd', bad: true, t: `Sources disagree: HELIX model ${(helix * 100).toFixed(0)}% vs Polymarket ${(crowd.p * 100).toFixed(0)}% for this outcome.` });
