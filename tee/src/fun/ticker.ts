@@ -12,14 +12,25 @@ let cursor: string | null = null;
 let hiddenBySender = new Map<string, number | null>();
 let at = 0, hiddenAt = 0, hiddenSynced = false;   // hidden is unknown until one full check has finished
 
-/** All ConvictionCommitted events, fetched incrementally (forward pages from the last cursor). */
-async function syncEvents(): Promise<void> {
+/** All ConvictionCommitted events, fetched incrementally (forward pages from the last cursor).
+ *  Single-flight: many callers share this log (the Council, passports, ledgers), and two syncs racing
+ *  from the same cursor would append the same page twice. Events are also de-duplicated by key. */
+let syncing: Promise<void> | null = null;
+const seen = new Set<string>();
+const evKey = (c: CommitEvent) => `${c.digest ?? ''}|${c.hash}|${c.expiry_ms}|${c.owner}`;
+function syncEvents(): Promise<void> {
+  return (syncing ??= syncEventsOnce().finally(() => { syncing = null; }));
+}
+async function syncEventsOnce(): Promise<void> {
   for (let page = 0; page < 20; page++) {
     const r: any = await gql('testnet', `query($t:String!,$a:String){ events(first:50, after:$a, filter:{type:$t}) {
       pageInfo { hasNextPage endCursor } nodes { contents { json } transaction { digest } } } }`, { t: COMMIT_EVENT, a: cursor });
     if (r.errors?.length) throw new Error(r.errors[0].message);
     const ev = r.data?.events;
-    for (const n of ev?.nodes ?? []) { const c = parseCommitEvent(n.contents?.json, n.transaction?.digest); if (c) all.push(c); }
+    for (const n of ev?.nodes ?? []) {
+      const c = parseCommitEvent(n.contents?.json, n.transaction?.digest);
+      if (c && !seen.has(evKey(c))) { seen.add(evKey(c)); all.push(c); }
+    }
     if (ev?.pageInfo?.endCursor) cursor = ev.pageInfo.endCursor;
     if (!ev?.pageInfo?.hasNextPage) break;
   }
