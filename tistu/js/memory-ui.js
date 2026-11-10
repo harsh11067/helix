@@ -7,6 +7,9 @@ import { api, apiBase } from './sui.js';
 import { walruscanBlobUrl, shareCardSVG, xIntentUrl } from './share.js';
 import { humilityMeterHTML, beatTheMarketHTML } from './fun.js';
 import { perAssetHTML } from './assets.js';
+import * as mem from './vendor/memory.js';   // the compiler's own records/calibration/rows modules (N1)
+import { toRecords, stepsOf, stepForTs, scrubberHTML, mountScrubber, setupFrom, suggestionHTML } from './timemachine.js';
+import { rulesPanelHTML, mountRulesPanel } from './rules-ui.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (p) => (p == null || !Number.isFinite(p) ? '—' : Math.round(p * 100) + '%');
@@ -110,6 +113,19 @@ function dividendSVG(rows) {
     <text x="${P}" y="${H - 6}" font-size="10" fill="var(--ink-3)" font-family="var(--mono)">settled convictions while memory had n≥3 →</text></svg>`;
 }
 
+/** "Who has been right": Brier per voice from an overall BucketStats (live, or replayed by the Time Machine). */
+export function voicesPanelHTML(o) {
+  o = o || {};
+  const voices = ['you', 'market', 'helix', 'crowd'].map(k => {
+    const b = o.brier?.[k];
+    return `<div class="row spread" style="padding:10px 0;border-bottom:1px solid var(--line)">
+      <span>${VOICE[k]}</span><span class="mono">${b == null ? '<span class="muted">not scored</span>' : 'Brier ' + b2(b)}${k === 'crowd' && o.n_crowd ? ` <span class="muted">(n=${o.n_crowd})</span>` : ''}</span></div>`;
+  }).join('');
+  const bestK = ['you', 'market', 'helix', 'crowd'].filter(k => o.brier?.[k] != null && (k !== 'crowd' || o.n_crowd >= 3)).sort((a, b) => o.brier[a] - o.brier[b])[0];
+  return `<div class="section-title">who has been right · Brier per voice</div>${voices}
+    <div class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.5">${o.n >= 3 && bestK ? `Across ${o.n} settled convictions, <b>${VOICE[bestK]}</b> has been the best-calibrated voice.` : `Scores firm up after 3 settled convictions (n=${o.n || 0}). Lower Brier = better calibrated.`}</div>`;
+}
+
 /* ---------------- the Memory page ---------------- */
 export function viewMemory(ctx) {
   const { state, $, connectPrompt, explorer } = ctx;
@@ -120,8 +136,10 @@ export function viewMemory(ctx) {
   (async () => {
     const host = $('#mem', el);
     try {
-      const [t, div, board] = await Promise.all([
+      // history (N1) and rules (N2) 404 when their feature flags are off: the page then shows neither panel
+      const [t, div, board, hist, rules] = await Promise.all([
         api(`/memory/${addr}`), api(`/memory/${addr}/dividend`).catch(() => null), api('/board').catch(() => null),
+        api(`/memory/${addr}/history`).catch(() => null), api(`/rules/${addr}`).catch(() => null),
       ]);
       const o = t.overall || {};
       const tl = (t.timeline || []).slice().reverse();
@@ -152,12 +170,6 @@ export function viewMemory(ctx) {
         host.innerHTML = banner + header + `<div class="empty"><h3>No memories yet</h3><p>Commit a conviction on the Canvas. HELIX writes it to Walrus Memory on mainnet, then records the outcome when the market settles — a few minutes later.</p><a class="btn-solid" href="#/canvas" data-cursor>Open the Canvas</a></div>`;
         return;
       }
-      const voices = ['you', 'market', 'helix', 'crowd'].map(k => {
-        const b = o.brier?.[k];
-        return `<div class="row spread" style="padding:10px 0;border-bottom:1px solid var(--line)">
-          <span>${VOICE[k]}</span><span class="mono">${b == null ? '<span class="muted">not scored</span>' : 'Brier ' + b2(b)}${k === 'crowd' && o.n_crowd ? ` <span class="muted">(n=${o.n_crowd})</span>` : ''}</span></div>`;
-      }).join('');
-      const bestK = ['you', 'market', 'helix', 'crowd'].filter(k => o.brier?.[k] != null && (k !== 'crowd' || o.n_crowd >= 3)).sort((a, b) => o.brier[a] - o.brier[b])[0];
       const rel = (t.reliability || []).some(b => b.n > 0)
         ? reliabilitySVG(t.reliability)
         : `<div class="muted" style="padding:30px 0">The reliability diagram appears once a conviction settles.</div>`;
@@ -179,7 +191,7 @@ export function viewMemory(ctx) {
           : r.type === 'LESSON' ? esc(f.text)
           : esc(r.text.slice(0, 160));
         const tx = f.tx && f.tx !== 'na' ? `<a class="mono" href="${explorer(f.tx)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">${f.mode === 'commit' ? 'commit tx' : 'tx'} ${shortB(f.tx)} ↗</a>` : '';
-        return `<div class="mem-row" style="display:grid;grid-template-columns:110px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)">
+        return `<div class="mem-row" data-ts="${esc(f.ts || '')}" style="display:grid;grid-template-columns:110px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)">
           <div><span class="badge" style="color:${TYPE_COLOR[r.type] || 'var(--ink-2)'}">${r.type}</span>${modeBadge(r)}<div class="muted mono" style="font-size:10px;margin-top:6px">${f.ts ? new Date(Number(f.ts) * 1000).toISOString().slice(5, 16).replace('T', ' ') : ''}</div></div>
           <div style="min-width:0"><div style="font-size:13.5px;line-height:1.5;overflow-wrap:anywhere">${summary}</div>
             <div class="row" style="gap:12px;margin-top:6px;flex-wrap:wrap;font-size:11px">${tx}
@@ -187,11 +199,17 @@ export function viewMemory(ctx) {
               <button class="mono" data-proof="${esc(r.blob_id)}" style="font-size:11px;color:var(--accent-deep);background:none;border:0;padding:0;cursor:pointer" data-cursor>verify on mainnet ↗</button></div>
             <div class="proof-out" data-for="${esc(r.blob_id)}"></div></div></div>`;
       }).join('');
-      const fun = (t.overall?.n >= 3 || t.today?.n) ? `<div class="grid-2 reveal" style="gap:18px;margin-bottom:18px;align-items:start">${humilityMeterHTML(t.overall)}${beatTheMarketHTML(t.today)}</div>` : '';
-      host.innerHTML = banner + header + fun + perAssetHTML(t.assets) + `
+      // N1: the humility meter and the voices panel are the Time Machine's re-render targets
+      const fun = `<div class="grid-2 reveal" style="gap:18px;margin-bottom:18px;align-items:start${(t.overall?.n >= 3 || t.today?.n) ? '' : ';display:none'}" id="tm-fun"><div id="tm-humility">${humilityMeterHTML(t.overall)}</div>${beatTheMarketHTML(t.today)}</div>`;
+      const recs = hist ? toRecords(hist) : [];
+      const steps = stepsOf(recs);
+      const setup = hist ? setupFrom(state, hist, mem) : null;
+      const moments = hist ? (hist.key_moments || []).map(m => ({ ...m, step: stepForTs(steps, m.ts) })) : [];
+      const tm = hist && recs.length ? scrubberHTML(steps, moments) + `<div class="panel reveal" style="margin-bottom:18px" id="tm-suggest-panel"><div class="section-title">memory's suggestion for your current setup · as of the scrubber</div><div id="tm-suggest" style="line-height:1.6">${suggestionHTML(mem.replayState(recs, Infinity, setup))}</div></div>` : '';
+      const rulesPanel = rules ? rulesPanelHTML(rules, { readOnly: !!ctx.readOnly, canSign: !!ctx.signPersonalMessage && !ctx.readOnly }) : '';
+      host.innerHTML = banner + header + tm + fun + perAssetHTML(t.assets) + `
         <div class="grid-2 reveal" style="align-items:start;gap:18px">
-          <div class="panel"><div class="section-title">who has been right · Brier per voice</div>${voices}
-            <div class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.5">${o.n >= 3 && bestK ? `Across ${o.n} settled convictions, <b>${VOICE[bestK]}</b> has been the best-calibrated voice.` : `Scores firm up after 3 settled convictions (n=${o.n || 0}). Lower Brier = better calibrated.`}</div></div>
+          <div class="panel" id="tm-voices">${voicesPanelHTML(o)}</div>
           <div class="panel"><div class="section-title">reliability · stated vs realized</div><div style="display:grid;place-items:center">${rel}</div>
             <div class="muted mono" style="font-size:10.5px;text-align:center">on the dashed line = perfectly calibrated · above = you were better than you said</div></div>
         </div>
@@ -199,8 +217,21 @@ export function viewMemory(ctx) {
           <div class="row" style="gap:10px;flex-wrap:wrap">${Object.entries(t.reasons).map(([c, v]) => `<span class="badge">${esc(c)} · won ${v.wins}/${v.n}</span>`).join('')}</div>
           <div class="muted" style="font-size:12.5px;margin-top:8px">Only theses you opted in were analyzed (plaintext to the Walrus Memory relayer). Categories come from a deterministic keyword classifier.</div></div>` : ''}
         <div class="panel reveal d1" style="margin-top:18px"><div class="section-title">memory dividend · did listening pay?</div>${divPanel}</div>
+        ${rulesPanel}
         <div class="panel reveal d1" style="margin-top:18px"><div class="section-title">timeline · every memory with its Walrus blob</div>${rows}</div>
         <div class="panel reveal d2" style="margin-top:18px"><div class="section-title">who to trust · ranked by calibration, not luck</div>${boardPanel}</div>`;
+      if (tm) {
+        mountScrubber(host, steps, { moments, onStep: (at) => {
+          const st = mem.replayState(recs, at, setup);
+          $('#tm-humility', host).innerHTML = humilityMeterHTML(st.overall);
+          $('#tm-fun', host).style.display = (st.overall.n >= 3 || t.today?.n) ? '' : 'none';
+          $('#tm-voices', host).innerHTML = voicesPanelHTML(st.overall);
+          $('#tm-suggest', host).innerHTML = suggestionHTML(st);
+          host.querySelectorAll('.mem-row[data-ts]').forEach(n => n.classList.toggle('tm-future', Number(n.dataset.ts || 0) > at));
+          return { n: st.overall.n };
+        } });
+      }
+      if (rules) mountRulesPanel(host, rules, { api, address: addr, readOnly: !!ctx.readOnly, signPersonalMessage: ctx.signPersonalMessage, onChange: () => window.dispatchEvent(new Event('hashchange')) });
       host.addEventListener('click', async (e) => {
         const b = e.target.closest('[data-proof]'); if (!b) return;
         const out = host.querySelector(`.proof-out[data-for="${CSS.escape(b.dataset.proof)}"]`);

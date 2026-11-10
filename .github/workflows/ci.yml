@@ -30,7 +30,7 @@ jobs:
       - name: ES-module syntax check
         run: for f in tistu/js/*.js; do cp "$f" "/tmp/$(basename "${f%.js}").mjs"; node --check "/tmp/$(basename "${f%.js}").mjs"; done
       - name: No undefined identifiers (ES modules)
-        run: npx -y eslint@8.57.0 --no-eslintrc --env browser,es2022 --parser-options=sourceType:module --parser-options=ecmaVersion:latest --rule 'no-undef:error' tistu/js/app.js tistu/js/memory-ui.js tistu/js/sui.js tistu/js/share.js tistu/js/demo.js tistu/js/seal.js tistu/js/zklogin.js tistu/js/council.js tistu/js/passport.js tistu/js/fun.js tistu/js/api-docs.js tistu/js/ask.js tistu/js/ask-button.js tistu/js/onchain-passport.js tistu/js/assets.js tistu/js/ops.js
+        run: npx -y eslint@8.57.0 --no-eslintrc --env browser,es2022 --parser-options=sourceType:module --parser-options=ecmaVersion:latest --rule 'no-undef:error' tistu/js/app.js tistu/js/memory-ui.js tistu/js/sui.js tistu/js/share.js tistu/js/demo.js tistu/js/seal.js tistu/js/zklogin.js tistu/js/council.js tistu/js/passport.js tistu/js/fun.js tistu/js/api-docs.js tistu/js/ask.js tistu/js/ask-button.js tistu/js/onchain-passport.js tistu/js/assets.js tistu/js/ops.js tistu/js/timemachine.js tistu/js/rules-ui.js
   indexer:
     runs-on: ubuntu-latest
     steps:

@@ -189,3 +189,18 @@
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .view { padding: 20px; }
 }
+
+/* N1 Memory Time Machine: scrubber track with key moments; memories after the scrubbed instant fade */
+.tm { margin-bottom: 18px; }
+.tm-track { position: relative; margin-top: 14px; padding-bottom: 10px; }
+.tm-track .hx-range { width: 100%; display: block; }
+.tm-marks { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; pointer-events: none; }
+.tm-mark { position: absolute; bottom: 0; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); pointer-events: auto; cursor: help; }
+.mem-row.tm-future { opacity: 0.28; transition: opacity .25s ease; }
+/* N2 Ulysses Rules: the gate on the Canvas and the rules list */
+.rules-gate { border-color: color-mix(in srgb, var(--coral) 55%, transparent); background: color-mix(in srgb, var(--coral) 7%, var(--surface)); padding: 16px 18px; }
+.rule-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.rule-row.paused { opacity: 0.55; }
+.rule-params { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+.rule-params label { font-size: 11px; color: var(--ink-3); font-family: var(--mono); display: block; }
+.rule-params input, .rule-params select, .rules-form select { width: 100%; margin-top: 4px; }

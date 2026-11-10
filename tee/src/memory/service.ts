@@ -24,34 +24,16 @@ import { commitBody, commitMemoryText, commitTx, commitEventsOf, checkCommit, co
 import { suiClient, gql } from '../shared/tatum.ts';
 import { council, councilLive, resolvedHooks } from '../council/state.ts';
 import { councilProbability } from '../council/ensemble.ts';
+// N2 Ulysses Rules: evaluated at compile (gate), carried on commits (override=true), scored at settlement
+import { evaluateRules, ruleGuardianLine, overrideOk, overrideRecord, OVERRIDE_MIN_CHARS, type RuleHit } from './rules.ts';
+import { rulesEnabled, activeRulesFor, writeOverride, overrideLessonIfDue } from './rulesService.ts';
 
 export const HELIX_PKG = process.env.HELIX_PACKAGE_ID ?? '0xdc4b27696494c3c5f54513b19781686f7354a7b09f7ccf2285f7b843c7add2b3';
 
 // ---------------------------------------------------------------- settled rows from memory
-export function settledRows(recs: MemRecord[]): SettledRow[] {
-  const outcomes = new Map<string, MemRecord>();
-  for (const r of recs) if (r.type === 'OUTCOME' && str(r, 'tx')) outcomes.set(str(r, 'tx')!, r);
-  const rows: SettledRow[] = [];
-  for (const c of recs) {
-    if (c.type !== 'CONVICTION') continue;
-    const tx = str(c, 'tx'); const o = tx ? outcomes.get(tx) : undefined;
-    const res = str(o, 'result');
-    if (!o || (res !== 'WIN' && res !== 'LOSS')) continue;
-    const pyou = num(c, 'p_you'), pm = num(c, 'p_mkt'), ph = num(c, 'p_hlx');
-    // BTC rows need every voice (unchanged); ETH/SUI have no Predict market and may lack the HELIX voice (P5)
-    if (pyou == null || (assetOf(c) === 'BTC' && (pm == null || ph == null))) continue;
-    rows.push({
-      tx: tx!, won: res === 'WIN' ? 1 : 0, p_you: pyou, p_mkt: pm, p_hlx: ph, p_crowd: num(c, 'p_crowd'), p_council: num(c, 'p_council'),
-      structure: str(c, 'structure') ?? 'directional', regime: str(c, 'regime'),
-      commit: num(c, 'commit') ?? 0, payoff: num(o, 'payoff'), ts: num(c, 'ts') ?? 0,
-    });
-  }
-  return rows;
-}
-const bucketOfRow = (recs: MemRecord[], tx: string) => {
-  const c = recs.find((r) => r.type === 'CONVICTION' && str(r, 'tx') === tx);
-  return c ? bucketOfConviction(c) : null;
-};
+// The CONVICTION ⋈ OUTCOME join lives in rows.ts (pure, also bundled for the browser's Time Machine, N1).
+import { settledRows, bucketOfRow } from './rows.ts';
+export { settledRows };
 
 // ---------------------------------------------------------------- compile with memory
 export interface MemoryBlock {
@@ -82,8 +64,21 @@ interface CompileCtx {
   market: P.LiveMarket; order: P.PredictOrder; alt: P.PredictOrder | null; legacy: CompileResult;
   regime: RegimeView; voices: { you: number; market: number; helix: number; crowd: number | null; crowd_slug: string | null; council: number | null };
   memory: MemoryBlock;
+  rules_triggered: RuleHit[];   // N2: the trader's own rules that bind this conviction (empty when FEATURE_RULES is off)
 }
 const compiles = new Map<string, CompileCtx>();
+export type Override = { hits: RuleHit[]; text: string } | null;
+/**
+ * N2 gate: a compile with triggered rules may only be committed/minted with an override sentence (≥ 10 chars).
+ * Returns the override to remember, or null when no rule binds.
+ */
+export function ruleGate(c: CompileCtx, override: unknown): Override {
+  const hits = c.rules_triggered ?? [];
+  if (!hits.length) return null;
+  const text = (override as any)?.text;
+  if (!overrideOk(text)) throw new Error(`rule gate: your rule "${hits[0].sentence}" binds this call — type an override of at least ${OVERRIDE_MIN_CHARS} characters to proceed (it is remembered and scored)`);
+  return { hits, text: String(text).trim() };
+}
 const remember10min = (c: CompileCtx) => {
   compiles.set(c.id, c);
   for (const [k, v] of compiles) if (Date.now() - v.at > 10 * 60_000) compiles.delete(k);
@@ -249,9 +244,22 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
       : { cls: 'witness', bad: false, t: `Independent check: Tatum BTC/USD ${P.fmtUsd(witness.tatum_usd!)} is within ${Math.abs(witness.diff_bps).toFixed(0)} bps of Predict (${witness.tatum_age_s}s old).` });
   }
 
+  // N2: the trader's own rules — a match becomes a gate (guardian line + rules_triggered for the Canvas)
+  let rules_triggered: RuleHit[] = [];
+  if (rulesEnabled() && opts.address) {
+    try {
+      const [rules, recs] = await Promise.all([activeRulesFor(opts.address), recallForAddress(opts.address)]);
+      rules_triggered = evaluateRules(rules, {
+        conv, commit: conv.capital, pMkt: order.pMkt, recs, now,
+        memory: memory.status === 'ok' ? { n: memory.n, gap_you: memory.gap_you ?? null, suggested_commit: memory.suggested_commit } : null,
+      });
+    } catch (e) { console.warn('[rules] evaluation skipped:', (e as Error).message); }
+    for (const h of rules_triggered) guardian.push(ruleGuardianLine(h));
+  }
+
   const ctx: CompileCtx = {
     id: 'cmp_' + randomBytes(8).toString('hex'), at: now, conv, address: opts.address ?? null,
-    market, order, alt, legacy, regime, voices, memory,
+    market, order, alt, legacy, regime, voices, memory, rules_triggered,
   };
   remember10min(ctx);
   return {
@@ -268,6 +276,7 @@ export async function liveCompile(conv: Conviction, opts: { address?: string | n
     witness,
     memory,
     guardian,
+    rules_triggered,
   };
 }
 
@@ -276,15 +285,17 @@ interface MintCtx {
   id: string; at: number; compileId: string; address: string; order: P.PredictOrder; market: P.LiveMarket;
   commit: number; followed_memory: boolean; usedMemoryStructure: boolean; plan: P.MintBuild['plan']; origin: string;
   reason: string | null;      // opt-in plaintext thesis for reasoning memory (W6); null unless opted in
+  override: Override;         // N2: the rule(s) this mint overrides and the typed sentence
 }
 const mints = new Map<string, MintCtx>();
 
-export async function buildMint(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean } }) {
+export async function buildMint(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean }; override?: { text?: string } }) {
   const c = compiles.get(body.compileId);
   if (!c) throw new Error('compile expired — recompile and try again');
   if (!/^0x[0-9a-f]{64}$/i.test(body.address || '')) throw new Error('invalid address');
   const commit = Number(body.commit ?? c.conv.capital);
   if (!Number.isFinite(commit) || commit < 1 || commit > 10_000) throw new Error('invalid commit');
+  const override = ruleGate(c, body.override);
   const useAlt = !!body.useMemoryStructure && !!c.memory.structure_suggestion;
   const order = useAlt ? c.memory.structure_suggestion!.order : c.order;
   const followed = useAlt || (c.memory.n >= MIN_N && Math.abs(commit - c.memory.suggested_commit) < 0.005 && c.memory.suggested_commit !== c.conv.capital);
@@ -293,7 +304,7 @@ export async function buildMint(body: { address: string; compileId: string; comm
   });
   const id = 'mint_' + randomBytes(8).toString('hex');
   const reasonText = body.reason?.optIn === true && typeof body.reason.text === 'string' ? body.reason.text.trim().slice(0, 2000) : '';
-  mints.set(id, { id, at: Date.now(), compileId: c.id, address: body.address, order, market: c.market, commit, followed_memory: followed, usedMemoryStructure: useAlt, plan: built.plan, origin: body.origin ?? 'browser', reason: reasonText || null });
+  mints.set(id, { id, at: Date.now(), compileId: c.id, address: body.address, order, market: c.market, commit, followed_memory: followed, usedMemoryStructure: useAlt, plan: built.plan, origin: body.origin ?? 'browser', reason: reasonText || null, override });
   return { mintId: id, txBytes: built.txBytes, plan: built.plan, order, market: { id: c.market.id, expiryMs: c.market.expiryMs } };
 }
 
@@ -305,7 +316,7 @@ export async function buildFund(body: { address: string; amount: number }) {
 }
 
 // ---------------------------------------------------------------- Commit mode: hash on-chain → remember → resolve
-interface CommitCtx { id: string; at: number; address: string; body: string; hash: string; market: P.LiveMarket; origin: string; reason: string | null }
+interface CommitCtx { id: string; at: number; address: string; body: string; hash: string; market: P.LiveMarket; origin: string; reason: string | null; override?: Override }
 const commitsPending = new Map<string, CommitCtx>();
 /** P5: ETH/SUI commits (tee/src/assets) are recorded by the same /tx/execute → recordCommit path. */
 export function registerPendingCommit(c: { id: string; at: number; address: string; body: string; hash: string; market: { id: string; expiryMs: number }; origin: string; reason: string | null }): void {
@@ -314,7 +325,7 @@ export function registerPendingCommit(c: { id: string; at: number; address: stri
 }
 
 /** The canonical CONVICTION body for a paper commit (hashed; hash/tx/commit_tx are appended after signing). */
-export function convictionCommitBody(c: CompileCtx, o: { order: P.PredictOrder; commit: number; usedMemoryStructure: boolean; followed: boolean; origin: string; at: number; nonce: string }): string {
+export function convictionCommitBody(c: CompileCtx, o: { order: P.PredictOrder; commit: number; usedMemoryStructure: boolean; followed: boolean; origin: string; at: number; nonce: string; override?: Override }): string {
   const conv = c.conv, ord = o.order;
   const pHlx = o.usedMemoryStructure ? helixProbability(ord.pMkt, ord.kind, ord.side, c.regime) : c.voices.helix;
   const alt = o.usedMemoryStructure ? c.order : c.alt;
@@ -331,6 +342,8 @@ export function convictionCommitBody(c: CompileCtx, o: { order: P.PredictOrder; 
     ['fill', 'paper'], ['price', p3(price)], ['qty', p2(o.commit / price)], ['cost', p2(o.commit)],
     ['alt_struct', alt?.kind ?? 'na'], ['alt_cost', alt ? p3(alt.ppcEst) : 'na'], ['alt_rule', alt?.rule ?? 'na'],
     ['origin', o.origin], ['ts', Math.floor(o.at / 1000)], ['nonce', o.nonce],
+    // N2: only commits made through the rule gate carry these (older records parse unchanged)
+    ...(o.override ? [['override', 'true'], ['rule_id', o.override.hits.map((h) => h.rule_id).join(',')]] as [string, unknown][] : []),
   ]);
 }
 
@@ -350,7 +363,7 @@ function friendlyGasError(e: unknown, sponsored: boolean): Error {
     : `This address has no testnet SUI for gas (a commit needs about 0.002 SUI). Get some at ${FAUCET} and commit again.`);
 }
 
-export async function buildCommit(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean }; noSponsor?: boolean }) {
+export async function buildCommit(body: { address: string; compileId: string; commit?: number; useMemoryStructure?: boolean; origin?: string; reason?: { text?: string; optIn?: boolean }; noSponsor?: boolean; override?: { text?: string } }) {
   if (String(body.compileId ?? '').startsWith('acmp_')) return (await import('../assets/compile.ts')).buildAssetCommit(body);   // P5 ETH/SUI
   const c = compiles.get(body.compileId);
   if (!c) throw new Error('compile expired — recompile and try again');
@@ -358,11 +371,12 @@ export async function buildCommit(body: { address: string; compileId: string; co
   if (c.market.expiryMs < Date.now() + 15_000) throw new Error('this window settles too soon to commit — recompile for the next one');
   const commit = Number(body.commit ?? c.conv.capital);
   if (!Number.isFinite(commit) || commit < 1 || commit > 10_000) throw new Error('invalid commit');
+  const override = ruleGate(c, body.override);
   const useAlt = !!body.useMemoryStructure && !!c.memory.structure_suggestion;
   const order = useAlt ? c.memory.structure_suggestion!.order : c.order;
   const followed = useAlt || (c.memory.n >= MIN_N && Math.abs(commit - c.memory.suggested_commit) < 0.005 && c.memory.suggested_commit !== c.conv.capital);
   const at = Date.now();
-  const text = convictionCommitBody(c, { order, commit, usedMemoryStructure: useAlt, followed, origin: body.origin ?? 'browser', at, nonce: randomBytes(4).toString('hex') });
+  const text = convictionCommitBody(c, { order, commit, usedMemoryStructure: useAlt, followed, origin: body.origin ?? 'browser', at, nonce: randomBytes(4).toString('hex'), override });
   const hash = sha256hex(text);
   const tx = commitTx(body.address, hash, c.market.id, c.market.expiryMs);
   // gas: the user's own SUI if they have some; otherwise HELIX sponsors this one journal::commit (if configured)
@@ -376,16 +390,16 @@ export async function buildCommit(body: { address: string; compileId: string; co
   catch (e) { throw friendlyGasError(e, sponsored); }
   const id = 'cmt_' + randomBytes(8).toString('hex');
   const reasonText = body.reason?.optIn === true && typeof body.reason.text === 'string' ? body.reason.text.trim().slice(0, 2000) : '';
-  commitsPending.set(id, { id, at, address: body.address, body: text, hash, market: c.market, origin: body.origin ?? 'browser', reason: reasonText || null });
+  commitsPending.set(id, { id, at, address: body.address, body: text, hash, market: c.market, origin: body.origin ?? 'browser', reason: reasonText || null, override });
   for (const [k, v] of commitsPending) if (Date.now() - v.at > 30 * 60_000) commitsPending.delete(k);
-  return { commitId: id, txBytes, text, hash, order, market: { id: c.market.id, expiryMs: c.market.expiryMs }, journal: JOURNAL_PKG, sponsored };
+  return { commitId: id, txBytes, text, hash, order, market: { id: c.market.id, expiryMs: c.market.expiryMs }, journal: JOURNAL_PKG, sponsored, override: !!override };
 }
 
 /**
  * Verify a landed commit on-chain (via Tatum) against its plaintext, then write the CONVICTION memory.
  * Trust-minimised: the server re-derives the hash from the text and checks owner/market/expiry in the event.
  */
-export async function recordCommit(b: { address: string; text: string; digest: string; origin?: string; reason?: string | null }) {
+export async function recordCommit(b: { address: string; text: string; digest: string; origin?: string; reason?: string | null; override?: Override }) {
   const body = commitBody(String(b.text ?? ''));
   const rec = parseRecord(body);
   if (!rec || rec.type !== 'CONVICTION' || str(rec, 'mode') !== 'commit') throw new Error('text is not a commit-mode CONVICTION record');
@@ -403,6 +417,8 @@ export async function recordCommit(b: { address: string; text: string; digest: s
   await registerNamespace(ns).catch((e) => console.error('[memory] registry write failed', (e as Error).message));
   pending.set(b.digest, { ns, rec: parseRecord(text)! });
   if (b.reason) await writeReason(ns, b.digest, b.reason, b.origin ?? 'browser').catch((e) => console.error('[memory] reason write failed', (e as Error).message));
+  // N2: the override sentence lives next to the conviction it excused
+  if (b.override) await writeOverride(ns, { tx: b.digest, hits: b.override.hits, text: b.override.text, ts: Math.floor(Date.now() / 1000), origin: b.origin ?? 'browser' }).catch((e) => console.error('[memory] override write failed', (e as Error).message));
   return { ok: true, digest: b.digest, hash, blob_id: mem.blob_id, namespace: ns, reveal: 'sha256(text without hash/tx/commit_tx) == on-chain ConvictionCommitted.hash' };
 }
 
@@ -411,7 +427,7 @@ export function onCommitExecuted(commitId: string, digest: string): boolean {
   const cc = commitsPending.get(commitId);
   if (!cc) return false;
   commitsPending.delete(commitId);
-  void recordCommit({ address: cc.address, text: cc.body, digest, origin: cc.origin, reason: cc.reason })
+  void recordCommit({ address: cc.address, text: cc.body, digest, origin: cc.origin, reason: cc.reason, override: cc.override ?? null })
     .catch((e) => console.error('[memory] commit record failed', digest, (e as Error).message));
   return true;
 }
@@ -453,11 +469,13 @@ async function writeConviction(mc: MintCtx, c: CompileCtx | undefined, digest: s
     ['cost', p2(mc.plan.totalDebit)],
     ['alt_struct', alt?.kind ?? 'na'], ['alt_cost', alt ? p3(alt.ppcEst) : 'na'], ['alt_rule', alt?.rule ?? 'na'],
     ['origin', mc.origin], ['ts', Math.floor(mc.at / 1000)],
+    ...(mc.override ? [['override', 'true'], ['rule_id', mc.override.hits.map((h) => h.rule_id).join(',')]] as [string, unknown][] : []),
   ]);
   await remember(ns, text, { tx: digest, origin: mc.origin });
   await registerNamespace(ns).catch((e) => console.error('[memory] registry write failed', (e as Error).message));
   if (fillWord === 'filled') pending.set(digest, { ns, rec: parseRecord(text)! });
   if (mc.reason) await writeReason(ns, digest, mc.reason, mc.origin).catch((e) => console.error('[memory] reason write failed', (e as Error).message));
+  if (mc.override) await writeOverride(ns, { tx: digest, hits: mc.override.hits, text: mc.override.text, ts: Math.floor(Date.now() / 1000), origin: mc.origin }).catch((e) => console.error('[memory] override write failed', (e as Error).message));
 }
 
 /** W6 (opt-in only): relayer `analyze` extracts + stores facts; HELIX records the category. */
@@ -611,6 +629,8 @@ export async function resolveConviction(ns: string, conv: MemRecord): Promise<{ 
       if (str(prev, 'text') !== text) await remember(ns, formatRecord('LESSON', [['tx', tx], ['bucket', `reason/${cat}`], ['n', rs.n], ['text', text], ['ts', expiry]]), { tx, origin: 'watcher' });
     }
   }
+  // N2: score the trader's rule-breaking once 3+ overrides have settled
+  if (rulesEnabled()) await overrideLessonIfDue(ns, after, tx, expiry).catch((e) => console.error('[rules] lesson write failed', (e as Error).message));
   return { status: 'resolved', outcome: won ? 'WIN' : 'LOSS' };
 }
 
@@ -737,6 +757,7 @@ export async function timelineFor(address: string) {
     reliability: reliability(rows),
     reasons: reasonStats(recs),
     ...(process.env.FEATURE_ASSETS === '1' ? { assets: perAsset(recs, rows) } : {}),
+    ...(rulesEnabled() ? { override_record: overrideRecord(recs) } : {}),   // N2: "you broke your own rules n times and lost k"
   };
 }
 
