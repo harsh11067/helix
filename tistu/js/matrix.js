@@ -5,6 +5,9 @@
   const grid = document.getElementById('matrix-grid');
   const wrap = document.getElementById('matrix');
   if (!grid || !wrap) return;
+  // the grid bleeds past the viewport by design; clip it to its section so the page never scrolls sideways
+  const host = wrap.closest('section') || wrap.parentElement;
+  if (host) host.style.overflowX = 'clip';
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const CELL = 48;

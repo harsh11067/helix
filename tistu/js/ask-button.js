@@ -8,10 +8,16 @@
  * mountAskButton({ api, address: () => string|null, readOnly: () => boolean })
  * Renders nothing when the server has FEATURE_ASK off (the route 404s).
  */
-export async function mountAskButton({ api, address, readOnly }) {
+export async function mountAskButton({ api, address, readOnly, retryMs = 1500 }) {
   let sugg = null;
-  try { sugg = await api('/ask/suggestions'); } catch (e) { return null; }
-  if (!sugg || !Array.isArray(sugg.questions)) return null;
+  // only a 404 means "feature off"; a slow or briefly unreachable server must not leave the header without the
+  // button for the whole visit (seen while the service was busy), so other failures retry with backoff
+  for (let k = 0; k < 4 && !sugg; k++) {
+    try { sugg = await api('/ask/suggestions'); }
+    catch (e) { if (e && e.status === 404) return null; if (k < 3) await new Promise((r) => setTimeout(r, retryMs * (k + 1))); }
+  }
+  if (!sugg) sugg = { questions: [] };                 // mount anyway: the panel loads and reports its own errors
+  if (!Array.isArray(sugg.questions)) return null;
   const anchor = document.getElementById('demo-link');
   if (!anchor || document.getElementById('ask-open')) return null;
   const b = document.createElement('button');

@@ -186,8 +186,14 @@
 
 @media (max-width: 900px) {
   .app { grid-template-columns: 64px 1fr; }
+  .app > main { min-width: 0; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .view { padding: 20px; }
+  .topbar { flex-wrap: wrap; gap: 10px; height: auto; padding-top: 10px; padding-bottom: 10px; }
+  .topbar .right { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+  #proof-ticker { white-space: normal; }
+  .table { display: block; overflow-x: auto; }
+  pre, .mono { overflow-wrap: anywhere; }
 }
 
 /* N1 Memory Time Machine: scrubber track with key moments; memories after the scrubbed instant fade */

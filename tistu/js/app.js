@@ -1262,7 +1262,9 @@ function render() {
   revealObserve(built.el); watchReveals(); window.scrollTo(0, 0);
 }
 function revealObserve(root) {
-  const io = new IntersectionObserver((es) => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0.12 });
+  // threshold 0 + a bottom margin: a ratio threshold can never be met by a panel taller than ~8 screens
+  // (the Memory timeline is ~25,000 px), which left it invisible at opacity 0
+  const io = new IntersectionObserver((es) => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0, rootMargin: '0px 0px -10% 0px' });
   (root || document).querySelectorAll('.reveal:not(.in)').forEach(el => io.observe(el));
 }
 // Views render asynchronously (Memory, Council, Passport, API…): any .reveal added after the route's

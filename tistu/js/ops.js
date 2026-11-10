@@ -47,7 +47,7 @@ export function renderOps(o, now = Date.now()) {
   </div>
   <div class="panel" style="margin-bottom:18px">
     <div class="section-title" style="margin:0 0 10px">Every Sui call goes through Tatum</div>
-    <table class="table"><thead><tr><th>Tatum interface</th><th>Calls / h</th><th>p50 / p95</th><th>Errors</th><th>By operation</th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="overflow-x:auto"><table class="table"><thead><tr><th>Tatum interface</th><th>Calls / h</th><th>p50 / p95</th><th>Errors</th><th>By operation</th></tr></thead><tbody>${rows}</tbody></table></div>
   </div>
   <div class="grid-2">
     <div class="panel"><div class="section-title" style="margin:0 0 8px">How it's spent</div>
@@ -62,5 +62,5 @@ export function renderOps(o, now = Date.now()) {
     </div>
   </div>
   ${(o.recent_executions ?? []).length ? `<div class="panel" style="margin-top:18px"><div class="section-title" style="margin:0 0 8px">Latest transactions executed through Tatum</div>
-    ${(o.recent_executions ?? []).map((e) => `<div class="mono" style="font-size:12.5px"><a href="https://suiscan.xyz/${esc(e.net)}/tx/${esc(e.digest)}" target="_blank" rel="noopener">${esc(e.digest)}</a> <span class="muted">${new Date(e.at).toLocaleTimeString()}</span></div>`).join('')}</div>` : ''}`;
+    ${(o.recent_executions ?? []).map((e) => `<div class="mono" style="font-size:12.5px;overflow-wrap:anywhere"><a href="https://suiscan.xyz/${esc(e.net)}/tx/${esc(e.digest)}" target="_blank" rel="noopener">${esc(e.digest)}</a> <span class="muted">${new Date(e.at).toLocaleTimeString()}</span></div>`).join('')}</div>` : ''}`;
 }

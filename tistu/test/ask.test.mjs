@@ -45,3 +45,17 @@ test('ask button: nothing is added when the server has the feature off', async (
   const api = async () => { const e = new Error('not found'); e.status = 404; throw e; };
   assert.equal(await mountAskButton({ api, address: () => null, readOnly: () => true }), null);
 });
+
+test('ask button: a transient failure retries and still mounts (only a 404 means off)', async () => {
+  let calls = 0;
+  const api = async () => { calls++; if (calls < 3) { const e = new Error('HTTP 502'); e.status = 502; throw e; } return { questions: ['When am I most overconfident?'] }; };
+  const anchor = { parentNode: { insertBefore: (b) => { inserted = b; } } };
+  let inserted = null;
+  const doc = globalThis.document;
+  globalThis.document = { getElementById: (id) => (id === 'demo-link' ? anchor : null), createElement: () => ({ setAttribute() {}, addEventListener() {} }) };
+  try {
+    const b = await mountAskButton({ api, address: () => null, readOnly: () => true, retryMs: 1 });
+    assert.ok(b && inserted === b, 'mounted after retries');
+    assert.equal(calls, 3);
+  } finally { globalThis.document = doc; }
+});
