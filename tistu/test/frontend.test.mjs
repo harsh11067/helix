@@ -73,3 +73,11 @@ test('Judge Mode: wallet always wins; demo is read-only only without a wallet', 
   assert.equal(isReadOnly({ demo: null }), false);
   assert.equal(viewingAddress({}), null);
 });
+
+test('F6 rematch: a remembered conviction maps back onto the Canvas sliders', async () => {
+  const { rematchConv } = await import('../js/memory-ui.js');
+  assert.deepEqual(rematchConv({ dir: 'down', conf: '0.80', vol: 'choppy', vol_view: '70', horizon: '9m', commit: '8.00', asset: 'BTC' }),
+    { direction: -70, confidence: 80, horizonCode: 1, volView: 70, capital: 8, asset: 'BTC' });
+  assert.equal(rematchConv({ dir: 'up', conf: '0.85', horizon: '18m', commit: '3' }).horizonCode, 3);
+  assert.equal(rematchConv({ dir: 'range', conf: '0.35', horizon: '4m', commit: '1' }).capital, 2, 'clamped to the slider');
+});

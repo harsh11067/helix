@@ -127,6 +127,18 @@ export function voicesPanelHTML(o) {
 }
 
 /* ---------------- the Memory page ---------------- */
+/** F6 Rematch: the Canvas sliders for a remembered conviction (pure, tested). Directional strength isn't stored,
+ *  only the side, so up/down map to a clear lean (±70); confidence, volatility view, horizon and size are exact. */
+export function rematchConv(f) {
+  const direction = f.dir === 'up' ? 70 : f.dir === 'down' ? -70 : 0;
+  const confidence = Math.max(0, Math.min(100, Math.round(Number(f.conf) * 100) || 60));
+  const volView = Math.max(0, Math.min(100, Number(f.vol_view ?? (f.vol === 'calm' ? 25 : f.vol === 'choppy' ? 50 : 75)) || 45));
+  const mins = parseFloat(String(f.horizon || '6')) || 6, T = [3, 6, 12, 20];
+  const horizonCode = T.reduce((best, t, i) => (Math.abs(t - mins) < Math.abs(T[best] - mins) ? i : best), 0);
+  const capital = Math.max(2, Math.min(50, Math.round(Number(f.commit) || 5)));
+  return { direction, confidence, horizonCode, volView, capital, asset: f.asset || 'BTC' };
+}
+
 export function viewMemory(ctx) {
   const { state, $, connectPrompt, explorer } = ctx;
   const addr = ctx.address ?? state.account?.address ?? null;
@@ -181,12 +193,13 @@ export function viewMemory(ctx) {
       const boardPanel = board && board.ranked?.length
         ? `<table class="table"><thead><tr><th>trader</th><th>n</th><th>Brier</th><th>skill rank</th><th>PnL rank</th></tr></thead><tbody>${board.ranked.map(r => `<tr><td class="mono" style="font-size:11.5px">${esc(r.namespace)}</td><td class="mono">${r.n}</td><td class="mono">${b2(r.brier)}</td><td class="mono gold">#${r.brier_rank}</td><td class="mono">#${r.pnl_rank}</td></tr>`).join('')}</tbody></table>`
         : `<div class="muted">${esc(board?.note || 'Board unavailable.')}</div>`;
+      const convByTx = new Map(tl.filter(r => r.type === 'CONVICTION' && r.fields?.tx).map(r => [r.fields.tx, r.fields]));
       const rows = tl.map(r => {
         const f = r.fields || {};
         const summary = r.type === 'CONVICTION' ? `${f.asset && f.asset !== 'BTC' ? '<b>' + esc(f.asset) + '</b> · ' : ''}${esc(f.dir)} · conf ${esc(f.conf)} · ${esc(f.vol)} · ${esc(f.structure)} · commit ${esc(f.commit)} · you ${esc(f.p_you)} / mkt ${esc(f.p_mkt)} / hlx ${esc(f.p_hlx)}${f.p_crowd && f.p_crowd !== 'na' ? ' / crowd ' + esc(f.p_crowd) : ''}${f.origin ? ' · via ' + esc(f.origin) : ''}`
           : r.type === 'OUTCOME' && f.oracle === 'pyth' ? `<b style="color:${f.result === 'WIN' ? 'var(--alive)' : 'var(--coral)'}">${esc(f.result)}</b> · <b>${esc(f.asset)}</b> settled ${esc(f.settle_px)} vs ${esc(f.strike_px)} · Pyth ${esc(f.price_source)} published ${f.publish_time ? new Date(Number(f.publish_time) * 1000).toISOString().slice(11, 19) : '?'} UTC (${esc(f.lag_s)}s after expiry)${f.price_tx && f.price_tx !== 'na' ? ` · <a class="mono" href="${explorer(f.price_tx)}" target="_blank" rel="noopener" style="color:var(--accent-deep)">price tx ↗</a>` : ''}${f.reveal_ok === 'true' ? ' · <span style="color:var(--alive)">reveal ✓ hash matches on-chain</span>' : f.reveal_ok === 'false' ? ' · <b style="color:var(--coral)">reveal ✗</b>' : ''}`
           : r.type === 'OUTCOME' && f.result === 'VOID' ? `<b class="muted">VOID</b> · ${esc(f.reason)}`
-          : r.type === 'OUTCOME' ? `<b style="color:${f.result === 'WIN' ? 'var(--alive)' : 'var(--coral)'}">${esc(f.result)}</b> · ${f.mode === 'commit' ? 'would have paid' : 'payoff'} ${esc(f.payoff)} · settled ${esc(f.settle_px)} vs ${esc(f.strike_px)}${f.reveal_ok === 'true' ? ' · <span style="color:var(--alive)">reveal ✓ hash matches on-chain</span>' : f.reveal_ok === 'false' ? ' · <b style="color:var(--coral)">reveal ✗</b>' : ''}${f.witness_usd && f.witness_usd !== 'na' ? ' · Tatum witness ' + esc(f.witness_usd) : ''}`
+          : r.type === 'OUTCOME' ? `<b style="color:${f.result === 'WIN' ? 'var(--alive)' : 'var(--coral)'}">${esc(f.result)}</b> · ${f.mode === 'commit' ? 'would have paid' : 'payoff'} ${esc(f.payoff)} · settled ${esc(f.settle_px)} vs ${esc(f.strike_px)}${f.reveal_ok === 'true' ? ' · <span style="color:var(--alive)">reveal ✓ hash matches on-chain</span>' : f.reveal_ok === 'false' ? ' · <b style="color:var(--coral)">reveal ✗</b>' : ''}${f.witness_usd && f.witness_usd !== 'na' ? ' · Tatum witness ' + esc(f.witness_usd) : ''}${f.result === 'LOSS' && convByTx.has(f.tx) ? ` <button class="btn-soft" data-rematch="${esc(f.tx)}" style="padding:2px 10px;font-size:11.5px;margin-left:6px" title="Open the Canvas with this setup and memory's suggested size" data-cursor>↺ Rematch with memory's size</button>` : ''}`
           : r.type === 'CALIBRATION' ? `${esc(f.bucket)} · n=${esc(f.n)} · won ${esc(f.wins)} · posterior ${esc(f.posterior)} · Brier you ${esc(f.brier_you)} / mkt ${esc(f.brier_mkt)} / hlx ${esc(f.brier_hlx)}`
           : r.type === 'LESSON' ? esc(f.text)
           : esc(r.text.slice(0, 160));
@@ -233,6 +246,15 @@ export function viewMemory(ctx) {
       }
       if (rules) mountRulesPanel(host, rules, { api, address: addr, readOnly: !!ctx.readOnly, signPersonalMessage: ctx.signPersonalMessage, onChange: () => window.dispatchEvent(new Event('hashchange')) });
       host.addEventListener('click', async (e) => {
+        const rm = e.target.closest('[data-rematch]');
+        if (rm) {                                            // F6: same setup, memory's size, on the Canvas
+          const f = convByTx.get(rm.dataset.rematch); if (!f) return;
+          const c = rematchConv(f);
+          state.conv = { direction: c.direction, confidence: c.confidence, horizonCode: c.horizonCode, volView: c.volView, capital: c.capital };
+          state.asset = c.asset; state.rematch = { tx: rm.dataset.rematch, at: Date.now() };
+          location.hash = '#/canvas';
+          return;
+        }
         const b = e.target.closest('[data-proof]'); if (!b) return;
         const out = host.querySelector(`.proof-out[data-for="${CSS.escape(b.dataset.proof)}"]`);
         out.innerHTML = `<div class="muted mono" style="font-size:11px;margin-top:6px"><span class="sdot pending"></span> reading Sui mainnet via Tatum + Walrus mainnet aggregator…</div>`;

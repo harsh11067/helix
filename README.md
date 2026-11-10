@@ -9,7 +9,7 @@
 [![Track](https://img.shields.io/badge/Track-Markets%20%26%20Sports%20Prediction-brightgreen?style=for-the-badge)](./blog.md)
 [![Stack](https://img.shields.io/badge/Stack-Sui%20%7C%20Walrus%20Memory%20%7C%20Tatum%20%7C%20DeepBook%20Predict%20%7C%20Seal%20%7C%20zkLogin-aqua?style=for-the-badge)](./docs/TATUM.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](./LICENSE)
-[![Status](https://img.shields.io/badge/Status-Production%20%26%20Deployed-brightgreen?style=for-the-badge)](./docs/SUBMISSION.md)
+[![Status](https://img.shields.io/badge/Status-Live%20%26%20Audited-brightgreen?style=for-the-badge)](./TOTAL_RECALL_EVIDENCE.md)
 
 > [!IMPORTANT]
 > **HELIX is Proof-of-Forecast: a track record of judgment you can't fake, that learns, and that people and agents can pay to trust.**

@@ -383,6 +383,12 @@ function mountCanvas(el) {
   function applyCompile(r, conv) {
     const box = $('#compiled', el);
     state.compile = r; state.chosen = { commit: conv.capital, useMemoryStructure: false };
+    // F6 Rematch: the first compile after "Rematch with memory's size" takes memory's suggestion (visible, one click to undo)
+    if (state.rematch && Date.now() - state.rematch.at < 120_000 && r.memory?.suggested_commit != null && r.memory.suggested_commit < conv.capital) {
+      state.chosen.commit = r.memory.suggested_commit;
+      toast('Rematch', `same setup · memory's size ${r.memory.suggested_commit} dUSDC instead of ${conv.capital}`, 'alive');
+    }
+    state.rematch = null;
     box.dataset.ready = '1'; box.classList.remove('updating');
     $('#v-hor', el).textContent = `${HOR[conv.horizonCode]} → ${Math.max(1, Math.round((r.predict?.market ?? r.window).minutesLeft))} min window`;
     renderCompiled(el, r, conv);
